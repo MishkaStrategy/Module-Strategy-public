@@ -1,0 +1,220 @@
+name: market-data-export-artifacts-ci
+
+on:
+  push:
+    branches:
+      - "interface/market-data-export-artifacts"
+      - "interface/market-data-web-cli"
+    paths:
+      - "modules/market_data_ingestion/**"
+      - ".github/workflows/market-data-export-artifacts-ci.yml"
+  pull_request:
+    paths:
+      - "modules/market_data_ingestion/**"
+      - ".github/workflows/market-data-export-artifacts-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-export-artifacts-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export-artifacts:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact export candidate
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install export gates
+        run: uv pip install -e ".[dev,parquet,interface]"
+
+      - name: Compile export slice
+        run: |
+          python -m compileall -q \
+            src/market_data_application \
+            src/market_data_ingestion/enums.py \
+            src/market_data_ingestion/state_machine.py \
+            tests/test_application_export_artifacts.py
+
+      - name: Ruff export lint
+        run: |
+          ruff check --output-format=concise \
+            src/market_data_application \
+            src/market_data_ingestion/enums.py \
+            src/market_data_ingestion/state_machine.py \
+            tests/test_application_export_artifacts.py
+
+      - name: Ruff export format
+        shell: bash
+        run: |
+          set -o pipefail
+          ruff format --check --diff \
+            src/market_data_application \
+            src/market_data_ingestion/enums.py \
+            src/market_data_ingestion/state_machine.py \
+            tests/test_application_export_artifacts.py 2>&1 \
+            | tee reports/export-format-${{ matrix.python-version }}.log
+
+      - name: Strict MyPy application
+        run: mypy src/market_data_application
+
+      - name: Static security audit
+        run: python scripts/static_audit.py --output reports/export-static-${{ matrix.python-version }}.json
+
+      - name: Focused export tests
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+        run: |
+          pytest -o addopts="" -vv -x -ra \
+            --timeout=45 --timeout-method=thread \
+            tests/test_application_export_artifacts.py
+
+      - name: Complete application regression
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+        run: |
+          pytest -o addopts="" -q -ra \
+            --timeout=45 --timeout-method=thread \
+            tests/test_application_*.py
+
+      - name: Build and verify wheel
+        run: |
+          python -m build
+          python -m twine check dist/*
+          uv venv .venv-export-wheel --python "${{ matrix.python-version }}"
+          uv pip install --python .venv-export-wheel/bin/python \
+            dist/*.whl \
+            "fastapi>=0.115,<1" \
+            "typer>=0.16,<1" \
+            "rich>=13.7,<15" \
+            "uvicorn>=0.30,<1"
+          .venv-export-wheel/bin/python -c \
+            'import market_data_application as a; assert a.ArtifactDescriptor; assert a.ArtifactStore; assert a.CreateDatasetExportRequest'
+          .venv-export-wheel/bin/market-data-v1 datasets export --help \
+            > reports/export-cli-${{ matrix.python-version }}.log
+          .venv-export-wheel/bin/market-data-v1 artifacts show --help \
+            > reports/artifacts-cli-${{ matrix.python-version }}.log
+          .venv-export-wheel/bin/market-data-api --check \
+            > reports/export-api-${{ matrix.python-version }}.json
+
+      - name: Record export evidence identity
+        if: success()
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd()
+          candidates = sorted(
+              {
+                  *root.glob("reports/export-*"),
+                  *root.glob("reports/artifacts-*"),
+                  *root.glob("dist/*"),
+              },
+              key=lambda path: path.as_posix(),
+          )
+          files = [path for path in candidates if path.is_file()]
+          if not files:
+              raise SystemExit("Market Data export evidence set is empty")
+
+          entries = []
+          for path in files:
+              data = path.read_bytes()
+              entries.append(
+                  {
+                      "bytes": len(data),
+                      "path": path.relative_to(root).as_posix(),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": entries,
+              "python_version": os.environ["MATRIX_PYTHON_VERSION"],
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          manifest = root / "reports" / (
+              f"export-evidence-{os.environ['MATRIX_PYTHON_VERSION']}.json"
+          )
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest.write_text(canonical, encoding="utf-8")
+          manifest_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+          print(canonical, end="")
+          print(f"MARKET_DATA_EXPORT_EVIDENCE_SHA256={manifest_sha}")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### Market Data export evidence identity\n\n")
+              handle.write(f"- exact head: `{payload['exact_head']}`\n")
+              handle.write(f"- Python: `{payload['python_version']}`\n")
+              handle.write(
+                  f"- workflow run: `{payload['run_id']}` attempt `{payload['run_attempt']}`\n"
+              )
+              handle.write(f"- evidence files hashed: `{len(entries)}`\n")
+              handle.write(f"- evidence manifest SHA-256: `{manifest_sha}`\n")
+              handle.write(
+                  "- immutable GitHub Release publication: required after substantive gates; "
+                  "build, security, regression and wheel verification remain blocking\n"
+              )
+          PY
+
+      - name: Publish exact Market Data export evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: |
+            modules/market_data_ingestion/reports
+            modules/market_data_ingestion/dist
+          asset_name: market-data-export-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Market Data export publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success

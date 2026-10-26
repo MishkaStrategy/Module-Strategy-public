@@ -1,0 +1,165 @@
+name: market-data-exchange-read-parity-ci
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/market-data-exchange-read-parity-ci.yml"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_AUDIT.md"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json"
+      - "modules/market_data_ingestion/src/market_data_application/__init__.py"
+      - "modules/market_data_ingestion/src/market_data_application/api.py"
+      - "modules/market_data_ingestion/src/market_data_application/catalog.py"
+      - "modules/market_data_ingestion/src/market_data_application/catalog_contracts.py"
+      - "modules/market_data_ingestion/src/market_data_application/cli.py"
+      - "modules/market_data_ingestion/src/market_data_application/durable_application.py"
+      - "modules/market_data_ingestion/src/market_data_application/errors.py"
+      - "modules/market_data_ingestion/tests/test_application_catalog.py"
+  push:
+    branches:
+      - "interface/market-data-exchange-read-parity"
+    paths:
+      - ".github/workflows/market-data-exchange-read-parity-ci.yml"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_AUDIT.md"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json"
+      - "modules/market_data_ingestion/src/market_data_application/__init__.py"
+      - "modules/market_data_ingestion/src/market_data_application/api.py"
+      - "modules/market_data_ingestion/src/market_data_application/catalog.py"
+      - "modules/market_data_ingestion/src/market_data_application/catalog_contracts.py"
+      - "modules/market_data_ingestion/src/market_data_application/cli.py"
+      - "modules/market_data_ingestion/src/market_data_application/durable_application.py"
+      - "modules/market_data_ingestion/src/market_data_application/errors.py"
+      - "modules/market_data_ingestion/tests/test_application_catalog.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-exchange-read-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  exchange-read-parity:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - name: Checkout exact exchange-read candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          show-progress: false
+          clean: true
+      - name: Verify exact exchange-read candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+      - name: Install focused gates
+        run: uv pip install -e ".[dev,interface]"
+      - name: Compile exchange read slice
+        run: |
+          python -m compileall -q \
+            src/market_data_application/api.py \
+            src/market_data_application/catalog.py \
+            src/market_data_application/catalog_contracts.py \
+            src/market_data_application/cli.py \
+            src/market_data_application/durable_application.py \
+            src/market_data_application/errors.py \
+            tests/test_application_catalog.py
+      - name: Ruff focused lint
+        run: |
+          ruff check --output-format=concise \
+            src/market_data_application/__init__.py \
+            src/market_data_application/api.py \
+            src/market_data_application/catalog.py \
+            src/market_data_application/catalog_contracts.py \
+            src/market_data_application/cli.py \
+            src/market_data_application/durable_application.py \
+            src/market_data_application/errors.py \
+            tests/test_application_catalog.py
+      - name: Ruff focused format
+        run: |
+          ruff format --check \
+            src/market_data_application/__init__.py \
+            src/market_data_application/api.py \
+            src/market_data_application/catalog.py \
+            src/market_data_application/catalog_contracts.py \
+            src/market_data_application/cli.py \
+            src/market_data_application/durable_application.py \
+            src/market_data_application/errors.py \
+            tests/test_application_catalog.py
+      - name: Strict MyPy application
+        run: mypy src/market_data_application
+      - name: Validate parity matrix
+        run: python -m json.tool ../../docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json > /dev/null
+      - name: Enforce exact feature boundary
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.ref == 'interface/market-data-exchange-read-parity'
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import subprocess
+
+          allowed = {
+              ".github/workflows/market-data-exchange-read-parity-ci.yml",
+              "docs/integration/MARKET_DATA_CLI_PARITY_AUDIT.md",
+              "docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json",
+              "modules/market_data_ingestion/src/market_data_application/__init__.py",
+              "modules/market_data_ingestion/src/market_data_application/api.py",
+              "modules/market_data_ingestion/src/market_data_application/catalog.py",
+              "modules/market_data_ingestion/src/market_data_application/catalog_contracts.py",
+              "modules/market_data_ingestion/src/market_data_application/cli.py",
+              "modules/market_data_ingestion/src/market_data_application/durable_application.py",
+              "modules/market_data_ingestion/src/market_data_application/errors.py",
+              "modules/market_data_ingestion/tests/test_application_catalog.py",
+          }
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{os.environ['BASE_SHA']}...HEAD"],
+                  text=True,
+              ).splitlines()
+          )
+          if changed != allowed:
+              raise SystemExit(
+                  f"exchange read boundary mismatch: expected {sorted(allowed)}, got {sorted(changed)}"
+              )
+          PY
+      - name: Run focused application, CLI, API and parity tests
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+          PYTHONUNBUFFERED: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          pytest -o addopts="" -vv -x -ra \
+            --timeout=60 --timeout-method=thread \
+            tests/test_application_catalog.py \
+            tests/test_cli_parity_audit.py 2>&1 \
+            | tee reports/exchange-read-${{ matrix.python-version }}.log
+      - name: Upload exchange-read failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-exchange-read-${{ matrix.python-version }}-${{ github.sha }}
+          path: modules/market_data_ingestion/reports/exchange-read-*.log
+          if-no-files-found: warn

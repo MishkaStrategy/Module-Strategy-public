@@ -1,0 +1,14 @@
+{
+  "memory": {
+    "checkpoint_bytes": 3110382,
+    "current_bytes": 141443,
+    "events": 20000,
+    "peak_bytes": 17177295
+  },
+  "restore": {
+    "maximum_seconds": 0.06465237399993384,
+    "median_seconds": 0.05653374450002957,
+    "minimum_seconds": 0.05490832199984652,
+    "runs": 20
+  }
+}

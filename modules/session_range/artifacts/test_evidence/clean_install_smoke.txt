@@ -1,0 +1,11 @@
+Clean isolated Python 3.13 environment
+
+Installed from local release artifacts:
+- PyYAML 6.0.3 wheel
+- Modular Strategy Core 0.4.0 wheel
+- modular-session-range 0.2.0 wheel
+
+$ python -m pip check
+No broken requirements found.
+
+public import, entry point, processing, checkpoint/restore: PASS

@@ -1,0 +1,227 @@
+{
+  "$id": "urn:modular-results-registry:strategy-audit-evidence-package:2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_references": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "backtest_engine_versions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "baseline_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "candidate_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "commit_shas": {
+      "items": {
+        "pattern": "^[0-9a-f]{40,64}$",
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "comparison_tables": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "completeness": {
+      "type": "object"
+    },
+    "configuration_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "contamination_flags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "dataset_hashes": {
+      "items": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "dataset_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "array"
+    },
+    "experiment_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "findings": {
+      "type": "array"
+    },
+    "generator_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "known_limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "metric_definition_hashes": {
+      "items": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "metric_definition_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "metric_definition_versions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "metrics": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "module_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "package_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "package_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "pareto_result": {
+      "type": "object"
+    },
+    "registry_integrity_status": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "registry_revision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "registry_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "reproducibility_status": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema_version": {
+      "const": "2"
+    },
+    "slices": {
+      "additionalProperties": {
+        "items": {
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "type": "object"
+    },
+    "split_information": {
+      "type": "object"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "package_id",
+    "schema_version",
+    "generator_version",
+    "registry_revision",
+    "registry_state_hash",
+    "strategy_id",
+    "baseline_ids",
+    "candidate_ids",
+    "experiment_ids",
+    "run_ids",
+    "configuration_ids",
+    "dataset_ids",
+    "dataset_hashes",
+    "commit_shas",
+    "module_versions",
+    "backtest_engine_versions",
+    "metric_definition_ids",
+    "metric_definition_hashes",
+    "metric_definition_versions",
+    "split_information",
+    "metrics",
+    "artifact_references",
+    "comparison_tables",
+    "slices",
+    "pareto_result",
+    "findings",
+    "evidence",
+    "completeness",
+    "contamination_flags",
+    "reproducibility_status",
+    "registry_integrity_status",
+    "known_limitations",
+    "package_hash"
+  ],
+  "title": "StrategyAuditEvidencePackage",
+  "type": "object"
+}

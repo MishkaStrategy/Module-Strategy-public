@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-risk-supervisor"
+version = "0.1.0"
+description = "Fail-closed system-level risk supervisor for Modular Strategy PAPER runtime"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core==0.4.2"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.8",
+    "mypy>=1.10",
+    "build>=1.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+modular_risk_supervisor = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "../../src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true

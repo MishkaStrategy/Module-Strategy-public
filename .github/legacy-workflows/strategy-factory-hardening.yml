@@ -1,0 +1,370 @@
+name: strategy-factory-hardening
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "research/strategy_factory/**"
+      - "research/strategy_audit_validation/**"
+      - "modules/risk_request_composer/**"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/strategy-factory-hardening.yml"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - "research/strategy_factory/**"
+      - "research/strategy_audit_validation/**"
+      - "modules/risk_request_composer/**"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/strategy-factory-hardening.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: strategy-factory-hardening-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hardening:
+    name: Strategy Factory hardening / Python 3.13
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 120
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact Strategy Factory hardening candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install exact local hardening surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e ".[dev,security]"
+          uv pip install -e "./modules/risk_sizing" --no-deps
+          uv pip install -e "./research/experiment_runner" --no-deps
+          uv pip install -e "./modules/results_aggregator" --no-deps
+          uv pip install -e "./research/strategy_audit_validation[dev]" --no-deps
+          uv pip install -e "./modules/risk_request_composer" --no-deps
+          uv pip install -e "./research/strategy_factory[dev]" --no-deps
+          uv pip check
+
+      - name: Fault-injection and corruption suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            research/strategy_factory/tests/test_recovery.py \
+            research/strategy_factory/tests/test_storage_edges.py \
+            research/strategy_factory/tests/test_artifacts.py \
+            research/strategy_factory/tests/test_control_edges.py \
+            research/strategy_factory/tests/test_utility_edges.py \
+            --junitxml=strategy-factory-fault-injection.xml \
+            2>&1 | tee strategy-factory-fault-injection.log
+
+      - name: Restart and idempotency soak
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > strategy-factory-soak.log
+          for iteration in $(seq 1 10); do
+            echo "soak_iteration=${iteration}" | tee -a strategy-factory-soak.log
+            PYTHONHASHSEED="$iteration" python -m pytest -q \
+              research/strategy_factory/tests/test_coordinator.py::test_blocked_stage_resumes_without_double_budget_or_batch \
+              research/strategy_factory/tests/test_application.py::test_application_resumes_blocked_run_with_new_assembly \
+              research/strategy_factory/tests/test_adapters.py::test_research_execution_adapter_submit_status_execute_cancel_resume \
+              research/strategy_factory/tests/test_promotion.py::test_coarse_stage_cold_restores_without_repreparing_completed_experiment \
+              research/strategy_factory/tests/test_independent_auditor_e2e.py::test_factory_envelope_is_approved_and_replayed_after_auditor_restart \
+              2>&1 | tee -a strategy-factory-soak.log
+          done
+
+      - name: Calibrated performance and memory gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee strategy-factory-performance.log
+          from __future__ import annotations
+
+          import json
+          import os
+          import platform
+          import sqlite3
+          import tempfile
+          import time
+          import tracemalloc
+          from pathlib import Path
+
+          from strategy_factory.artifacts import ContentAddressedArtifactStore
+          from strategy_factory.canonical import (
+              canonical_json_bytes,
+              canonical_sha256,
+              strict_json_loads,
+          )
+          from strategy_factory.idempotency import IdempotencyLedger
+
+          payload = {
+              "strategy": "hardening",
+              "parameters": {f"p{index}": index for index in range(25)},
+              "regimes": [f"regime-{index}" for index in range(8)],
+              "nested": [
+                  {"index": index, "label": str(index)} for index in range(10)
+              ],
+          }
+          limits = {
+              "canonical_10000_seconds": 30.0,
+              "artifact_product_seconds": 120.0,
+              "idempotency_product_seconds": 300.0,
+              "artifact_overhead_ratio": 2.5,
+              "idempotency_overhead_ratio": 2.5,
+              "tracemalloc_peak_bytes": 64 * 1024 * 1024,
+          }
+          artifact_values = tuple(
+              {"iteration": index, "payload": payload} for index in range(500)
+          )
+          results: dict[str, float | int] = {}
+
+          started = time.perf_counter()
+          for index in range(10_000):
+              canonical_sha256({"iteration": index, "payload": payload})
+          results["canonical_10000_seconds"] = time.perf_counter() - started
+
+          tracemalloc.start()
+          for index in range(1_000):
+              canonical_sha256({"iteration": index, "payload": payload})
+
+          with tempfile.TemporaryDirectory() as temporary:
+              root = Path(temporary)
+
+              reference_directory = root / "artifact-reference" / "hardening"
+              reference_directory.mkdir(parents=True)
+              reference_targets: list[tuple[Path, str, str]] = []
+              started = time.perf_counter()
+              for index, value in enumerate(artifact_values):
+                  payload_hash = canonical_sha256(value)
+                  artifact_id = f"hardening-{payload_hash}"
+                  raw = canonical_json_bytes(
+                      {
+                          "artifact_type": "hardening",
+                          "artifact_id": artifact_id,
+                          "payload_hash": payload_hash,
+                          "payload": value,
+                      }
+                  )
+                  target = reference_directory / f"{payload_hash}.json"
+                  pending = target.with_name(
+                      f".{target.name}.{os.getpid()}.{index}.tmp"
+                  )
+                  with pending.open("xb") as handle:
+                      handle.write(raw)
+                      handle.flush()
+                      os.fsync(handle.fileno())
+                  try:
+                      os.link(pending, target)
+                  finally:
+                      pending.unlink(missing_ok=True)
+                  reference_targets.append((target, artifact_id, payload_hash))
+              for target, artifact_id, payload_hash in reference_targets:
+                  envelope = strict_json_loads(target.read_bytes())
+                  assert isinstance(envelope, dict)
+                  assert set(envelope) == {
+                      "artifact_type",
+                      "artifact_id",
+                      "payload_hash",
+                      "payload",
+                  }
+                  assert envelope["artifact_type"] == "hardening"
+                  assert envelope["artifact_id"] == artifact_id
+                  assert envelope["payload_hash"] == payload_hash
+                  assert canonical_sha256(envelope["payload"]) == payload_hash
+              results["artifact_reference_seconds"] = time.perf_counter() - started
+
+              store = ContentAddressedArtifactStore(root / "artifacts")
+              started = time.perf_counter()
+              identifiers = tuple(
+                  store.put(artifact_type="hardening", value=value)
+                  for value in artifact_values
+              )
+              for identifier in identifiers:
+                  store.get(identifier)
+              results["artifact_product_seconds"] = time.perf_counter() - started
+
+              reference_connection = sqlite3.connect(
+                  root / "idempotency-reference.sqlite3",
+                  isolation_level=None,
+              )
+              reference_connection.execute("PRAGMA journal_mode=WAL")
+              reference_connection.execute("PRAGMA synchronous=FULL")
+              reference_connection.execute(
+                  """
+                  CREATE TABLE idempotency_reference (
+                      scope TEXT NOT NULL,
+                      operation_id TEXT NOT NULL,
+                      content_hash TEXT NOT NULL,
+                      result_reference TEXT,
+                      PRIMARY KEY (scope, operation_id)
+                  )
+                  """
+              )
+              started = time.perf_counter()
+              for index in range(2_000):
+                  operation_id = f"operation-{index}"
+                  content_hash = canonical_sha256({"iteration": index})
+                  result_reference = f"result-{index}"
+                  assert reference_connection.execute(
+                      "SELECT content_hash FROM idempotency_reference "
+                      "WHERE scope = ? AND operation_id = ?",
+                      ("hardening", operation_id),
+                  ).fetchone() is None
+                  reference_connection.execute(
+                      "INSERT INTO idempotency_reference"
+                      "(scope, operation_id, content_hash) VALUES (?, ?, ?)",
+                      ("hardening", operation_id, content_hash),
+                  )
+                  cursor = reference_connection.execute(
+                      "UPDATE idempotency_reference SET result_reference = ? "
+                      "WHERE scope = ? AND operation_id = ?",
+                      (result_reference, "hardening", operation_id),
+                  )
+                  assert cursor.rowcount == 1
+                  assert reference_connection.execute(
+                      "SELECT result_reference FROM idempotency_reference "
+                      "WHERE scope = ? AND operation_id = ?",
+                      ("hardening", operation_id),
+                  ).fetchone() == (result_reference,)
+                  assert reference_connection.execute(
+                      "SELECT content_hash FROM idempotency_reference "
+                      "WHERE scope = ? AND operation_id = ?",
+                      ("hardening", operation_id),
+                  ).fetchone() == (content_hash,)
+              results["idempotency_reference_seconds"] = (
+                  time.perf_counter() - started
+              )
+              reference_connection.close()
+
+              ledger = IdempotencyLedger(root / "idempotency.sqlite3")
+              started = time.perf_counter()
+              for index in range(2_000):
+                  operation_id = f"operation-{index}"
+                  content_hash = canonical_sha256({"iteration": index})
+                  assert ledger.claim(
+                      scope="hardening",
+                      operation_id=operation_id,
+                      content_hash=content_hash,
+                  )
+                  ledger.bind_result(
+                      scope="hardening",
+                      operation_id=operation_id,
+                      result_reference=f"result-{index}",
+                  )
+                  assert ledger.result(
+                      scope="hardening", operation_id=operation_id
+                  ) == f"result-{index}"
+                  assert not ledger.claim(
+                      scope="hardening",
+                      operation_id=operation_id,
+                      content_hash=content_hash,
+                  )
+              results["idempotency_product_seconds"] = time.perf_counter() - started
+              ledger.close()
+
+          _, peak = tracemalloc.get_traced_memory()
+          tracemalloc.stop()
+          results["tracemalloc_peak_bytes"] = peak
+
+          artifact_reference = float(results["artifact_reference_seconds"])
+          idempotency_reference = float(
+              results["idempotency_reference_seconds"]
+          )
+          if artifact_reference <= 0.0 or idempotency_reference <= 0.0:
+              raise SystemExit("hardening reference benchmark was non-positive")
+          results["artifact_overhead_ratio"] = (
+              float(results["artifact_product_seconds"]) / artifact_reference
+          )
+          results["idempotency_overhead_ratio"] = (
+              float(results["idempotency_product_seconds"])
+              / idempotency_reference
+          )
+
+          failures = {
+              name: {"actual": results[name], "limit": limit}
+              for name, limit in limits.items()
+              if float(results[name]) > float(limit)
+          }
+          report = {
+              "runner_capability": "fast",
+              "runner_os": platform.system(),
+              "results": results,
+              "limits": limits,
+              "failures": failures,
+          }
+          Path("strategy-factory-performance.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if failures:
+              raise SystemExit("calibrated performance or memory gate failed")
+          PY
+
+      - name: Verify paper-only and final-audit fail-closed boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            research/strategy_factory/tests/test_final_audit.py \
+            research/strategy_factory/tests/test_independent_auditor_e2e.py \
+            research/strategy_factory/tests/test_package_edges.py::test_verify_rejects_live_mode_and_hash_tampering \
+            research/strategy_factory/tests/test_acceptance_scenarios.py::test_acceptance_23_live_promotion_without_permission_is_impossible \
+            --junitxml=strategy-factory-safety-boundary.xml \
+            2>&1 | tee strategy-factory-safety-boundary.log
+
+      - name: Publish exact Strategy Factory hardening evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: |
+            strategy-factory-fault-injection.xml
+            strategy-factory-soak.log
+            strategy-factory-performance.json
+            strategy-factory-performance.log
+            strategy-factory-safety-boundary.xml
+            strategy-factory-safety-boundary.log
+          asset_name: strategy-factory-hardening.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Strategy Factory hardening publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload hardening failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: strategy-factory-hardening-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            strategy-factory-fault-injection.xml
+            strategy-factory-soak.log
+            strategy-factory-performance.json
+            strategy-factory-performance.log
+            strategy-factory-safety-boundary.xml
+            strategy-factory-safety-boundary.log

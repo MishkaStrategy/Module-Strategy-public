@@ -1,0 +1,384 @@
+name: wave-analysis-ci
+
+on:
+  pull_request:
+    paths:
+      - "modules/wave_analysis/**"
+      - "docs/WAVE_ANALYSIS_*.md"
+      - "configs/wave_analysis.example.yaml"
+      - ".github/workflows/wave-analysis.yml"
+      - "src/modular_core/**"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+
+jobs:
+  quality:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          echo "runner_name=${RUNNER_NAME:-unknown}"
+          echo "runner_os=${RUNNER_OS:-unknown}"
+          echo "runner_arch=${RUNNER_ARCH:-unknown}"
+          uname -a
+          df -h .
+
+      - name: Checkout exact Wave Analysis candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          show-progress: false
+          fetch-depth: 0
+          clean: true
+          persist-credentials: false
+
+      - name: Verify exact Wave Analysis candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Configure job-local uv cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-py${{ matrix.python-version }}"
+          echo "UV_CACHE_DIR=$RUNNER_TEMP/wave-analysis-uv-cache-$suffix" >> "$GITHUB_ENV"
+
+      - name: Set up pinned uv and managed Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          enable-cache: false
+
+      - name: Install Core, Wave Analysis and quality tools
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e '.[dev,backtest,signal-bot]'
+          uv pip install -e './modules/wave_analysis[dev]'
+          uv pip install build twine bandit detect-secrets cyclonedx-bom pip-audit
+          uv pip check
+
+      - name: Compile source, tests and benchmarks
+        run: >-
+          python -m compileall -q
+          modules/wave_analysis/src
+          modules/wave_analysis/tests
+          modules/wave_analysis/benchmarks
+
+      - name: Ruff lint and format evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check \
+            modules/wave_analysis/src \
+            modules/wave_analysis/tests \
+            modules/wave_analysis/benchmarks \
+            2>&1 | tee wave-analysis-ruff-check.txt
+          set +e
+          ruff format --check \
+            modules/wave_analysis/src \
+            modules/wave_analysis/tests \
+            modules/wave_analysis/benchmarks \
+            2>&1 | tee wave-analysis-ruff-format.txt
+          format_status=${PIPESTATUS[0]}
+          set -e
+          if (( format_status != 0 )); then
+            echo "Wave Analysis formatter advisory recorded; lint remains fail-closed."
+          fi
+
+      - name: Strict mypy
+        working-directory: modules/wave_analysis
+        shell: bash
+        run: |
+          set -o pipefail
+          mypy 2>&1 | tee ../../wave-analysis-mypy.txt
+
+      - name: Full module tests and branch coverage
+        run: |
+          set -euo pipefail
+          coverage erase
+          coverage run --branch --source=wave_analysis -m pytest \
+            modules/wave_analysis/tests \
+            --junitxml=wave-analysis-junit.xml
+          coverage json -o wave-analysis-coverage.json
+          coverage report --fail-under=95 | tee wave-analysis-coverage.txt
+
+      - name: Explicit no-look-ahead and lifecycle gate
+        run: |
+          python -m pytest -q \
+            modules/wave_analysis/tests/test_properties.py \
+            modules/wave_analysis/tests/test_segment_isolation.py \
+            modules/wave_analysis/tests/test_concurrency.py \
+            modules/wave_analysis/tests/test_feature_lifecycle.py \
+            --junitxml=wave-analysis-causality-junit.xml
+
+      - name: Install integrated public packages
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          uv pip install -e './modules/session_range[dev]'
+          uv pip install -e ./modules/market_regime
+          uv pip install -e ./plugins/fvg
+          uv pip install -e ./modules/setup_adapter
+          uv pip install -e ./modules/entry_model
+          uv pip install -e './modules/protection_target[dev]' --no-deps
+          uv pip install -e ./modules/risk_sizing
+          uv pip install -e ./modules/position_scaling
+          uv pip install -e ./modules/trade_plan_router
+          uv pip install -e './modules/paper_execution[dev]'
+          uv pip install -e './modules/position_exit_management[dev]'
+          uv pip install -e './applications/trading_runner[dev]'
+          uv pip install -e './modules/market_data_ingestion[parquet]'
+          uv pip install -e ./research/experiment_runner
+          uv pip install -e ./modules/risk_request_composer
+          uv pip install -e ./applications/system_acceptance
+          uv pip install -e ./modules/results_aggregator
+          uv pip install -e ./research/strategy_audit_validation
+          uv pip install -e ./research/strategy_factory
+          uv pip check
+
+      - name: Central repository compatibility
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          mkdir -p reports/wave-analysis-repository
+          python -m pytest -q tests/test_*.py \
+            --junitxml=reports/wave-analysis-repository/root.xml
+          python -m pytest -q tests/backtest_engine \
+            --junitxml=reports/wave-analysis-repository/backtest.xml
+          python -m pytest -q tests/breakout_return \
+            --junitxml=reports/wave-analysis-repository/breakout.xml
+          python -m pytest -q tests/integration \
+            --junitxml=reports/wave-analysis-repository/integration.xml
+          python -m pytest -q tests/signal_bot \
+            --junitxml=reports/wave-analysis-repository/signal-bot.xml
+          python scripts/integration_smoke.py | tee wave-analysis-integration-smoke.txt
+
+      - name: Build and verify distributions
+        run: |
+          set -euo pipefail
+          rm -rf dist build
+          mkdir -p dist/core dist/wave
+          python -m pip wheel . --no-deps -w dist/core
+          python -m build modules/wave_analysis --outdir dist/wave
+          python -m twine check dist/wave/*
+
+      - name: Clean wheel installation and entry-point smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv .wave-wheel-venv
+          .wave-wheel-venv/bin/python -m pip install --upgrade pip
+          .wave-wheel-venv/bin/python -m pip install dist/core/*.whl dist/wave/*.whl 'PyYAML>=6'
+          .wave-wheel-venv/bin/python -m pip check
+          .wave-wheel-venv/bin/python - <<'PY'
+          from importlib.metadata import entry_points, version
+          from modular_core import MarketView, ModuleRegistry
+          from wave_analysis import WaveAnalysisModule
+
+          assert version("modular-strategy-wave-analysis") == "0.2.0"
+          selected = {
+              item.name: item
+              for item in entry_points().select(group="modular_strategy.modules")
+          }
+          assert selected["wave_analysis"].load() is WaveAnalysisModule
+          registry = ModuleRegistry()
+          discovered = registry.discover_entry_points()
+          assert "wave_analysis" in discovered
+          module = registry.load_named("wave_analysis")
+          assert isinstance(module, WaveAnalysisModule)
+          plan = registry.validate_and_plan((module,), base_timeframe="15m")
+          assert plan.modules == (module,)
+          assert module.on_bar(MarketView((), {}, 0, 0.0, 0.0, None, ())).features == ()
+          state = module.snapshot_state()
+          restored = WaveAnalysisModule()
+          restored.restore_state(state)
+          assert restored.snapshot_state() == state
+          print("wave-analysis-clean-wheel=ok")
+          PY
+
+      - name: Security scan and SBOM
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set +e
+          # Preserve every Bandit observation. B101 is separately advisory because the
+          # three occurrences are type-narrowing invariants immediately after
+          # _set_provisional(), not runtime security controls.
+          bandit -q -r modules/wave_analysis/src \
+            -f json -o wave-analysis-bandit-advisory.json
+          bandit_advisory_status=$?
+          bandit -q -r modules/wave_analysis/src \
+            --skip B101 \
+            -f json -o wave-analysis-bandit.json
+          bandit_status=$?
+
+          detect-secrets scan \
+            modules/wave_analysis/src \
+            modules/wave_analysis/tests \
+            modules/wave_analysis/benchmarks \
+            configs/wave_analysis.example.yaml \
+            > wave-analysis-secrets.json
+          secret_scan_status=$?
+
+          python - <<'PY'
+          import json
+          with open("wave-analysis-secrets.json", encoding="utf-8") as handle:
+              findings = json.load(handle).get("results", {})
+          if findings:
+              raise SystemExit(f"detect-secrets findings: {sorted(findings)}")
+          PY
+          secret_findings_status=$?
+
+          pip-audit --format json --output wave-analysis-pip-audit.json
+          audit_status=$?
+
+          cyclonedx-py environment "$(command -v python)" \
+            --output-format JSON \
+            --output-file wave-analysis-sbom.cdx.json
+          sbom_status=$?
+
+          printf '%s\n' \
+            "bandit_advisory_status=${bandit_advisory_status}" \
+            "bandit_status=${bandit_status}" \
+            "secret_scan_status=${secret_scan_status}" \
+            "secret_findings_status=${secret_findings_status}" \
+            "audit_status=${audit_status}" \
+            "sbom_status=${sbom_status}" \
+            | tee wave-analysis-security-status.txt
+
+          if (( bandit_status != 0 || secret_scan_status != 0 || secret_findings_status != 0 || audit_status != 0 || sbom_status != 0 )); then
+            exit 1
+          fi
+
+      - name: Deterministic benchmark smoke
+        if: matrix.python-version == '3.13'
+        working-directory: modules/wave_analysis
+        run: >-
+          python benchmarks/benchmark_wave_analysis.py
+          --bars 5000
+          --runs 5
+          --memory-bars 100
+          > ../../wave-analysis-benchmark.json
+
+      - name: Distribution checksums
+        run: shasum -a 256 dist/core/* dist/wave/* > wave-analysis-dist-checksums.sha256
+
+      - name: Stage bounded Wave Analysis evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="wave-analysis-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage/dist/core" "$stage/dist/wave"
+          common=(
+            wave-analysis-ruff-check.txt
+            wave-analysis-ruff-format.txt
+            wave-analysis-mypy.txt
+            wave-analysis-junit.xml
+            wave-analysis-causality-junit.xml
+            wave-analysis-coverage.json
+            wave-analysis-coverage.txt
+            wave-analysis-dist-checksums.sha256
+          )
+          for path in "${common[@]}"; do
+            test -f "$path"
+            cp "$path" "$stage/"
+          done
+          for path in dist/core/*; do
+            test -f "$path"
+            cp "$path" "$stage/dist/core/"
+          done
+          for path in dist/wave/*; do
+            test -f "$path"
+            cp "$path" "$stage/dist/wave/"
+          done
+          if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+            py313=(
+              wave-analysis-integration-smoke.txt
+              wave-analysis-bandit-advisory.json
+              wave-analysis-bandit.json
+              wave-analysis-secrets.json
+              wave-analysis-pip-audit.json
+              wave-analysis-sbom.cdx.json
+              wave-analysis-security-status.txt
+              wave-analysis-benchmark.json
+            )
+            for path in "${py313[@]}"; do
+              test -f "$path"
+              cp "$path" "$stage/"
+            done
+            test -d reports/wave-analysis-repository
+            mkdir -p "$stage/reports"
+            cp -R reports/wave-analysis-repository "$stage/reports/"
+          fi
+
+      - name: Publish exact Wave Analysis evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: wave-analysis-release-evidence
+          asset_name: wave-analysis-evidence-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Wave Analysis publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Wave Analysis failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wave-analysis-evidence-py${{ matrix.python-version }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            wave-analysis-ruff-check.txt
+            wave-analysis-ruff-format.txt
+            wave-analysis-mypy.txt
+            wave-analysis-junit.xml
+            wave-analysis-causality-junit.xml
+            wave-analysis-coverage.json
+            wave-analysis-coverage.txt
+            wave-analysis-integration-smoke.txt
+            wave-analysis-bandit-advisory.json
+            wave-analysis-bandit.json
+            wave-analysis-secrets.json
+            wave-analysis-pip-audit.json
+            wave-analysis-sbom.cdx.json
+            wave-analysis-security-status.txt
+            wave-analysis-benchmark.json
+            wave-analysis-dist-checksums.sha256
+            reports/wave-analysis-repository/**
+            dist/core/*
+            dist/wave/*
+
+      - name: Cleanup temporary environments
+        if: always()
+        shell: bash
+        run: rm -rf .wave-wheel-venv build wave-analysis-release-evidence

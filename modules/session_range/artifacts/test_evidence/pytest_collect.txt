@@ -1,0 +1,3 @@
+tests/test_benchmark_harness.py: 2
+tests/test_comprehensive_contract.py: 92
+tests/test_release_candidate.py: 45

@@ -1,0 +1,3 @@
+pip-audit 2.10.1 was installed and executed against the isolated Core 0.4.0 + Session Range 0.2.0 environment.
+Result: NOT COMPLETED — the external vulnerability service endpoint (pypi.org) could not be resolved from the execution container.
+No pass/fail vulnerability claim is made. This check remains a self-hosted CI gate.

@@ -1,0 +1,61 @@
+TARGET ROOT: modules/session_range/
+
+REPLACE:
+README.md
+CHANGELOG.md
+config.example.yaml
+pyproject.toml
+src/modular_session_range/__init__.py
+src/modular_session_range/config.py
+src/modular_session_range/module.py
+src/modular_session_range/state.py
+src/modular_session_range/py.typed
+benchmarks/session_range_benchmark.py
+
+ADD OR REPLACE TESTS:
+tests/test_release_candidate.py
+tests/test_comprehensive_contract.py
+tests/test_benchmark_harness.py
+
+ADD:
+examples/config.example.yaml
+docs/ARCHITECTURE.md
+docs/DEVELOPMENT_REPORT.md
+docs/FINAL_AUDIT.md
+docs/LOCAL_BASELINE_AUDIT.md
+docs/COMPLETENESS_ROUNDS.md
+docs/OPTIMIZATION_AND_AUDIT_LOG.md
+docs/BENCHMARK_REPORT.md
+docs/LOCAL_TEST_EVIDENCE.md
+docs/MIGRATION_NOTES.md
+docs/KNOWN_LIMITATIONS.md
+HANDOFF.md
+INTEGRATION_CONTRACT.md
+CODEX_INTEGRATION.md
+CORE_CHANGE_REQUESTS.md
+LOCAL_RELEASE_REPORT.md
+FINAL_AUDIT.md
+
+OPTIONAL EVIDENCE ONLY (do not install as runtime package):
+artifacts/benchmark_results.json
+artifacts/coverage.json
+artifacts/session-range-0.1.0-to-0.2.0.patch
+artifacts/local_git_state.txt
+artifacts/test_evidence/*.txt
+typings/modular_core/__init__.pyi
+
+DELETE FROM ANY PREVIOUS TRANSPORT ATTEMPT:
+.session-range-overlay.part*
+.github/workflows/session-range-bootstrap.yml
+.github/workflows/session-range-bootstrap-trigger.yml
+modules/session_range/docs/TRANSPORT_CHECKPOINT.md
+modules/session_range/docs/CONNECTION_RECOVERY.md
+modules/session_range/docs/BOOTSTRAP_READY.md
+modules/session_range/docs/.*bootstrap*
+modules/session_range/docs/.*trigger*
+
+LEAVE UNCHANGED:
+src/modular_core/**
+all other modules/**
+root dependency planner and Feature Store contracts
+all unrelated root GitHub workflows

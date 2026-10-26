@@ -1,0 +1,13 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "reports/research-platform-wave2a/baseline-evidence.json": "80db925072f8a972336c93bde2c45e903fbf42ab5da7401bb4800a9286c6f3ab"
+  },
+  "git_blob_sha1": {
+    "reports/research-platform-wave2a/baseline-summary.json": "5e2a1ac12acbccb86948c8f17c2250e32fc609fa",
+    "reports/research-platform-wave2a/slo-proposal.json": "e855d803521c2c69a2ba52acad293ad1a0e81a04"
+  },
+  "measurement_artifact_zip_sha256": "7f45d846ff54581391a9b089132db2d3d0a0c92805172a135d2c7ee5303a6c5e",
+  "semantic_digest": "e582e80fcfcc0d1fe2c39dc9b580fa2951023b6ce0e7b54678d6aaa19767ec26",
+  "schema_version": 1
+}

@@ -1,0 +1,399 @@
+name: signal-bot-heavy-audit
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to audit
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to audit
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.expected_sha }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 240
+    env:
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MPLCONFIGDIR: /tmp/modular-signal-bot-heavy-mpl
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.expected_sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.12"
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/session_range/pyproject.toml
+            modules/market_regime/pyproject.toml
+            plugins/fvg/pyproject.toml
+            modules/setup_adapter/pyproject.toml
+            modules/entry_model/pyproject.toml
+            modules/protection_target/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            modules/position_scaling/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/position_exit_management/pyproject.toml
+            applications/trading_runner/pyproject.toml
+          cache-suffix: signal-bot-heavy-audit
+
+      - name: Verify exact SHA and record environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          rm -rf evidence dist
+          mkdir -p evidence dist
+          git rev-parse HEAD > evidence/commit-sha.txt
+          echo "$GITHUB_RUN_ID" > evidence/workflow-run-id.txt
+          echo "$RUNNER_NAME" > evidence/runner-name.txt
+          echo "$RUNNER_OS" > evidence/runner-os.txt
+          echo "$RUNNER_ARCH" > evidence/runner-arch.txt
+          python --version > evidence/python-version.txt
+
+      - name: Install complete audit surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -e '.[dev,backtest,security,signal-bot]'
+          uv pip install -e 'modules/market_data_ingestion[parquet]'
+          uv pip install -e ./modules/session_range
+          uv pip install -e ./modules/market_regime
+          uv pip install -e ./plugins/fvg
+          uv pip install -e ./modules/setup_adapter
+          uv pip install -e ./modules/entry_model
+          uv pip install -e ./modules/protection_target
+          uv pip install -e ./modules/risk_sizing
+          uv pip install -e ./modules/position_scaling
+          uv pip install -e ./modules/trade_plan_router
+          uv pip install -e './modules/paper_execution[dev]'
+          uv pip install -e './modules/position_exit_management[dev]'
+          uv pip install -e './applications/trading_runner[dev]'
+          uv pip install bandit pip-audit cyclonedx-bom detect-secrets
+          uv pip check | tee evidence/environment-pip-check.txt
+          uv pip freeze > evidence/pip-freeze.txt
+
+      - name: Full tests and Signal Bot coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q src/signal_bot tests/signal_bot
+          ruff check --output-format=concise src/signal_bot tests/signal_bot
+          ruff format --check src/signal_bot tests/signal_bot
+          mypy --strict src/signal_bot
+          PYTHONPATH=. pytest -m "not slow" --import-mode=importlib \
+            --junitxml=evidence/full-tests.xml
+          coverage run --branch --source=src/signal_bot \
+            -m pytest tests/signal_bot --junitxml=evidence/tests.xml
+          coverage report --fail-under=90 | tee evidence/coverage.txt
+          coverage json -o evidence/coverage.json
+
+      - name: Soak and deterministic identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python benchmarks/signal_bot_orchestrator.py \
+            --pairs 50 --cycles 10000 | tee evidence/soak.json
+          PYTHONHASHSEED=1 python scripts/signal_bot_identity_smoke.py \
+            > evidence/identity-1.txt
+          PYTHONHASHSEED=999 python scripts/signal_bot_identity_smoke.py \
+            > evidence/identity-999.txt
+          diff evidence/identity-1.txt evidence/identity-999.txt
+
+      - name: Security and supply-chain audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bandit -r src/signal_bot -f json -o evidence/bandit.json
+          detect-secrets scan \
+            src/signal_bot configs/signal_bot.example.yaml .env.example \
+            > evidence/detect-secrets.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(
+              Path("evidence/detect-secrets.json").read_text(encoding="utf-8")
+          )
+          assert not data["results"], data["results"]
+          PY
+          audit_ok=false
+          for attempt in 1 2 3; do
+            rm -f evidence/pip-audit.json
+            if PIPAPI_PYTHON_LOCATION="$(command -v python)" \
+              pip-audit -f json -o evidence/pip-audit.json; then
+              audit_ok=true
+              break
+            fi
+            echo "pip-audit attempt ${attempt} failed" >&2
+            sleep $((attempt * 10))
+          done
+          test "$audit_ok" = true
+          cyclonedx-py environment \
+            --output-format json --output-file evidence/sbom.json
+
+      - name: Package and validate Signal Bot evidence wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv build --wheel --out-dir dist
+          rm -f dist/.gitignore
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum dist/* > evidence/package-sha256.txt
+          else
+            shasum -a 256 dist/* > evidence/package-sha256.txt
+          fi
+          clean="$RUNNER_TEMP/signal-bot-wheel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "$clean"
+          uv venv --python 3.12 --seed "$clean"
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          uv pip install --python "$clean/bin/python" "${wheel}[signal-bot]"
+          "$clean/bin/python" -m pip check | tee evidence/pip-check.txt
+
+      - name: Sanitize and verify Signal Bot evidence privacy
+        id: evidence_privacy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/sanitize_ci_evidence.py evidence \
+            > "$RUNNER_TEMP/signal-bot-privacy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          python - <<'PY'
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          evidence = Path("evidence")
+          privacy = json.loads(
+              (evidence / "privacy-status.json").read_text(encoding="utf-8")
+          )
+          if privacy.get("status") != "PASS":
+              raise SystemExit("Signal Bot evidence privacy status is not PASS")
+          if privacy.get("credential_findings") != 0:
+              raise SystemExit("Signal Bot evidence contains credential findings")
+
+          expected_sha = os.environ["EXPECTED_SHA"]
+          actual_sha = (evidence / "commit-sha.txt").read_text(encoding="utf-8").strip()
+          if actual_sha != expected_sha:
+              raise SystemExit(
+                  f"Signal Bot evidence SHA mismatch: {actual_sha!r} != {expected_sha!r}"
+              )
+
+          expected_run = os.environ["GITHUB_RUN_ID"]
+          actual_run = (
+              (evidence / "workflow-run-id.txt").read_text(encoding="utf-8").strip()
+          )
+          if actual_run != expected_run:
+              raise SystemExit(
+                  f"Signal Bot evidence run mismatch: {actual_run!r} != {expected_run!r}"
+              )
+
+          for name in ("full-tests.xml", "tests.xml"):
+              junit = evidence / name
+              root = ET.parse(junit).getroot()
+              suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+              if not suites:
+                  raise SystemExit(f"{name} contains no JUnit test suites")
+              hostnames = {suite.attrib.get("hostname") for suite in suites}
+              if hostnames != {"redacted-runner"}:
+                  raise SystemExit(
+                      f"{name} contains unsafe JUnit hostnames: {sorted(hostnames)!r}"
+                  )
+
+          dynamic_markers = {
+              value.encode("utf-8")
+              for value in (
+                  os.environ.get("RUNNER_NAME"),
+                  os.environ.get("HOSTNAME"),
+                  os.environ.get("GITHUB_WORKSPACE"),
+                  os.environ.get("RUNNER_TEMP"),
+                  os.environ.get("HOME"),
+              )
+              if value and len(value) >= 4
+          }
+          forbidden = dynamic_markers | {
+              b"/Users/",
+              b"/home/",
+              b"/tmp/",
+              b"/private/var/",
+              b"/var/folders/",
+              b"file://",
+              b"GitHubActionsRunners",
+              b"_work/Module-Strategy",
+          }
+          hits: list[str] = []
+          for artifact_root in (evidence, Path("dist")):
+              for path in sorted(artifact_root.rglob("*")):
+                  if not path.is_file():
+                      continue
+                  data = path.read_bytes()
+                  for marker in forbidden:
+                      if marker in data:
+                          hits.append(
+                              f"{path}: {marker.decode('utf-8', errors='replace')}"
+                          )
+          if hits:
+              raise SystemExit(
+                  "private Signal Bot evidence markers found:\n" + "\n".join(hits)
+              )
+          PY
+
+      - name: Record sanitized closed evidence inventory
+        id: evidence_inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          checksum_tmp="$RUNNER_TEMP/signal-bot-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sha256"
+          rm -f evidence/evidence-sha256.txt "$checksum_tmp"
+          if command -v sha256sum >/dev/null 2>&1; then
+            find evidence -type f ! -name evidence-sha256.txt -print0 \
+              | sort -z | xargs -0 sha256sum > "$checksum_tmp"
+            mv "$checksum_tmp" evidence/evidence-sha256.txt
+            sha256sum -c evidence/evidence-sha256.txt
+            sha256sum -c evidence/package-sha256.txt
+          else
+            find evidence -type f ! -name evidence-sha256.txt -print0 \
+              | sort -z | xargs -0 shasum -a 256 > "$checksum_tmp"
+            mv "$checksum_tmp" evidence/evidence-sha256.txt
+            shasum -a 256 -c evidence/evidence-sha256.txt
+            shasum -a 256 -c evidence/package-sha256.txt
+          fi
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import os
+          import stat
+          from pathlib import Path, PurePosixPath
+
+          evidence = Path("evidence")
+          dist = Path("dist")
+          inventory = evidence / "evidence-sha256.txt"
+
+          for root in (evidence, dist):
+              for path in root.rglob("*"):
+                  if path.is_symlink():
+                      raise SystemExit(f"Signal Bot evidence contains symlink: {path}")
+                  if path.exists() and not (path.is_file() or path.is_dir()):
+                      raise SystemExit(f"Signal Bot evidence contains special entry: {path}")
+
+          expected_paths = {
+              path.as_posix()
+              for root in (evidence, dist)
+              for path in root.rglob("*")
+              if path.is_file() and path != inventory
+          }
+
+          recorded: dict[str, str] = {}
+          for line in inventory.read_text(encoding="utf-8").splitlines():
+              digest, separator, relative = line.partition("  ")
+              if separator != "  " or len(digest) != 64:
+                  raise SystemExit(f"invalid Signal Bot checksum line: {line!r}")
+              if relative in recorded:
+                  raise SystemExit(f"duplicate Signal Bot checksum path: {relative}")
+              path = PurePosixPath(relative)
+              if path.is_absolute() or ".." in path.parts or "\\" in relative:
+                  raise SystemExit(f"unsafe Signal Bot checksum path: {relative}")
+              recorded[relative] = digest
+
+          package_entries: dict[str, str] = {}
+          for line in (evidence / "package-sha256.txt").read_text(
+              encoding="utf-8"
+          ).splitlines():
+              digest, separator, relative = line.partition("  ")
+              if separator != "  " or len(digest) != 64:
+                  raise SystemExit(f"invalid package checksum line: {line!r}")
+              package_entries[relative] = digest
+
+          recorded_paths = set(recorded) | set(package_entries)
+          if recorded_paths != expected_paths:
+              missing = sorted(expected_paths - recorded_paths)
+              extra = sorted(recorded_paths - expected_paths)
+              raise SystemExit(
+                  f"Signal Bot inventory is not closed: missing={missing}, extra={extra}"
+              )
+
+          for relative, digest in {**recorded, **package_entries}.items():
+              path = Path(relative)
+              mode = path.lstat().st_mode
+              if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+                  raise SystemExit(f"unsafe Signal Bot artifact entry: {relative}")
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f"Signal Bot checksum mismatch: {relative}")
+
+          if (evidence / "commit-sha.txt").read_text(
+              encoding="utf-8"
+          ).strip() != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("Signal Bot inventory exact SHA verification failed")
+          PY
+
+      - name: Stage Signal Bot Heavy release evidence
+        if: >-
+          ${{ success()
+              && steps.evidence_privacy.outcome == 'success'
+              && steps.evidence_inventory.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="reports/signal-bot-heavy-release"
+          rm -rf "$bundle"
+          mkdir -p "$bundle/evidence" "$bundle/dist"
+          cp -R evidence/. "$bundle/evidence/"
+          cp -R dist/. "$bundle/dist/"
+
+      - name: Publish exact Signal Bot Heavy evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: reports/signal-bot-heavy-release
+          asset_name: signal-bot-heavy-audit.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+
+      - name: Enforce Signal Bot evidence publication gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.evidence_privacy.outcome }}" = success
+          test "${{ steps.evidence_inventory.outcome }}" = success
+          test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Signal Bot Heavy failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signal-bot-heavy-audit-${{ inputs.expected_sha }}-${{ github.run_id }}-attempt${{ github.run_attempt }}
+          path: |
+            evidence/**
+            dist/**
+          if-no-files-found: warn
+          include-hidden-files: false

@@ -1,0 +1,160 @@
+{
+  "$id": "urn:modular-results-registry:rebuild-bundle:4",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "audit_events": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "actor": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "correlation_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "entity_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "entity_type": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "event_id": {
+            "pattern": "^evt-[0-9a-f]{48}$",
+            "type": "string"
+          },
+          "new_state": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "operation": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "payload_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "previous_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "timestamp_utc": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sequence",
+          "event_id",
+          "timestamp_utc",
+          "actor",
+          "operation",
+          "entity_type",
+          "entity_id",
+          "previous_state",
+          "new_state",
+          "reason_code",
+          "correlation_id",
+          "payload_hash",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "bundle_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "expected_audit_chain_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "expected_entity_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "expected_registry_revision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "expected_verified_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "entity_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "operation_type": {
+            "enum": [
+              "package",
+              "annotation",
+              "quarantine"
+            ]
+          },
+          "payload": {
+            "type": "object"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "operation_type",
+          "revision",
+          "entity_id",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "registry_schema_version": {
+      "const": 4
+    },
+    "schema_id": {
+      "const": "modular-results-registry.rebuild-bundle"
+    },
+    "schema_version": {
+      "const": "4"
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "registry_schema_version",
+    "operations",
+    "audit_events",
+    "expected_registry_revision",
+    "expected_verified_state_hash",
+    "expected_entity_state_hash",
+    "expected_audit_chain_hash",
+    "bundle_hash"
+  ],
+  "type": "object"
+}

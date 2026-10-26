@@ -1,0 +1,381 @@
+name: full-rc-release-readiness-ci
+
+on:
+  push:
+    branches:
+      - integration/modular-strategy-full-rc
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/full-rc-release-readiness-ci.yml"
+      - ".github/workflows/historical-data-persistent-registration-smoke-v2.yml"
+      - ".github/actions/python-runner-preflight/**"
+      - "docs/integration/**"
+      - "src/**"
+      - "modules/**"
+      - "applications/**"
+      - "research/**"
+      - "plugins/**"
+      - "configs/**"
+      - "pyproject.toml"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact full-RC commit SHA to audit
+        required: true
+        type: string
+      candidate_branch:
+        description: Live branch whose head must equal expected_sha
+        required: true
+        default: integration/modular-strategy-full-rc
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: full-rc-release-readiness-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.ref == 'integration/modular-strategy-full-rc'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 180
+    env:
+      EXPECTED_SHA: ${{ github.event_name == 'push' && github.sha || github.event.pull_request.head.sha || inputs.expected_sha }}
+      CANDIDATE_BRANCH: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.ref || inputs.candidate_branch }}
+    steps:
+      - name: Checkout exact full-RC candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+          show-progress: false
+          clean: true
+
+      - name: Verify exact requested commit and live full-RC head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$CANDIDATE_BRANCH" = "integration/modular-strategy-full-rc"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected_sha = os.environ["EXPECTED_SHA"]
+          candidate_branch = os.environ["CANDIDATE_BRANCH"]
+          token = os.environ["GH_TOKEN"]
+          branch = urllib.parse.quote(candidate_branch, safe="")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/branches/{branch}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "module-strategy-full-rc-head-fence",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          commit = payload.get("commit")
+          live_sha = commit.get("sha") if isinstance(commit, dict) else None
+          if live_sha != expected_sha:
+              raise SystemExit(
+                  f"live full-RC head moved: expected {expected_sha}, got {live_sha!r}"
+              )
+          PY
+
+      - name: Verify history-preserving bridge ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor \
+            656c3439edc1e17a6dfeab46cb68246a3e4cb4f8 HEAD
+          git merge-base --is-ancestor \
+            4024ef20cb0fd7618e036e181cbd96ec863c77da HEAD
+          git cat-file -e "4024ef20cb0fd7618e036e181cbd96ec863c77da^{commit}"
+          test "$(git show -s --format=%P 4024ef20cb0fd7618e036e181cbd96ec863c77da | wc -w | tr -d ' ')" = "2"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install exact audit surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[dev,backtest,signal-bot]"
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation[dev]"
+          uv pip install -e "./modules/risk_request_composer" --no-deps
+          uv pip install -e "./research/strategy_factory[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/paper_execution[dev]"
+          uv pip install -e "./applications/trading_runner[dev]"
+          uv pip check
+
+      - name: Enforce tracked artifact and secret hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import re
+          import subprocess
+          from pathlib import Path
+
+          tracked = subprocess.check_output(
+              ["git", "ls-files", "-z"],
+          ).decode("utf-8").split("\0")
+          paths = [Path(item) for item in tracked if item]
+          forbidden_suffixes = {
+              ".db",
+              ".egg",
+              ".feather",
+              ".parquet",
+              ".pyc",
+              ".pyo",
+              ".sqlite",
+              ".sqlite3",
+              ".whl",
+          }
+          forbidden_parts = {
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+          }
+          forbidden_names = {
+              ".coverage",
+              "coverage.xml",
+          }
+          violations: list[str] = []
+          for path in paths:
+              if path.suffix.lower() in forbidden_suffixes:
+                  violations.append(f"forbidden generated/data suffix: {path}")
+              if forbidden_parts.intersection(path.parts):
+                  violations.append(f"forbidden generated directory: {path}")
+              if path.name in forbidden_names:
+                  violations.append(f"forbidden generated file: {path}")
+              if path.parts and path.parts[0] in {"build", "dist"}:
+                  violations.append(f"forbidden repository artifact path: {path}")
+
+          private_key = re.compile(
+              rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
+          )
+          aws_access_key = re.compile(rb"AKIA[0-9A-Z]{16}")
+          for path in paths:
+              try:
+                  data = path.read_bytes()
+              except OSError as exc:
+                  violations.append(f"unreadable tracked file {path}: {exc}")
+                  continue
+              if private_key.search(data):
+                  violations.append(f"private key material: {path}")
+              if aws_access_key.search(data):
+                  violations.append(f"AWS access key pattern: {path}")
+
+          if violations:
+              raise SystemExit("\n".join(sorted(violations)))
+          print(f"tracked-files-audited={len(paths)}")
+          PY
+
+      - name: Verify paper-only and immutable-evidence contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            src/modular_backtest \
+            modules/market_data_ingestion/src \
+            research/strategy_audit_validation/src \
+            research/strategy_factory/src \
+            modules/paper_execution/src \
+            applications/trading_runner/src
+          python -m pytest -o addopts="" -q \
+            tests/backtest_engine/test_acceptance_noop.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py
+          python -m pytest -o addopts="" -q \
+            research/strategy_audit_validation/tests
+          python -m pytest -o addopts="" -q \
+            research/strategy_factory/tests/test_acceptance_scenarios.py
+          python -m pytest -o addopts="" -q \
+            modules/paper_execution/tests \
+            applications/trading_runner/tests
+
+      - name: Generate sanitized exact-head readiness evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/full-rc-release-readiness"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          output = Path(os.environ["RUNNER_TEMP"]) / "full-rc-release-readiness"
+          head_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          tree_sha = subprocess.check_output(
+              ["git", "rev-parse", "HEAD^{tree}"], text=True
+          ).strip()
+          tracked_count = int(
+              subprocess.check_output(
+                  ["git", "ls-files"], text=True
+              ).count("\n")
+          )
+          payload = {
+              "schema": "full-rc-release-readiness-v1",
+              "status": "PASS",
+              "head_sha": head_sha,
+              "tree_sha": tree_sha,
+              "bridge_merge_sha": "4024ef20cb0fd7618e036e181cbd96ec863c77da",
+              "bridge_source_sha": "656c3439edc1e17a6dfeab46cb68246a3e4cb4f8",
+              "candidate_branch": "integration/modular-strategy-full-rc",
+              "tracked_file_count": tracked_count,
+              "paper_only": True,
+              "live_execution_authorized": False,
+              "private_exchange_access_authorized": False,
+              "order_placement_authorized": False,
+              "raw_market_data_uploaded": False,
+              "local_storage_path_uploaded": False,
+              "checks": [
+                  "exact_live_head",
+                  "history_preserving_bridge_ancestry",
+                  "tracked_artifact_hygiene",
+                  "private_key_and_access_key_scan",
+                  "registered_dataset_backtest_contracts",
+                  "independent_auditor_contracts",
+                  "strategy_factory_acceptance",
+                  "paper_execution_contracts",
+                  "trading_runner_contracts",
+              ],
+          }
+          evidence = output / "readiness.json"
+          evidence.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          digest = hashlib.sha256(evidence.read_bytes()).hexdigest()
+          (output / "SHA256SUMS").write_text(
+              f"{digest}  readiness.json\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Enforce evidence sanitization and exact identity
+        id: evidence_validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "full-rc-release-readiness"
+          expected_files = {"readiness.json", "SHA256SUMS"}
+          actual_files = {
+              path.relative_to(root).as_posix()
+              for path in root.rglob("*")
+              if path.is_file()
+          }
+          if actual_files != expected_files:
+              raise SystemExit(
+                  f"readiness evidence inventory mismatch: expected={sorted(expected_files)!r} actual={sorted(actual_files)!r}"
+              )
+          if any(path.is_symlink() for path in root.rglob("*")):
+              raise SystemExit("symlink is forbidden in release-readiness evidence")
+          payload = json.loads((root / "readiness.json").read_text(encoding="utf-8"))
+          if payload["head_sha"] != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("readiness evidence is not bound to EXPECTED_SHA")
+          if payload["status"] != "PASS" or not payload["paper_only"]:
+              raise SystemExit(f"invalid readiness payload: {payload!r}")
+          if any(
+              payload[key]
+              for key in (
+                  "live_execution_authorized",
+                  "private_exchange_access_authorized",
+                  "order_placement_authorized",
+                  "raw_market_data_uploaded",
+                  "local_storage_path_uploaded",
+              )
+          ):
+              raise SystemExit(f"unsafe readiness payload: {payload!r}")
+          rendered = json.dumps(payload, sort_keys=True)
+          for marker in (
+              "/Users/",
+              "/home/",
+              "/opt/",
+              "file://",
+              os.environ.get("HOME", ""),
+              os.environ.get("GITHUB_WORKSPACE", ""),
+              os.environ.get("RUNNER_TEMP", ""),
+          ):
+              if marker and marker in rendered:
+                  raise SystemExit(f"local path marker leaked into evidence: {marker}")
+          PY
+          (
+            cd "$RUNNER_TEMP/full-rc-release-readiness"
+            sha256sum -c SHA256SUMS
+          )
+          test -z "$(git status --porcelain)"
+
+      - name: Publish sanitized release-readiness evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ runner.temp }}/full-rc-release-readiness
+          asset_name: full-rc-release-readiness.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+
+      - name: Enforce release-readiness publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload release-readiness failure diagnostics
+        if: ${{ (failure() || cancelled()) && steps.evidence_validation.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: full-rc-release-readiness-${{ github.run_id }}
+          path: ${{ runner.temp }}/full-rc-release-readiness
+          if-no-files-found: warn
+          include-hidden-files: false
+
+      - name: Cleanup release-readiness evidence
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/full-rc-release-readiness"

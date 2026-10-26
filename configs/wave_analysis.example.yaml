@@ -1,0 +1,26 @@
+modules:
+  - plugin: wave_analysis
+    enabled: true
+    parameters:
+      timeframes: [15m, 1h, 4h]
+      primary_timeframe: 15m
+      pivot_method: hybrid_adaptive
+      left_bars: 3
+      right_bars: 3
+      tie_policy: earliest
+      price_basis: high_low
+      reversal_threshold: "0.01"
+      atr_period: 14
+      atr_multiplier: "2"
+      minimum_absolute_movement: "0"
+      minimum_leg_bars: 2
+      maximum_retained_bars: 4096
+      maximum_retained_pivots: 256
+      maximum_retained_waves: 255
+      maximum_retained_atr_values: 128
+      feature_snapshot_limit: 32
+      recovery_bars: 0
+      maximum_hypotheses: 5
+      elliott_enabled: false
+      publish_provisional: true
+      publish_diagnostics: true

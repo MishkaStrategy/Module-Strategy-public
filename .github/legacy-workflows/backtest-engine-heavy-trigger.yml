@@ -1,0 +1,20 @@
+name: backtest-engine-heavy-trigger
+
+on:
+  pull_request:
+    branches:
+      - "engine/modular-backtest"
+    paths:
+      - ".github/heavy-audit-trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  heavy-audit:
+    if: >-
+      startsWith(github.head_ref, 'audit/backtest-engine-heavy-') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/backtest-engine-heavy.yml
+    with:
+      expected_sha: ${{ github.event.pull_request.base.sha }}

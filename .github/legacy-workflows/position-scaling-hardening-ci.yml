@@ -1,0 +1,434 @@
+name: position-scaling-hardening-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-v0.5.0
+      - integration/modular-strategy-full-rc
+    paths:
+      - "modules/position_scaling/**"
+      - ".github/workflows/position-scaling-hardening-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  quality:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.12"
+            core-ref: integration/modular-strategy-v0.5.0
+            core-label: integration
+          - python-version: "3.13"
+            core-ref: core/hardening-v0.4.x
+            core-label: hardening
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          echo "runner_name=${RUNNER_NAME:-unknown}"
+          echo "runner_os=${RUNNER_OS:-unknown}"
+          echo "runner_arch=${RUNNER_ARCH:-unknown}"
+          uname -a
+          df -h .
+
+      - name: Checkout module branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          show-progress: false
+          persist-credentials: false
+
+      - name: Verify exact Position Scaling candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Checkout Core under test
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ matrix.core-ref }}
+          path: core-under-test
+          show-progress: false
+          persist-credentials: false
+
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: true
+          cache-dependency-glob: |
+            modules/position_scaling/pyproject.toml
+            core-under-test/pyproject.toml
+          cache-suffix: position-scaling-${{ matrix.python-version }}-${{ matrix.core-label }}
+
+      - name: Install isolated Python
+        shell: bash
+        run: |
+          uv python install "${{ matrix.python-version }}"
+          uv venv --python "${{ matrix.python-version }}" --seed .ci-venv
+          echo "$PWD/.ci-venv/bin" >> "$GITHUB_PATH"
+          .ci-venv/bin/python --version
+
+      - name: Install Core, module and quality tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e 'core-under-test[dev]'
+          python -m pip install -e 'modules/position_scaling[dev]'
+          python -m pip install build bandit detect-secrets cyclonedx-bom pip-audit
+          python -m pip check
+
+      - name: Fast quality
+        shell: bash
+        run: |
+          python -m compileall -q \
+            modules/position_scaling/src \
+            modules/position_scaling/tests \
+            modules/position_scaling/benchmarks
+          ruff check \
+            modules/position_scaling/src \
+            modules/position_scaling/tests \
+            modules/position_scaling/benchmarks
+          ruff format --check \
+            modules/position_scaling/src \
+            modules/position_scaling/tests \
+            modules/position_scaling/benchmarks
+          mypy --strict modules/position_scaling/src/modular_strategy_position_scaling
+          python - <<'PY'
+          from modular_strategy_position_scaling import (
+              PositionScalingApprovalModule,
+              PositionScalingPlannerModule,
+              __version__,
+          )
+          assert __version__ == "0.2.2"
+          assert PositionScalingPlannerModule.manifest.api_version == "1.0"
+          assert PositionScalingApprovalModule.manifest.api_version == "1.0"
+          print("public-import=ok")
+          PY
+
+      - name: Full module test and coverage suite
+        shell: bash
+        run: |
+          cd modules/position_scaling
+          coverage run --branch -m pytest --junitxml=pytest-junit.xml
+          coverage report --fail-under=90 | tee coverage-report.txt
+          coverage json -o coverage.json
+
+      - name: Full repository compatibility suite
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'pyarrow>=16.0' 'matplotlib>=3.8'
+          python -m pip install -e './modules/session_range[dev]'
+          python -m pip install -e './modules/market_regime[dev]'
+          python -m pip install -e ./plugins/fvg
+          python -m pip install -e ./modules/setup_adapter
+          python -m pip install -e ./modules/entry_model
+          python -m pip install -e './modules/protection_target[dev]' --no-deps
+          python -m pip install -e ./modules/risk_sizing
+          python -m pip install -e ./modules/position_scaling
+          python -m pip install -e ./modules/trade_plan_router
+          python -m pip install -e './modules/paper_execution[dev]'
+          python -m pip install -e './modules/position_exit_management[dev]'
+          python -m pip install -e './applications/trading_runner[dev]'
+          python -m pip check
+
+          compat_src=".position-scaling-compat-src"
+          candidate_venv=".position-scaling-candidate-venv"
+          rm -rf "$compat_src" "$candidate_venv"
+          mkdir -p "$compat_src"
+          for package in modular_backtest signal_bot strategy_modules; do
+            cp -R "src/$package" "$compat_src/"
+          done
+          export PYTHONPATH="$PWD/$compat_src"
+
+          python - <<'PY'
+          from importlib.metadata import version
+          from pathlib import Path
+          import modular_core
+
+          expected_root = Path("core-under-test/src").resolve()
+          candidate_root = Path("src/modular_core").resolve()
+          actual = Path(modular_core.__file__).resolve()
+          assert version("modular-strategy-core") == "0.4.2"
+          assert actual.is_relative_to(expected_root), (actual, expected_root)
+          assert not actual.is_relative_to(candidate_root), (actual, candidate_root)
+          print(f"selected-core-version=0.4.2 path={actual}")
+          PY
+
+          # Frozen Core 0.4.2 predates the post-release Core contracts below.
+          # The same post-release family is blocking in the isolated candidate-Core mirror.
+          python -m pytest -o "pythonpath=$compat_src" tests \
+            --ignore=tests/breakout_return/test_packaging_contract.py \
+            --ignore=tests/test_broker_state.py \
+            --ignore=tests/test_hardening_v042_outputs.py \
+            --ignore-glob='tests/test_post_release_*.py' \
+            --deselect=tests/backtest_engine/test_recovery.py::test_runtime_snapshot_restart_matches_single_pass_without_prefix_resimulation \
+            --deselect=tests/backtest_engine/test_recovery.py::test_runtime_snapshot_releases_first_module_before_fresh_factory \
+            --deselect=tests/backtest_engine/test_recovery.py::test_runtime_snapshot_rejects_changed_continuation_boundary \
+            --deselect=tests/backtest_engine/test_recovery.py::test_runtime_snapshot_fails_closed_on_payload_corruption \
+            --deselect=tests/backtest_engine/test_mark_valuation_runner_v1.py::test_mark_equal_last_reproduces_core_result_digest_exactly \
+            --deselect=tests/backtest_engine/test_mark_valuation_runner_v1.py::test_mark_not_equal_last_changes_equity_but_not_traded_fills \
+            --deselect=tests/backtest_engine/test_mark_valuation_runner_v1.py::test_real_runtime_snapshot_restores_mark_broker_exactly \
+            --deselect=tests/backtest_engine/test_funding_runner_v3.py::test_real_runtime_snapshot_restores_funding_broker_exactly \
+            --deselect=tests/backtest_engine/test_scalability.py::test_scalable_engine_aggregates_warmup_skips_and_keeps_exact_equity \
+            --deselect=tests/backtest_engine/test_scalability.py::test_scalable_engine_resource_limit_is_fail_closed \
+            --deselect=tests/backtest_engine/test_scalability.py::test_scalable_engine_preserves_trade_and_critical_event_semantics \
+            --deselect=tests/backtest_engine/test_timeframe_scalability.py::test_snapshot_view_is_reused_until_a_completed_htf_bar_arrives \
+            --deselect=tests/backtest_engine/test_timeframe_scalability.py::test_chunked_compaction_bounds_visible_history_and_preserves_saved_views \
+            --junitxml=repository-root-junit.xml
+          python -m pytest -o "pythonpath=$compat_src" modules/session_range/tests \
+            --junitxml=session-range-junit.xml
+          python -m pytest -o "pythonpath=$compat_src" modules/market_regime/tests \
+            --junitxml=market-regime-junit.xml
+          python -m pytest -o "pythonpath=$compat_src" plugins/fvg/tests \
+            --junitxml=fvg-junit.xml
+
+          python -m venv "$candidate_venv"
+          "$candidate_venv/bin/python" -m pip install --upgrade pip
+          "$candidate_venv/bin/python" -m pip install '.[dev]'
+          PYTHONPATH="" "$candidate_venv/bin/python" -m pytest \
+            tests/test_broker_state.py \
+            tests/test_hardening_v042_outputs.py \
+            tests/test_post_release_*.py \
+            tests/backtest_engine/test_recovery.py::test_runtime_snapshot_restart_matches_single_pass_without_prefix_resimulation \
+            tests/backtest_engine/test_recovery.py::test_runtime_snapshot_releases_first_module_before_fresh_factory \
+            tests/backtest_engine/test_recovery.py::test_runtime_snapshot_rejects_changed_continuation_boundary \
+            tests/backtest_engine/test_recovery.py::test_runtime_snapshot_fails_closed_on_payload_corruption \
+            tests/backtest_engine/test_mark_valuation_runner_v1.py::test_mark_equal_last_reproduces_core_result_digest_exactly \
+            tests/backtest_engine/test_mark_valuation_runner_v1.py::test_mark_not_equal_last_changes_equity_but_not_traded_fills \
+            tests/backtest_engine/test_mark_valuation_runner_v1.py::test_real_runtime_snapshot_restores_mark_broker_exactly \
+            tests/backtest_engine/test_funding_runner_v3.py::test_real_runtime_snapshot_restores_funding_broker_exactly \
+            tests/backtest_engine/test_scalability.py::test_scalable_engine_aggregates_warmup_skips_and_keeps_exact_equity \
+            tests/backtest_engine/test_scalability.py::test_scalable_engine_resource_limit_is_fail_closed \
+            tests/backtest_engine/test_scalability.py::test_scalable_engine_preserves_trade_and_critical_event_semantics \
+            tests/backtest_engine/test_timeframe_scalability.py::test_snapshot_view_is_reused_until_a_completed_htf_bar_arrives \
+            tests/backtest_engine/test_timeframe_scalability.py::test_chunked_compaction_bounds_visible_history_and_preserves_saved_views \
+            --junitxml=current-core-compat-junit.xml
+          PYTHONPATH="" "$candidate_venv/bin/python" -m pytest \
+            tests/breakout_return/test_packaging_contract.py \
+            --junitxml=breakout-return-packaging-junit.xml
+
+      - name: Build Core and module distributions
+        shell: bash
+        run: |
+          python -m build core-under-test --outdir core-dist
+          python -m build modules/position_scaling --outdir module-dist
+          shasum -a 256 core-dist/* module-dist/* > distribution-checksums.sha256
+
+      - name: Clean-wheel import, entry-point and checkpoint smoke
+        shell: bash
+        run: |
+          python -m venv .wheel-venv
+          .wheel-venv/bin/python -m pip install --upgrade pip
+          .wheel-venv/bin/python -m pip install core-dist/*.whl module-dist/*.whl
+          .wheel-venv/bin/python -m pip check
+          .wheel-venv/bin/python - <<'PY'
+          from importlib.metadata import entry_points, version
+          from modular_strategy_position_scaling import (
+              PositionScalingApprovalModule,
+              PositionScalingPlannerModule,
+          )
+          assert version("modular-strategy-position-scaling") == "0.2.2"
+          selected = {
+              item.name: item
+              for item in entry_points().select(group="modular_strategy.modules")
+          }
+          assert selected["position_scaling_planner"].load() is PositionScalingPlannerModule
+          assert selected["position_scaling_approval"].load() is PositionScalingApprovalModule
+          planner = PositionScalingPlannerModule()
+          state = planner.snapshot_state()
+          restored = PositionScalingPlannerModule()
+          restored.restore_state(state)
+          assert restored.snapshot_state() == state
+          print("clean-wheel-smoke=ok")
+          PY
+
+      - name: Security scan and SBOM
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          security_venv=".position-scaling-security-venv"
+          rm -rf "$security_venv"
+          python -m venv "$security_venv"
+          "$security_venv/bin/python" -m pip install --upgrade pip
+          "$security_venv/bin/python" -m pip install \
+            -e 'core-under-test[dev]' \
+            -e 'modules/position_scaling[dev]' \
+            'pytest>=9.0.3,<10' \
+            bandit detect-secrets cyclonedx-bom pip-audit
+          "$security_venv/bin/python" -m pip check
+          "$security_venv/bin/python" - <<'PY'
+          from importlib.metadata import version
+          from packaging.version import Version
+
+          actual = Version(version("pytest"))
+          minimum = Version("9.0.3")
+          assert actual >= minimum, (actual, minimum)
+          print(f"security-pytest-version={actual}")
+          PY
+
+          report_failure() {
+            local title="$1"
+            local evidence="$2"
+            local detail="no diagnostic output produced"
+            if [[ -f "$evidence" ]]; then
+              detail="$(tail -c 3200 "$evidence" | tr '\n' ' ' | sed 's/%/%25/g')"
+            fi
+            printf '::error title=%s::%s\n' "$title" "$detail"
+          }
+
+          if ! "$security_venv/bin/bandit" -q -r modules/position_scaling/src -f json -o bandit.json; then
+            report_failure "Position Scaling Bandit gate failed" bandit.json
+            exit 1
+          fi
+
+          if ! "$security_venv/bin/detect-secrets" scan \
+            modules/position_scaling/src \
+            modules/position_scaling/tests \
+            modules/position_scaling/benchmarks > detect-secrets.json; then
+            report_failure "Position Scaling detect-secrets scan failed" detect-secrets.json
+            exit 1
+          fi
+          "$security_venv/bin/python" - <<'PY'
+          import json
+          findings = json.load(open("detect-secrets.json", encoding="utf-8")).get("results", {})
+          if findings:
+              paths = ", ".join(sorted(findings))
+              print(f"::error title=Position Scaling detect-secrets findings::{paths}")
+              raise SystemExit(1)
+          PY
+
+          if ! "$security_venv/bin/pip-audit" --format json --output pip-audit.json; then
+            report_failure "Position Scaling pip-audit gate failed" pip-audit.json
+            exit 1
+          fi
+
+          if ! "$security_venv/bin/cyclonedx-py" environment "$security_venv/bin/python" \
+            --pyproject modules/position_scaling/pyproject.toml \
+            --mc-type library \
+            --output-reproducible \
+            --of JSON \
+            -o sbom.cdx.json; then
+            report_failure "Position Scaling SBOM generation failed" sbom.cdx.json
+            exit 1
+          fi
+
+      - name: Deterministic benchmark and memory evidence
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          cd modules/position_scaling
+          python benchmarks/benchmark.py > benchmark-output.json
+
+      - name: Stage bounded Position Scaling hardening evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="position-scaling-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage/modules/position_scaling"
+          common=(
+            pytest-junit.xml
+            coverage-report.txt
+            coverage.json
+          )
+          for name in "${common[@]}"; do
+            path="modules/position_scaling/$name"
+            test -f "$path"
+            cp "$path" "$stage/modules/position_scaling/"
+          done
+          test -f distribution-checksums.sha256
+          cp distribution-checksums.sha256 "$stage/"
+          for directory in core-dist module-dist; do
+            test -d "$directory"
+            cp -R "$directory" "$stage/"
+          done
+          if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+            mkdir -p "$stage/modules/position_scaling/artifacts"
+            for name in benchmark_results.json profile_top20.txt; do
+              path="modules/position_scaling/artifacts/$name"
+              test -f "$path"
+              cp "$path" "$stage/modules/position_scaling/artifacts/"
+            done
+            py313=(
+              repository-root-junit.xml
+              current-core-compat-junit.xml
+              breakout-return-packaging-junit.xml
+              session-range-junit.xml
+              market-regime-junit.xml
+              fvg-junit.xml
+              bandit.json
+              detect-secrets.json
+              pip-audit.json
+              sbom.cdx.json
+            )
+            for path in "${py313[@]}"; do
+              test -f "$path"
+              cp "$path" "$stage/"
+            done
+          fi
+
+      - name: Publish exact Position Scaling hardening evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: position-scaling-release-evidence
+          asset_name: position-scaling-evidence-py${{ matrix.python-version }}-${{ matrix.core-label }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Position Scaling publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Position Scaling failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: position-scaling-evidence-py${{ matrix.python-version }}-${{ matrix.core-label }}
+          path: |
+            modules/position_scaling/pytest-junit.xml
+            modules/position_scaling/coverage-report.txt
+            modules/position_scaling/coverage.json
+            modules/position_scaling/artifacts/benchmark_results.json
+            modules/position_scaling/artifacts/profile_top20.txt
+            repository-root-junit.xml
+            current-core-compat-junit.xml
+            breakout-return-packaging-junit.xml
+            session-range-junit.xml
+            market-regime-junit.xml
+            fvg-junit.xml
+            bandit.json
+            detect-secrets.json
+            pip-audit.json
+            sbom.cdx.json
+            distribution-checksums.sha256
+            core-dist/*
+            module-dist/*
+          if-no-files-found: warn
+
+      - name: Cleanup temporary environments
+        if: always()
+        shell: bash
+        run: rm -rf .ci-venv .wheel-venv .position-scaling-compat-src .position-scaling-candidate-venv .position-scaling-security-venv core-under-test core-dist module-dist position-scaling-release-evidence

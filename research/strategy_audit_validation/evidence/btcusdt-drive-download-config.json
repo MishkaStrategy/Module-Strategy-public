@@ -1,0 +1,26 @@
+{
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "SOLUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "TRXUSDT",
+    "LINKUSDT",
+    "AVAXUSDT"
+  ],
+  "years_back": 8,
+  "requested_start_utc": "2018-07-19 07:00:00+00:00",
+  "last_closed_5m_open_utc": "2026-07-19 06:55:00+00:00",
+  "base_interval": "5m",
+  "derived_intervals": [
+    "10m",
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "save_csv_gz": false,
+  "created_at_utc": "2026-07-19 07:44:10.957686+00:00"
+}

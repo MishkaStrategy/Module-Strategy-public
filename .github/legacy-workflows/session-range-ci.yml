@@ -1,0 +1,166 @@
+name: session-range-ci
+
+on:
+  pull_request:
+    paths:
+      - "modules/session_range/**"
+      - ".github/workflows/session-range-ci.yml"
+      - "src/modular_core/**"
+      - "pyproject.toml"
+  push:
+    branches: [main]
+    paths:
+      - "modules/session_range/**"
+      - ".github/workflows/session-range-ci.yml"
+      - "src/modular_core/**"
+      - "pyproject.toml"
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: session-range-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          clean: true
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Session Range candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/session_range/pyproject.toml
+          cache-suffix: session-range
+
+      - name: Install Core, Session Range and quality tools
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e '.[dev]'
+          uv pip install -e 'modules/session_range[dev]'
+          uv pip install build twine
+          uv pip check
+
+      - name: Static quality
+        run: |
+          set -euo pipefail
+          python -m compileall -q modules/session_range/src modules/session_range/tests
+          ruff check modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+          ruff format --check modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+          MYPYPATH=src mypy --strict modules/session_range/src/modular_session_range
+
+      - name: Component tests and coverage
+        run: |
+          set -euo pipefail
+          mkdir -p reports/session-range-ci
+          coverage run --source=modules/session_range/src/modular_session_range \
+            -m pytest -q modules/session_range/tests \
+            --junitxml=reports/session-range-ci/tests-py${{ matrix.python-version }}.xml
+          coverage report --fail-under=96 \
+            | tee reports/session-range-ci/coverage-py${{ matrix.python-version }}.txt
+          coverage json -o reports/session-range-ci/coverage-py${{ matrix.python-version }}.json
+
+      - name: Frozen Core contract gate
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_core_contract_freeze.py \
+            tests/test_core_module_integration_harness.py \
+            --junitxml=reports/session-range-ci/core-py${{ matrix.python-version }}.xml
+
+      - name: Build and verify distributions
+        run: |
+          set -euo pipefail
+          rm -rf dist/session-range-ci
+          mkdir -p dist/session-range-ci/core dist/session-range-ci/session-range
+          python -m build --wheel --outdir dist/session-range-ci/core .
+          python -m build --wheel --sdist \
+            --outdir dist/session-range-ci/session-range modules/session_range
+          twine check dist/session-range-ci/core/* dist/session-range-ci/session-range/* \
+            | tee reports/session-range-ci/twine-py${{ matrix.python-version }}.txt
+
+      - name: Clean non-editable install and entry-point smoke
+        run: |
+          set -euo pipefail
+          clean="$RUNNER_TEMP/session-range-clean-${{ matrix.python-version }}-${{ github.run_id }}"
+          rm -rf "$clean"
+          uv venv --python "${{ matrix.python-version }}" "$clean"
+          uv pip install --python "$clean/bin/python" \
+            dist/session-range-ci/core/*.whl \
+            dist/session-range-ci/session-range/*.whl
+          uv pip check --python "$clean/bin/python"
+          "$clean/bin/python" - <<'PY'
+          from importlib.metadata import entry_points, version
+          from modular_session_range import SessionRangeModule
+
+          assert version("modular-strategy-core") == "0.4.2"
+          assert version("modular-session-range") == "0.2.0"
+          entries = {item.name: item for item in entry_points(group="modular_strategy.modules")}
+          assert entries["session_range"].load() is SessionRangeModule
+          print("session-range-clean-install=PASS")
+          PY
+          rm -rf "$clean"
+
+      - name: Stage bounded Session Range evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="session-range-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          test -d reports/session-range-ci
+          test -d dist/session-range-ci
+          cp -R reports/session-range-ci "$stage/reports"
+          cp -R dist/session-range-ci "$stage/dist"
+
+      - name: Publish exact Session Range evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: session-range-release-evidence
+          asset_name: session-range-ci-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Session Range publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Session Range failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: session-range-ci-py${{ matrix.python-version }}-${{ github.run_attempt }}
+          path: |
+            reports/session-range-ci/**
+            dist/session-range-ci/**
+          if-no-files-found: warn
+
+      - name: Cleanup Session Range evidence staging
+        if: always()
+        run: rm -rf session-range-release-evidence

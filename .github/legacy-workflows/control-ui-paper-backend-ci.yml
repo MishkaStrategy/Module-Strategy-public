@@ -1,0 +1,122 @@
+name: control-ui-paper-backend-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "docs/control_ui/PAPER_RUNTIME_CONTROL_V1.md"
+      - ".github/workflows/control-ui-paper-backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-paper-backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  paper-backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Paper Runtime candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/control_plane/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_factory/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+          cache-suffix: control-ui-paper-backend
+
+      - name: Install Paper Runtime owners and Control Plane
+        run: |
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "research/experiment_runner"
+          uv pip install -e "modules/results_aggregator"
+          uv pip install -e "research/strategy_audit_validation"
+          uv pip install -e "research/strategy_factory" --no-deps
+          uv pip install -e "applications/trading_runner[dev]"
+          uv pip install -e "modules/paper_execution[dev]"
+          uv pip install -e "applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Compile and format
+        run: |
+          python -m compileall -q \
+            applications/control_plane/src \
+            applications/control_plane/acceptance/paper_runtime_contract.py \
+            applications/trading_runner/src/modular_trading_runner/control_query.py \
+            applications/trading_runner/tests/test_runtime_control_query.py \
+            modules/paper_execution/src/paper_execution/control_query.py \
+            modules/paper_execution/tests/test_control_query.py
+          ruff format --check \
+            applications/control_plane/src/modular_control_plane/paper.py \
+            applications/control_plane/src/modular_control_plane/paper_api.py \
+            applications/control_plane/src/modular_control_plane/adapters/paper.py \
+            applications/control_plane/src/modular_control_plane/server.py \
+            applications/control_plane/acceptance/paper_runtime_contract.py \
+            applications/trading_runner/src/modular_trading_runner/control_query.py \
+            applications/trading_runner/tests/test_runtime_control_query.py \
+            modules/paper_execution/src/paper_execution/control_query.py \
+            modules/paper_execution/tests/test_control_query.py
+
+      - name: Ruff and strict MyPy
+        run: |
+          ruff check --output-format=concise \
+            applications/control_plane/src \
+            applications/control_plane/acceptance/paper_runtime_contract.py \
+            applications/trading_runner/src/modular_trading_runner/control_query.py \
+            applications/trading_runner/tests/test_runtime_control_query.py \
+            modules/paper_execution/src/paper_execution/control_query.py \
+            modules/paper_execution/tests/test_control_query.py
+          mypy --strict applications/control_plane/src
+          mypy --strict applications/trading_runner/src/modular_trading_runner/control_query.py
+          mypy --strict modules/paper_execution/src/paper_execution/control_query.py
+
+      - name: Native read-only Paper Runtime tests
+        run: |
+          pytest -q applications/trading_runner/tests/test_runtime_control_query.py
+          pytest -q modules/paper_execution/tests/test_control_query.py
+          pytest -q applications/control_plane/acceptance/paper_runtime_contract.py
+
+      - name: Lightweight Control Plane import boundary
+        run: |
+          python - <<'PY'
+          import sys
+          import modular_control_plane
+
+          assert "modular_trading_runner" not in sys.modules
+          assert "paper_execution" not in sys.modules
+          assert modular_control_plane.PaperRuntimeControlService.__name__ == "PaperRuntimeControlService"
+          print("PASS: Control Plane paper contracts remain owner-lazy")
+          PY

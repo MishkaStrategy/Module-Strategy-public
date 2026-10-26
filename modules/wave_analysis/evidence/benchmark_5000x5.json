@@ -1,0 +1,36 @@
+{
+  "bars": 5000,
+  "checkpoint_size_max_bytes": 333786,
+  "digests_equal_across_runs": true,
+  "elapsed_max": 1.9366025099998296,
+  "elapsed_median": 1.7697491629996875,
+  "elapsed_min": 1.699873206999655,
+  "memory_sample": {
+    "bars": 100,
+    "checkpoint_size_bytes": 29301,
+    "peak_memory_bytes": 132683,
+    "state_digest": "a9a97aeb7021aea5d66ba1299e8fb44c13f1e5e0350e75a8b577e432c22e2b4b"
+  },
+  "restore_digest_equal_all_runs": true,
+  "restore_latency_max_seconds": 0.009234110999841505,
+  "runs": 5,
+  "sample": {
+    "bars": 5000,
+    "checkpoint_size_bytes": 333786,
+    "elapsed_seconds": 1.9366025099998296,
+    "hypotheses": 1,
+    "peak_memory_bytes": 0,
+    "pivots": 128,
+    "published_features": 3250,
+    "restore_digest_equal": true,
+    "restore_latency_seconds": 0.008992992000003142,
+    "result_digest": "b70b4aeecc3cebec3c91dfe5c07ed97865853ac172e8c264659ef47aa3badee5",
+    "state_digest": "49d870c412e874f74671e8e0a106c07cb7f57a4ead4eaedea43292918edcd8d5",
+    "throughput_bars_per_second": 2581.8411234014357,
+    "timeframes": 1,
+    "wave_legs": 127
+  },
+  "throughput_max": 2941.3958520031047,
+  "throughput_median": 2825.2591409762867,
+  "throughput_min": 2581.8411234014357
+}

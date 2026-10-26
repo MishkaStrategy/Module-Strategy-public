@@ -1,0 +1,795 @@
+name: market-data-web-console-e2e
+
+on:
+  push:
+    branches: [interface/market-data-browser-e2e]
+    paths:
+      - "applications/control_plane/**"
+      - "applications/observability/**"
+      - "applications/system_acceptance/**"
+      - "modules/results_aggregator/**"
+      - "modules/risk_sizing/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_audit_validation/**"
+      - "research/strategy_factory/**"
+      - "src/modular_backtest/**"
+      - "src/modular_core/**"
+      - "src/signal_bot/**"
+      - "web/market-data-console/**"
+      - ".github/workflows/market-data-web-console-e2e.yml"
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "applications/observability/**"
+      - "applications/system_acceptance/**"
+      - "modules/results_aggregator/**"
+      - "modules/risk_sizing/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_audit_validation/**"
+      - "research/strategy_factory/**"
+      - "src/modular_backtest/**"
+      - "src/modular_core/**"
+      - "src/signal_bot/**"
+      - "web/market-data-console/**"
+      - ".github/workflows/market-data-web-console-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-web-console-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-e2e:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 60
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - name: Verify exact browser candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Install pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.12.0"
+      - name: Validate runner Node
+        working-directory: web/market-data-console
+        run: |
+          node --version
+          npm --version
+          node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 12)) process.exit(1)'
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+      - name: Install real applications and test gates
+        run: |
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[dev,parquet,interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "research/experiment_runner"
+          uv pip install -e "modules/results_aggregator"
+          uv pip install -e "research/strategy_audit_validation"
+          uv pip install -e "research/strategy_factory" --no-deps
+          uv pip install -e "applications/observability"
+          uv pip install -e "applications/system_acceptance"
+          uv pip install -e "applications/control_plane[interface]"
+          uv pip check
+      - name: Install exact locked JavaScript dependencies
+        working-directory: web/market-data-console
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit all JavaScript dependencies
+        working-directory: web/market-data-console
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            rm -f npm-audit.json npm-audit.stderr
+            set +e
+            npm audit --audit-level=high --json \
+              > npm-audit.json 2> npm-audit.stderr
+            status=$?
+            set -e
+            cat npm-audit.stderr >&2 || true
+            cat npm-audit.json || true
+            if [ "$status" = 0 ]; then
+              exit 0
+            fi
+            if node - <<'NODE'
+          const fs = require("node:fs");
+          try {
+            const report = JSON.parse(fs.readFileSync("npm-audit.json", "utf8"));
+            process.exit(
+              report.auditReportVersion || report.vulnerabilities || report.metadata
+                ? 0
+                : 1,
+            );
+          } catch {
+            process.exit(1);
+          }
+          NODE
+            then
+              echo "npm audit returned a valid failing security report" >&2
+              exit "$status"
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "npm audit endpoint failed after $attempt attempts" >&2
+              exit "$status"
+            fi
+            sleep $((attempt * 10))
+          done
+      - name: Browser security boundary
+        working-directory: web/market-data-console
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E 'localStorage|sessionStorage|document\.cookie|indexedDB|dangerouslySetInnerHTML|\beval\(' src; then
+            echo 'Forbidden browser persistence or dynamic code primitive found' >&2
+            exit 1
+          fi
+          if grep -R -n -E "credentials[[:space:]]*:[[:space:]]*['\"](same-origin|include)['\"]" src; then
+            echo 'Ambient browser cookie credential mode found' >&2
+            exit 1
+          fi
+          if grep -R -n '0\.0\.0\.0' src vite.config.ts playwright.config.ts; then
+            echo 'External bind literal found' >&2
+            exit 1
+          fi
+          grep -q '127.0.0.1' vite.config.ts
+          grep -q 'trace: "off"' playwright.config.ts
+          grep -q 'video: "off"' playwright.config.ts
+      - name: Python seed quality
+        working-directory: web/market-data-console
+        run: |
+          python -m compileall -q \
+            e2e/seed.py \
+            e2e/seed_strategy.py \
+            e2e/serve_acceptance.py \
+            e2e/serve_signal_bot_control.py
+          ruff check --output-format=concise \
+            e2e/seed.py \
+            e2e/seed_strategy.py \
+            e2e/serve_acceptance.py \
+            e2e/serve_signal_bot_control.py
+          ruff format --check \
+            e2e/seed.py \
+            e2e/seed_strategy.py \
+            e2e/serve_acceptance.py \
+            e2e/serve_signal_bot_control.py
+      - name: TypeScript and unit gates
+        working-directory: web/market-data-console
+        run: |
+          npm run typecheck
+          npm run e2e:typecheck
+          npm test
+          npm run build
+      - name: Resolve exact Playwright browser revision
+        id: playwright-browser
+        working-directory: web/market-data-console
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+          const version = lock.packages["node_modules/playwright-core"]?.version;
+          const browsers = JSON.parse(
+            fs.readFileSync("node_modules/playwright-core/browsers.json", "utf8"),
+          ).browsers;
+          const chromium = browsers.find((browser) => browser.name === "chromium");
+          const ffmpeg = browsers.find((browser) => browser.name === "ffmpeg");
+          if (!version || !chromium?.revision || !ffmpeg?.revision) {
+            throw new Error("Could not resolve exact locked Playwright browser revisions");
+          }
+          const output = process.env.GITHUB_OUTPUT;
+          fs.appendFileSync(output, `version=${version}\n`);
+          fs.appendFileSync(output, `chromium_revision=${chromium.revision}\n`);
+          fs.appendFileSync(output, `ffmpeg_revision=${ffmpeg.revision}\n`);
+          console.log(
+            `Playwright ${version}; Chromium ${chromium.revision}; ffmpeg ${ffmpeg.revision}`,
+          );
+          NODE
+      - name: Restore immutable exact Playwright browser cache
+        id: playwright-browser-cache
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/mdi-playwright-browsers
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-browser.outputs.version }}-chromium-${{ steps.playwright-browser.outputs.chromium_revision }}-ffmpeg-${{ steps.playwright-browser.outputs.ffmpeg_revision }}
+      - name: Seed per-job browser directory from exact local cache
+        if: ${{ steps.playwright-browser-cache.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/mdi-playwright-browsers
+          PLAYWRIGHT_CHROMIUM_REVISION: ${{ steps.playwright-browser.outputs.chromium_revision }}
+          PLAYWRIGHT_FFMPEG_REVISION: ${{ steps.playwright-browser.outputs.ffmpeg_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${RUNNER_OS:-}" in
+            macOS) source="$HOME/Library/Caches/ms-playwright" ;;
+            Linux) source="${XDG_CACHE_HOME:-$HOME/.cache}/ms-playwright" ;;
+            *) echo "No local Playwright cache seed for ${RUNNER_OS:-unknown}; installer will populate cache"; exit 0 ;;
+          esac
+          required=(
+            "chromium-$PLAYWRIGHT_CHROMIUM_REVISION"
+            "chromium_headless_shell-$PLAYWRIGHT_CHROMIUM_REVISION"
+            "ffmpeg-$PLAYWRIGHT_FFMPEG_REVISION"
+          )
+          for browser in "${required[@]}"; do
+            if [ ! -f "$source/$browser/INSTALLATION_COMPLETE" ]; then
+              echo "No complete local cache entry for $browser; installer will populate cache"
+              exit 0
+            fi
+          done
+          mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
+          cp -R "${required[@]/#/$source/}" "$PLAYWRIGHT_BROWSERS_PATH/"
+          echo "Seeded the per-job cache from exact local Playwright revisions"
+      - name: Install isolated Chromium
+        id: browser_install
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/mdi-playwright-browsers
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if npx playwright install chromium; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "Playwright browser installation failed after $attempt attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
+      - name: Verify exact isolated browser revisions
+        id: browser_verify
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/mdi-playwright-browsers
+          PLAYWRIGHT_CHROMIUM_REVISION: ${{ steps.playwright-browser.outputs.chromium_revision }}
+          PLAYWRIGHT_FFMPEG_REVISION: ${{ steps.playwright-browser.outputs.ffmpeg_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
+          const chromium = path.join(root, `chromium-${process.env.PLAYWRIGHT_CHROMIUM_REVISION}`);
+          const headless = path.join(
+            root,
+            `chromium_headless_shell-${process.env.PLAYWRIGHT_CHROMIUM_REVISION}`,
+          );
+          const ffmpeg = path.join(root, `ffmpeg-${process.env.PLAYWRIGHT_FFMPEG_REVISION}`);
+          for (const directory of [chromium, headless, ffmpeg]) {
+            if (!fs.existsSync(path.join(directory, "INSTALLATION_COMPLETE"))) {
+              throw new Error(`Missing completed Playwright browser installation: ${directory}`);
+            }
+          }
+          const { chromium: browserType } = require("playwright");
+          const metadata = JSON.parse(
+            fs.readFileSync("node_modules/playwright-core/browsers.json", "utf8"),
+          ).browsers.find((browser) => browser.name === "chromium");
+          if (!metadata?.browserVersion) {
+            throw new Error("The locked Playwright browser version is missing");
+          }
+          fs.accessSync(browserType.executablePath(), fs.constants.X_OK);
+          (async () => {
+            const browser = await browserType.launch({ headless: true });
+            try {
+              const actualVersion = browser.version();
+              if (actualVersion !== metadata.browserVersion) {
+                throw new Error(
+                  `Chromium version mismatch: expected ${metadata.browserVersion}, got ${actualVersion}`,
+                );
+              }
+              console.log(
+                `Verified isolated headless Chromium ${actualVersion} from the exact per-job cache`,
+              );
+            } finally {
+              await browser.close();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+      - name: Seed immutable data, durable jobs, Backtest configs and Strategy checkpoint
+        working-directory: web/market-data-console
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/mdi-browser-e2e"
+          mkdir -p "$RUNNER_TEMP/mdi-browser-e2e"
+          python e2e/seed.py \
+            --storage-root "$RUNNER_TEMP/mdi-browser-e2e/storage" \
+            --backtest-config-root "$RUNNER_TEMP/mdi-browser-e2e/backtest-configs" \
+            --output "$RUNNER_TEMP/mdi-browser-e2e/fixture.json" \
+            | tee "$RUNNER_TEMP/mdi-browser-e2e/seed.log"
+          python e2e/seed_strategy.py \
+            --state-root "$RUNNER_TEMP/mdi-browser-e2e/strategy-state" \
+            | tee "$RUNNER_TEMP/mdi-browser-e2e/strategy-seed.log"
+      - name: Generate masked local tokens and free loopback ports
+        id: generate_tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          mdi_token=$(python -c 'import secrets; print("reader-" + secrets.token_hex(24))')
+          control_token=$(python -c 'import secrets; print("control-reader-" + secrets.token_hex(24))')
+          operator_token=$(python -c 'import secrets; print("control-operator-" + secrets.token_hex(24))')
+          acceptance_reader_token=$(python -c 'import secrets; print("acceptance-reader-" + secrets.token_hex(24))')
+          acceptance_operator_token=$(python -c 'import secrets; print("acceptance-operator-" + secrets.token_hex(24))')
+          signal_reader_token=$(python -c 'import secrets; print("signal-reader-" + secrets.token_hex(24))')
+          signal_operator_token=$(python -c 'import secrets; print("signal-operator-" + secrets.token_hex(24))')
+          full_rc_sha=$(python -c 'print("a" * 40)')
+          ports=$(python - <<'PY'
+          import socket
+          values = []
+          for _ in range(5):
+              with socket.socket() as current:
+                  current.bind(("127.0.0.1", 0))
+                  values.append(current.getsockname()[1])
+          print(*values)
+          PY
+          )
+          read -r api_port control_port web_port acceptance_port signal_port <<< "$ports"
+          test "$(printf '%s\n' "$api_port" "$control_port" "$web_port" "$acceptance_port" "$signal_port" | sort -u | wc -l | tr -d ' ')" = "5"
+          echo "::add-mask::$mdi_token"
+          echo "::add-mask::$control_token"
+          echo "::add-mask::$operator_token"
+          echo "::add-mask::$acceptance_reader_token"
+          echo "::add-mask::$acceptance_operator_token"
+          echo "::add-mask::$signal_reader_token"
+          echo "::add-mask::$signal_operator_token"
+          {
+            echo "MDI_E2E_READER_TOKEN=$mdi_token"
+            echo "MODULAR_CONTROL_E2E_READER_TOKEN=$control_token"
+            echo "MODULAR_CONTROL_E2E_OPERATOR_TOKEN=$operator_token"
+            echo "MODULAR_ACCEPTANCE_E2E_READER_TOKEN=$acceptance_reader_token"
+            echo "MODULAR_ACCEPTANCE_E2E_OPERATOR_TOKEN=$acceptance_operator_token"
+            echo "MODULAR_ACCEPTANCE_E2E_FULL_RC_SHA=$full_rc_sha"
+            echo "MODULAR_ACCEPTANCE_E2E=1"
+            echo "MODULAR_SIGNAL_BOT_E2E_READER_TOKEN=$signal_reader_token"
+            echo "MODULAR_SIGNAL_BOT_E2E_OPERATOR_TOKEN=$signal_operator_token"
+            echo "MODULAR_SIGNAL_BOT_E2E=1"
+            echo "MDI_E2E_API_PORT=$api_port"
+            echo "MODULAR_CONTROL_E2E_PORT=$control_port"
+            echo "MODULAR_CONTROL_PORT=$control_port"
+            echo "MDI_E2E_WEB_PORT=$web_port"
+            echo "MODULAR_ACCEPTANCE_E2E_PORT=$acceptance_port"
+            echo "MODULAR_SIGNAL_BOT_E2E_PORT=$signal_port"
+            echo "MDI_E2E_BASE_URL=http://127.0.0.1:$web_port"
+          } >> "$GITHUB_ENV"
+      - name: Run real loopback browser E2E
+        working-directory: web/market-data-console
+        env:
+          MDI_STORAGE_ROOT: ${{ runner.temp }}/mdi-browser-e2e/storage
+          MDI_WORKER_COUNT: "1"
+          MDI_INSTANCE_ID: browser-e2e-server
+          MDI_INCLUDE_FAKE_ADAPTER: "true"
+          MDI_API_HOST: 127.0.0.1
+          MDI_API_LOG_LEVEL: warning
+          MDI_E2E_FIXTURE: ${{ runner.temp }}/mdi-browser-e2e/fixture.json
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/mdi-playwright-browsers
+          MODULAR_CONTROL_BACKTEST_CONFIG_ROOT: ${{ runner.temp }}/mdi-browser-e2e/backtest-configs
+          MODULAR_CONTROL_BACKTEST_OUTPUT_ROOT: ${{ runner.temp }}/mdi-browser-e2e/backtest-results
+          MODULAR_CONTROL_BACKTEST_STATE_PATH: ${{ runner.temp }}/mdi-browser-e2e/backtest-state.sqlite3
+          MODULAR_CONTROL_BACKTEST_WORKERS: "1"
+          MODULAR_CONTROL_STRATEGY_FACTORY_STATE_ROOT: ${{ runner.temp }}/mdi-browser-e2e/strategy-state
+          MODULAR_ACCEPTANCE_E2E_STATE_PATH: ${{ runner.temp }}/mdi-browser-e2e/acceptance-state.sqlite3
+          MODULAR_SIGNAL_BOT_E2E_STATE_PATH: ${{ runner.temp }}/mdi-browser-e2e/signal-bot-control.sqlite3
+          MODULAR_SIGNAL_BOT_E2E_SEND_COUNT_PATH: ${{ runner.temp }}/mdi-browser-e2e/signal-bot-send-count.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mdi-browser-e2e/logs"
+          auth_json=$(python -c 'import json, os; print(json.dumps({os.environ["MDI_E2E_READER_TOKEN"]: "reader"}))')
+          export MDI_API_TOKENS_JSON="$auth_json"
+          export MODULAR_CONTROL_MARKET_DATA_URL="http://127.0.0.1:$MDI_E2E_API_PORT"
+          export MODULAR_CONTROL_MARKET_DATA_READER_TOKEN="$MDI_E2E_READER_TOKEN"
+          export MODULAR_CONTROL_READER_TOKEN="$MODULAR_CONTROL_E2E_READER_TOKEN"
+          export MODULAR_CONTROL_OPERATOR_TOKEN="$MODULAR_CONTROL_E2E_OPERATOR_TOKEN"
+          export MODULAR_CONTROL_SYSTEM_ACCEPTANCE_URL="http://127.0.0.1:$MODULAR_ACCEPTANCE_E2E_PORT"
+          export MODULAR_CONTROL_SYSTEM_ACCEPTANCE_READER_TOKEN="$MODULAR_ACCEPTANCE_E2E_READER_TOKEN"
+          export MODULAR_CONTROL_SYSTEM_ACCEPTANCE_OPERATOR_TOKEN="$MODULAR_ACCEPTANCE_E2E_OPERATOR_TOKEN"
+          export MODULAR_CONTROL_SIGNAL_BOT_CONTROL_URL="http://127.0.0.1:$MODULAR_SIGNAL_BOT_E2E_PORT"
+          export MODULAR_CONTROL_SIGNAL_BOT_CONTROL_READER_TOKEN="$MODULAR_SIGNAL_BOT_E2E_READER_TOKEN"
+          export MODULAR_CONTROL_SIGNAL_BOT_CONTROL_OPERATOR_TOKEN="$MODULAR_SIGNAL_BOT_E2E_OPERATOR_TOKEN"
+          export PYTHONPATH="$RUNNER_TEMP/mdi-browser-e2e/backtest-configs${PYTHONPATH:+:$PYTHONPATH}"
+
+          python e2e/serve_acceptance.py \
+            > "$RUNNER_TEMP/mdi-browser-e2e/logs/acceptance-owner.log" 2>&1 &
+          acceptance_pid=$!
+          python e2e/serve_signal_bot_control.py \
+            > "$RUNNER_TEMP/mdi-browser-e2e/logs/signal-bot-owner.log" 2>&1 &
+          signal_pid=$!
+          market-data-api --host 127.0.0.1 --port "$MDI_E2E_API_PORT" --log-level warning \
+            > "$RUNNER_TEMP/mdi-browser-e2e/logs/api.log" 2>&1 &
+          api_pid=$!
+          modular-control-api --host 127.0.0.1 --port "$MODULAR_CONTROL_E2E_PORT" --log-level warning \
+            > "$RUNNER_TEMP/mdi-browser-e2e/logs/control.log" 2>&1 &
+          control_pid=$!
+          npm run preview -- --port "$MDI_E2E_WEB_PORT" \
+            > "$RUNNER_TEMP/mdi-browser-e2e/logs/web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" "$control_pid" "$api_pid" "$signal_pid" "$acceptance_pid" 2>/dev/null || true
+            for _ in $(seq 1 20); do
+              if ! kill -0 "$web_pid" 2>/dev/null \
+                && ! kill -0 "$control_pid" 2>/dev/null \
+                && ! kill -0 "$api_pid" 2>/dev/null \
+                && ! kill -0 "$signal_pid" 2>/dev/null \
+                && ! kill -0 "$acceptance_pid" 2>/dev/null; then
+                break
+              fi
+              sleep 0.1
+            done
+            kill -9 "$web_pid" "$control_pid" "$api_pid" "$signal_pid" "$acceptance_pid" 2>/dev/null || true
+            wait "$web_pid" "$control_pid" "$api_pid" "$signal_pid" "$acceptance_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$acceptance_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/acceptance-owner.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$signal_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/signal-bot-owner.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/api.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/control.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/web.log" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_ACCEPTANCE_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_ACCEPTANCE_E2E_PORT/acceptance/v1/current" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_SIGNAL_BOT_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_SIGNAL_BOT_E2E_PORT/control/v1/status" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MDI_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MDI_E2E_API_PORT/api/v1/health" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/health" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/observability/overview" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/acceptance/current" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/notifications/status" >/dev/null \
+              && curl --fail --silent --show-error \
+                "http://127.0.0.1:$MDI_E2E_WEB_PORT/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              echo "loopback servers did not become ready" >&2
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/acceptance-owner.log" >&2 || true
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/signal-bot-owner.log" >&2 || true
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/api.log" >&2 || true
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/control.log" >&2 || true
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/web.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          set +e
+          modular-control \
+            --url "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT" \
+            system observability --json \
+            > "$RUNNER_TEMP/mdi-browser-e2e/observability-cli.json"
+          observability_status=$?
+          set -e
+          test "$observability_status" = "3"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "mdi-browser-e2e" / "observability-cli.json"
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          assert payload["mode"] == "PAPER"
+          assert payload["overview"]["overall_health"] == "unavailable"
+          components = {item["component"]: item for item in payload["overview"]["components"]}
+          assert components["system_resources"]["health"] == "healthy"
+          assert components["risk_supervisor"]["health"] == "unavailable"
+          assert components["portfolio_position"]["health"] == "unavailable"
+          alerts = {item["component"]: item for item in payload["active_alerts"]}
+          assert alerts["risk_supervisor"]["next_action"] == "restore_owner_visibility"
+          PY
+
+          npm run e2e
+          test "$(tr -d '[:space:]' < "$MODULAR_SIGNAL_BOT_E2E_SEND_COUNT_PATH")" = "1"
+
+          restart_root="$RUNNER_TEMP/mdi-browser-e2e/control-plane-restart"
+          mkdir -p "$restart_root"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+            "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/acceptance/current" \
+            > "$restart_root/acceptance-http-before.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+            "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/observability/overview" \
+            > "$restart_root/observability-http-before.json"
+          modular-control \
+            --url "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT" \
+            acceptance status --json \
+            > "$restart_root/acceptance-cli-before.json"
+          set +e
+          modular-control \
+            --url "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT" \
+            system observability --json \
+            > "$restart_root/observability-cli-before.json"
+          observability_before_status=$?
+          set -e
+          test "$observability_before_status" = "3"
+          export MODULAR_CONTROL_RESTART_RUN_ID
+          MODULAR_CONTROL_RESTART_RUN_ID=$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = (
+              Path(os.environ["RUNNER_TEMP"])
+              / "mdi-browser-e2e"
+              / "control-plane-restart"
+              / "acceptance-http-before.json"
+          )
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          run = payload.get("run")
+          if not isinstance(run, dict):
+              raise SystemExit("durable System Acceptance owner run is required")
+          print(run["acceptance_run_id"])
+          PY
+          )
+
+          kill -9 "$control_pid"
+          set +e
+          wait "$control_pid"
+          control_exit=$?
+          set -e
+          test "$control_exit" = "137"
+          for attempt in $(seq 1 30); do
+            if ! curl --fail --silent --max-time 1 \
+              --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/health" \
+              >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" = 30 ]; then
+              echo "Control Plane loopback transport remained available after SIGKILL" >&2
+              exit 1
+            fi
+            sleep 0.1
+          done
+
+          MODULAR_CONTROL_RESTART_PHASE=down \
+            npx playwright test e2e/control-plane-restart.spec.ts
+
+          modular-control-api \
+            --host 127.0.0.1 \
+            --port "$MODULAR_CONTROL_E2E_PORT" \
+            --log-level warning \
+            > "$RUNNER_TEMP/mdi-browser-e2e/logs/control-restarted.log" 2>&1 &
+          control_pid=$!
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/control-restarted.log" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/health" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/observability/overview" \
+                >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/acceptance/current" \
+                >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              echo "Control Plane did not rebind its loopback transport" >&2
+              cat "$RUNNER_TEMP/mdi-browser-e2e/logs/control-restarted.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+            "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/acceptance/current" \
+            > "$restart_root/acceptance-http-after.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+            "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/observability/overview" \
+            > "$restart_root/observability-http-after.json"
+          modular-control \
+            --url "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT" \
+            acceptance status --json \
+            > "$restart_root/acceptance-cli-after.json"
+          set +e
+          modular-control \
+            --url "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT" \
+            system observability --json \
+            > "$restart_root/observability-cli-after.json"
+          observability_after_status=$?
+          set -e
+          test "$observability_after_status" = "3"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = (
+              Path(os.environ["RUNNER_TEMP"])
+              / "mdi-browser-e2e"
+              / "control-plane-restart"
+          )
+
+          def load(name):
+              return json.loads((root / name).read_text(encoding="utf-8"))
+
+          def acceptance_facts(payload):
+              run = payload.get("run")
+              if not isinstance(run, dict):
+                  raise AssertionError("durable System Acceptance owner run is missing")
+              fields = (
+                  "acceptance_run_id",
+                  "status",
+                  "phase",
+                  "created_at",
+                  "started_at",
+                  "updated_at",
+                  "completed_at",
+                  "active_test_time",
+                  "restart_count",
+                  "checkpoint",
+                  "warnings",
+                  "error",
+                  "next_action",
+                  "evidence",
+                  "identity",
+                  "phases",
+              )
+              return {field: run[field] for field in fields}
+
+          def observability_facts(payload):
+              overview = payload["overview"]
+              components = {
+                  item["component"]: {
+                      "health": item["health"],
+                      "stale": item["stale"],
+                      "stuck": item["stuck"],
+                      "reason_codes": item["reason_codes"],
+                  }
+                  for item in overview["components"]
+              }
+              alerts = sorted(
+                  (
+                      item["component"],
+                      item["severity"],
+                      tuple(item["reason_codes"]),
+                      item["next_action"],
+                  )
+                  for item in payload["active_alerts"]
+              )
+              return {
+                  "mode": payload["mode"],
+                  "overall_health": overview["overall_health"],
+                  "components": components,
+                  "alerts": alerts,
+              }
+
+          acceptance_http_before = load("acceptance-http-before.json")
+          acceptance_http_after = load("acceptance-http-after.json")
+          acceptance_cli_before = load("acceptance-cli-before.json")
+          acceptance_cli_after = load("acceptance-cli-after.json")
+          acceptance_expected = acceptance_facts(acceptance_http_before)
+          assert acceptance_facts(acceptance_http_after) == acceptance_expected
+          assert acceptance_facts(acceptance_cli_before) == acceptance_expected
+          assert acceptance_facts(acceptance_cli_after) == acceptance_expected
+
+          observability_http_before = load("observability-http-before.json")
+          observability_http_after = load("observability-http-after.json")
+          observability_cli_before = load("observability-cli-before.json")
+          observability_cli_after = load("observability-cli-after.json")
+          observability_expected = observability_facts(observability_http_before)
+          assert observability_facts(observability_http_after) == observability_expected
+          assert observability_facts(observability_cli_before) == observability_expected
+          assert observability_facts(observability_cli_after) == observability_expected
+          print("PASS: Control Plane SIGKILL/rebind preserved owner and observability facts")
+          PY
+
+          MODULAR_CONTROL_RESTART_PHASE=recovered \
+            npx playwright test e2e/control-plane-restart.spec.ts
+      - name: Sanitize generated secrets from E2E logs
+        if: ${{ always() && steps.generate_tokens.outcome == 'success' }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "mdi-browser-e2e" / "logs"
+          secrets = [
+              os.environ.get("MDI_E2E_READER_TOKEN", ""),
+              os.environ.get("MODULAR_CONTROL_E2E_READER_TOKEN", ""),
+              os.environ.get("MODULAR_CONTROL_E2E_OPERATOR_TOKEN", ""),
+              os.environ.get("MODULAR_ACCEPTANCE_E2E_READER_TOKEN", ""),
+              os.environ.get("MODULAR_ACCEPTANCE_E2E_OPERATOR_TOKEN", ""),
+              os.environ.get("MODULAR_SIGNAL_BOT_E2E_READER_TOKEN", ""),
+              os.environ.get("MODULAR_SIGNAL_BOT_E2E_OPERATOR_TOKEN", ""),
+          ]
+          leaked = []
+          for path in sorted(root.glob("*.log")):
+              text = path.read_text(encoding="utf-8", errors="replace")
+              original = text
+              for value in secrets:
+                  if value and value in text:
+                      leaked.append(path.name)
+                      text = text.replace(value, "***REDACTED***")
+              if text != original:
+                  path.write_text(text, encoding="utf-8")
+          if leaked:
+              unique = ", ".join(sorted(set(leaked)))
+              raise SystemExit(f"generated local token leaked into E2E logs and was redacted: {unique}")
+          print("PASS: generated local tokens absent from E2E logs")
+          PY
+      - name: Save immutable exact Playwright browser cache
+        if: ${{ success() && steps.playwright-browser-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/mdi-playwright-browsers
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-browser.outputs.version }}-chromium-${{ steps.playwright-browser.outputs.chromium_revision }}-ffmpeg-${{ steps.playwright-browser.outputs.ffmpeg_revision }}
+      - name: Upload short-lived E2E evidence
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-web-console-e2e-${{ github.sha }}
+          path: |
+            web/market-data-console/test-results
+            web/market-data-console/package-lock.json
+            web/market-data-console/npm-audit.json
+            web/market-data-console/npm-audit.stderr
+            ${{ runner.temp }}/mdi-browser-e2e/fixture.json
+            ${{ runner.temp }}/mdi-browser-e2e/observability-cli.json
+            ${{ runner.temp }}/mdi-browser-e2e/seed.log
+            ${{ runner.temp }}/mdi-browser-e2e/strategy-seed.log
+            ${{ runner.temp }}/mdi-browser-e2e/backtest-configs
+            ${{ runner.temp }}/mdi-browser-e2e/strategy-state
+            ${{ runner.temp }}/mdi-browser-e2e/signal-bot-send-count.txt
+            ${{ runner.temp }}/mdi-browser-e2e/control-plane-restart
+            ${{ runner.temp }}/mdi-browser-e2e/logs
+          if-no-files-found: warn

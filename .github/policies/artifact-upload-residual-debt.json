@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "path": ".github/workflows/backtest-engine-heavy.yml",
+      "step_name": "Upload exact Heavy Audit evidence",
+      "artifact_name": null,
+      "condition": "always() && steps.evidence_privacy.outcome == 'success' && steps.evidence_inventory.outcome == 'success'",
+      "classification": "other-condition-blocking",
+      "owner": "Backtest Engine heavy audit",
+      "disposition": "inactive-specialized-owner-audit",
+      "reference": "#646"
+    },
+    {
+      "path": ".github/workflows/canonical-strategy-v2-registered-parity.yml",
+      "step_name": "Upload sanitized persistent registration evidence",
+      "artifact_name": null,
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Optimization Wave 1 parity",
+      "disposition": "no-current-matching-pr",
+      "reference": "#305"
+    },
+    {
+      "path": ".github/workflows/canonical-strategy-v2-registered-parity.yml",
+      "step_name": "Upload registered canonical parity evidence",
+      "artifact_name": null,
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Optimization Wave 1 parity",
+      "disposition": "no-current-matching-pr",
+      "reference": "#305"
+    },
+    {
+      "path": ".github/workflows/decision-router-core-v042-compatibility.yml",
+      "step_name": "Upload Router Core 0.4.2 compatibility evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Decision Router legacy component",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#95"
+    },
+    {
+      "path": ".github/workflows/decision-router-final-gate.yml",
+      "step_name": "Upload Router final-gate evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Decision Router legacy component",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#95"
+    },
+    {
+      "path": ".github/workflows/entry-model-ci.yml",
+      "step_name": null,
+      "artifact_name": "entry-model-tests-py${{ matrix.python-version }}",
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Entry Model legacy component",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#24"
+    },
+    {
+      "path": ".github/workflows/entry-model-ci.yml",
+      "step_name": null,
+      "artifact_name": "entry-model-distributions",
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Entry Model legacy component",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#24"
+    },
+    {
+      "path": ".github/workflows/entry-model-ci.yml",
+      "step_name": null,
+      "artifact_name": "entry-model-security",
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Entry Model legacy component",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#24"
+    },
+    {
+      "path": ".github/workflows/entry-model-ci.yml",
+      "step_name": null,
+      "artifact_name": "entry-model-performance",
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Entry Model legacy component",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#24"
+    },
+    {
+      "path": ".github/workflows/fvg-release-validation.yml",
+      "step_name": "Upload formatting evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "FVG legacy release validation",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#27"
+    },
+    {
+      "path": ".github/workflows/fvg-release-validation.yml",
+      "step_name": "Upload exact-head evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "FVG legacy release validation",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#27"
+    },
+    {
+      "path": ".github/workflows/session-range-hardening.yml",
+      "step_name": "Upload quality evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Session Range legacy hardening",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#26"
+    },
+    {
+      "path": ".github/workflows/session-range-hardening.yml",
+      "step_name": "Upload security evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Session Range legacy hardening",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#26"
+    },
+    {
+      "path": ".github/workflows/session-range-hardening.yml",
+      "step_name": "Upload performance evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Session Range legacy hardening",
+      "disposition": "owner-native-legacy-draft",
+      "reference": "#26"
+    },
+    {
+      "path": ".github/workflows/signal-bot-v0-6-integration.yml",
+      "step_name": "Upload static diagnostics",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Signal Bot v0.6 frozen predecessor",
+      "disposition": "frozen-predecessor",
+      "reference": "#168"
+    },
+    {
+      "path": ".github/workflows/signal-bot-v0-6-integration.yml",
+      "step_name": "Upload exact integration evidence",
+      "artifact_name": null,
+      "condition": "always()",
+      "classification": "other-condition-blocking",
+      "owner": "Signal Bot v0.6 frozen predecessor",
+      "disposition": "frozen-predecessor",
+      "reference": "#168"
+    },
+    {
+      "path": ".github/workflows/market-data-external-corpus-drive-acceptance.yml",
+      "step_name": "Upload hash-only corpus evidence",
+      "artifact_name": null,
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Historical Data lineage external corpus",
+      "disposition": "no-current-matching-pr",
+      "reference": "#646"
+    },
+    {
+      "path": ".github/workflows/market-data-external-corpus-registration-ci.yml",
+      "step_name": "Upload hash-only registration evidence",
+      "artifact_name": null,
+      "condition": null,
+      "classification": "unconditional-blocking",
+      "owner": "Historical Data lineage external registration",
+      "disposition": "no-current-matching-pr",
+      "reference": "#646"
+    }
+  ]
+}

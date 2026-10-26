@@ -1,0 +1,10 @@
+include README.md
+include CHANGELOG.md
+include config.example.yaml
+recursive-include src *.py py.typed
+recursive-include tests *.py
+recursive-include benchmarks *.py
+recursive-include docs *.md
+prune artifacts
+prune build
+exclude .coverage

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "evidence_id": "btcusdt-persistent-registration-acceptance-v1",
+  "status": "ACCEPTED_REGISTRATION_AND_BACKTEST_SMOKE_ENDPOINT_URI_UNPROVEN",
+  "parent_dataset_attestation": {
+    "attestation_id": "btcusdt-drive-history-20260719-v1",
+    "canonical_sha256": "e3cc285ba9fe4e7a50879ae52660f380d7177bb35a20f13c264f993cb6975a91",
+    "path": "research/strategy_audit_validation/evidence/btcusdt-drive-dataset-attestation-v1.json"
+  },
+  "repository_index": {
+    "path": "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json",
+    "git_blob_oid": "4a79dc860d1a582cfc3a2e54847467b9b02cf327",
+    "exchange_id": "binance",
+    "market_type": "usdt_m_perpetual",
+    "folder_id": "1mm_1z1alqfTUF_8stXoaccCQergs6Sk_",
+    "summary_file_id": "1nIsjXMI64hPLVu2SpoLbfE9BaRVU_WBs",
+    "summary_sha256": "a5f763fed5912cf0a988f50ac163d1b47f2506d46412aec120cd56a4eaf43893",
+    "market_type_declared": true,
+    "api_endpoint_uri_recorded": false
+  },
+  "accepted_workflow": {
+    "workflow": "historical-data-persistent-registration-smoke-v2",
+    "run_id": 30589784503,
+    "job_id": 91029327057,
+    "head_sha": "656c3439edc1e17a6dfeab46cb68246a3e4cb4f8",
+    "artifact_id": 8777966748,
+    "artifact_name": "historical-data-persistent-registration-v2-30589784503",
+    "artifact_zip_size_bytes": 1623,
+    "artifact_zip_sha256": "e418e858a3a23b25f55b72dafb1d897105529e147511cfb5bfc5738a7229a00a",
+    "registration_json_size_bytes": 5868,
+    "registration_json_sha256": "315ee90d4907648e39af50614f1dd3c2c1f41792b8773293264e9fd337f3bbb4",
+    "smoke_json_size_bytes": 656,
+    "smoke_json_sha256": "8cc4655a06a0c66f1d243d7ed1fb35dd4ef813e72af31b246f782d3ef3dd3c54",
+    "conclusion": "success"
+  },
+  "corpus": {
+    "corpus_hash": "6d32c075f5adf3623679edd49c20ee8ee8758d3ea0e75b7f06613593e065c44e",
+    "dataset_count": 10,
+    "partition_count": 3865,
+    "raw_artifact_count": 50,
+    "total_rows": 12968018,
+    "registration_version": 1,
+    "registered_at": "2026-07-30T14:33:58.385428+00:00",
+    "raw_market_data_uploaded": false
+  },
+  "btc_dataset": {
+    "dataset_hash": "49ee948c7c22dc3c552bf6a96d2fdce9c5bba97662a694ae98ab85fc521c04f5",
+    "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+    "end": "2026-07-19T07:00:00+00:00",
+    "instrument_id": "binance:usdt_m_perpetual:btcusdt",
+    "partition_count": 415,
+    "raw_artifact_count": 5,
+    "reused": false,
+    "start": "2019-09-08T17:55:00+00:00",
+    "timeframes": [
+      "5m",
+      "10m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "validation_status": "VALID",
+    "version": 1
+  },
+  "backtest_smoke": {
+    "status": "PASS",
+    "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+    "dataset_version": 1,
+    "dataset_hash": "49ee948c7c22dc3c552bf6a96d2fdce9c5bba97662a694ae98ab85fc521c04f5",
+    "source_uri": "dataset://binance_usdt-m-perpetual_btcusdt_5m/v1",
+    "rows": 576,
+    "bars_processed": 576,
+    "first_timestamp": "2024-01-01T00:00:00+00:00",
+    "last_timestamp": "2024-01-02T23:55:00+00:00",
+    "gaps": 0,
+    "duplicates": 0,
+    "partition_count": 83,
+    "run_id": "run-a278b8c34066c7a8",
+    "expected_sha": "656c3439edc1e17a6dfeab46cb68246a3e4cb4f8",
+    "raw_market_data_uploaded": false,
+    "local_storage_path_uploaded": false,
+    "restart_verified": false
+  },
+  "current_drive_10m": {
+    "drive_file_id": "1I2SCZiSniyZyLSFkU5KW8HCqHwVfjORo",
+    "size_bytes": 19862961,
+    "sha256": "570cb34a910ae36d7cf74d2a68fb93048f2c4f3e86abd262f298e9a8919cdef3",
+    "rows_from_download_summary": 360798
+  },
+  "gates": {
+    "dataset_registration_identity_proven": true,
+    "registered_backtest_consumption_proven": true,
+    "repository_market_type_declaration_present": true,
+    "api_endpoint_uri_proven": false,
+    "persistent_registry_instance_retained": false,
+    "component_trade_ledgers_present": false,
+    "combined_395_trade_ledger_present": false,
+    "strategy_reproduction_complete": false,
+    "canonical_strategy_transition_allowed": false
+  },
+  "limitations": [
+    "The accepted workflow used transient local storage and removed it after sanitized evidence upload.",
+    "The repository index declares Binance USDT-M perpetual market type but does not record the originating API endpoint URI.",
+    "Registration proves dataset identity and Backtest consumption, not the missing Frozen 4H strategy contract.",
+    "The 283/91/21 component ledgers and combined 395-trade ledger remain absent.",
+    "The accepted smoke consumed a 576-row BTCUSDT window and did not reproduce the canonical strategy."
+  ]
+}

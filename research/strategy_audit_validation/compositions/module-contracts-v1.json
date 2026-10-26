@@ -1,0 +1,73 @@
+{
+  "canonical_composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "contracts": [
+    {
+      "allowed_timeframes": [
+        "15m"
+      ],
+      "contract_complete": false,
+      "missing": [
+        "exact executable adapter",
+        "exact final-15m parameter set",
+        "entry/stop/target/TTL/no-progress semantics binding",
+        "execution and dependency ordering"
+      ],
+      "module_id": "fvg_rt_final_15m",
+      "module_version": "missing-contract",
+      "observed_dependencies": [
+        {
+          "limitation": "No FVG setup adapter exists in the trusted v0.6 executable chain; the catalog documents only breakout_return_v1 as executable.",
+          "module_id": "fvg",
+          "runtime_name": "fvg",
+          "runtime_version": "0.3.0",
+          "status": "research-signal-only"
+        }
+      ],
+      "required_parameters": [],
+      "source_commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+      "source_path": "research/strategy_factory/src/strategy_factory/catalog_v06.py"
+    },
+    {
+      "allowed_timeframes": [
+        "1h"
+      ],
+      "contract_complete": false,
+      "missing": [
+        "module identifier and runtime package",
+        "version",
+        "complete parameter set",
+        "signal and execution semantics",
+        "dependency and execution ordering"
+      ],
+      "module_id": "frozen_1h_short",
+      "module_version": "missing-contract",
+      "observed_dependencies": [],
+      "required_parameters": [],
+      "source_commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+      "source_path": "reports/strategy-governance-wave2f/contract-gaps.json"
+    },
+    {
+      "allowed_timeframes": [
+        "4h"
+      ],
+      "contract_complete": false,
+      "missing": [
+        "module identifier and runtime package",
+        "version",
+        "complete parameter set",
+        "signal and execution semantics",
+        "dependency and execution ordering"
+      ],
+      "module_id": "frozen_4h_short",
+      "module_version": "missing-contract",
+      "observed_dependencies": [],
+      "required_parameters": [],
+      "source_commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+      "source_path": "reports/strategy-governance-wave2f/contract-gaps.json"
+    }
+  ],
+  "inspected_commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+  "registry_id": "wave2f-canonical-composition-contract-gaps-v1",
+  "repository": "MishkaStrategy/Module-Strategy",
+  "schema_version": 1
+}

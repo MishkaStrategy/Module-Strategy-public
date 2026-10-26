@@ -1,0 +1,39 @@
+{
+  "accepted_head_sha": "5fc3a8739b3d7d6dca99fbe45703a2201797bc44",
+  "base_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+  "canonical_composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "historical_gap": {
+    "candidate_id": "strategy-candidate-954bb639db1fc250d14584e1",
+    "composition_hash": "954bb639db1fc250d14584e1abfb802ccb482c12840f29812b3f22256c427b04",
+    "composition_path": "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.gap.json",
+    "result": "CRITICAL_MISSING_CONTRACT",
+    "state": "INCOMPLETE",
+    "status": "RETAINED_AS_HISTORICAL_FAIL_CLOSED_EVIDENCE"
+  },
+  "remaining_gaps": [],
+  "report_id": "wave2f-canonical-composition-resolution-v2",
+  "repository": "MishkaStrategy/Module-Strategy",
+  "resolution": {
+    "candidate_id": "strategy-candidate-51659c6ed582f2843357bd33",
+    "canonical_composition_path": "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.v2.json",
+    "canonical_load_required": true,
+    "canonical_load_result": "PASS",
+    "composition_hash": "51659c6ed582f2843357bd33fbff35059f9a535dd27f05a585a9e7dfa78365c9",
+    "contract_registry_path": "research/strategy_audit_validation/compositions/module-contracts-v2.json",
+    "eligible_for_detached_approval": true,
+    "live_trading_authorized": false,
+    "merged_at": "2026-08-03T12:11:39Z",
+    "merged_pr": 316,
+    "module_versions": {
+      "frozen_1h_short": "1.0.0",
+      "frozen_4h_short": "1.0.0",
+      "fvg_rt_final_15m": "2.0.0"
+    },
+    "owner_authorization": "STRATEGY-312-VARIANT-2",
+    "research_and_paper_only": true,
+    "state": "CANDIDATE",
+    "status": "RESOLVED"
+  },
+  "result": "RESOLVED_BY_OWNER_AUTHORIZED_VARIANT_2",
+  "schema_version": 2
+}

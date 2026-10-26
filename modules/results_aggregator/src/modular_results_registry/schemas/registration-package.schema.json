@@ -1,0 +1,92 @@
+{
+  "$id": "urn:modular-results-registry:registration-package:2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "package_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2"
+    },
+    "producer_module_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "producer_module_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "urn:modular-results-registry:artifact-record:1"
+      },
+      "type": "array"
+    },
+    "datasets": {
+      "items": {
+        "$ref": "urn:modular-results-registry:dataset-record:1"
+      },
+      "type": "array"
+    },
+    "configurations": {
+      "items": {
+        "$ref": "urn:modular-results-registry:configuration-record:1"
+      },
+      "type": "array"
+    },
+    "experiments": {
+      "items": {
+        "$ref": "urn:modular-results-registry:experiment-record:1"
+      },
+      "type": "array"
+    },
+    "runs": {
+      "items": {
+        "$ref": "urn:modular-results-registry:run-record:1"
+      },
+      "type": "array"
+    },
+    "metrics": {
+      "items": {
+        "$ref": "urn:modular-results-registry:metric-snapshot:1"
+      },
+      "type": "array"
+    },
+    "metric_definitions": {
+      "items": {
+        "$ref": "urn:modular-results-registry:metric-definition-record:1"
+      },
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "urn:modular-results-registry:audit-evidence-record:1"
+      },
+      "type": "array"
+    },
+    "roles": {
+      "items": {
+        "$ref": "urn:modular-results-registry:role-decision:1"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "package_id",
+    "schema_version",
+    "producer_module_id",
+    "producer_module_version",
+    "artifacts",
+    "datasets",
+    "configurations",
+    "experiments",
+    "runs",
+    "metrics",
+    "metric_definitions",
+    "evidence",
+    "roles"
+  ],
+  "type": "object"
+}

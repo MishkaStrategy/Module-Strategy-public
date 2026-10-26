@@ -1,0 +1,446 @@
+name: market-data-ingestion-ci
+
+on:
+  pull_request:
+    paths:
+      - "modules/market_data_ingestion/**"
+      - ".github/workflows/market-data-ingestion-ci.yml"
+      - ".github/workflows/market-data-ingestion-binance-acceptance.yml"
+      - "docs/integration/MARKET_DATA_INGESTION_HANDOFF.md"
+      - "docs/integration/MARKET_DATA_WEB_CLI_*.md"
+  push:
+    branches:
+      - "data/historical-market-data-ingestion"
+      - "integration/**"
+    paths:
+      - "modules/market_data_ingestion/**"
+      - ".github/workflows/market-data-ingestion-ci.yml"
+      - ".github/workflows/market-data-ingestion-binance-acceptance.yml"
+      - "docs/integration/MARKET_DATA_INGESTION_HANDOFF.md"
+      - "docs/integration/MARKET_DATA_WEB_CLI_*.md"
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: market-data-ingestion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interface-foundation:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          show-progress: false
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+
+      - name: Verify exact interface candidate
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: modules/market_data_ingestion/pyproject.toml
+          cache-suffix: market-data-ingestion
+
+      - name: Install interface gates
+        run: |
+          uv pip install -e ".[dev,parquet,interface]"
+          uv pip check
+
+      - name: Compile interface foundation
+        run: |
+          python -m compileall -q \
+            src/market_data_application \
+            src/market_data_ingestion/state_machine.py \
+            src/market_data_ingestion/execution_identity.py \
+            src/market_data_ingestion/integrity.py \
+            src/market_data_ingestion/repair_planning.py \
+            tests/test_application_execution.py \
+            tests/test_application_job_store.py \
+            tests/test_application_leases.py \
+            tests/test_application_transports.py \
+            tests/test_application_server.py \
+            tests/test_application_security.py \
+            tests/test_application_catalog.py \
+            tests/test_application_cancellation.py \
+            tests/test_application_inspection.py \
+            tests/test_application_repair_confirmation.py \
+            tests/test_application_repair_execution.py
+
+      - name: Ruff interface lint
+        run: |
+          ruff check --output-format=concise \
+            src/market_data_application \
+            src/market_data_ingestion/state_machine.py \
+            src/market_data_ingestion/execution_identity.py \
+            src/market_data_ingestion/integrity.py \
+            src/market_data_ingestion/repair_planning.py \
+            tests/test_application_execution.py \
+            tests/test_application_job_store.py \
+            tests/test_application_leases.py \
+            tests/test_application_transports.py \
+            tests/test_application_server.py \
+            tests/test_application_security.py \
+            tests/test_application_catalog.py \
+            tests/test_application_cancellation.py \
+            tests/test_application_inspection.py \
+            tests/test_application_repair_confirmation.py \
+            tests/test_application_repair_execution.py
+
+      - name: Ruff interface format
+        run: |
+          ruff format --check \
+            src/market_data_application \
+            src/market_data_ingestion/state_machine.py \
+            src/market_data_ingestion/execution_identity.py \
+            src/market_data_ingestion/integrity.py \
+            src/market_data_ingestion/repair_planning.py \
+            tests/test_application_execution.py \
+            tests/test_application_job_store.py \
+            tests/test_application_leases.py \
+            tests/test_application_transports.py \
+            tests/test_application_server.py \
+            tests/test_application_security.py \
+            tests/test_application_catalog.py \
+            tests/test_application_cancellation.py \
+            tests/test_application_inspection.py \
+            tests/test_application_repair_confirmation.py \
+            tests/test_application_repair_execution.py
+
+      - name: Strict MyPy interface
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          mypy src/market_data_application 2>&1 \
+            | tee reports/interface-mypy-${{ matrix.python-version }}.log
+
+      - name: Interface integration tests
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+          PYTHONUNBUFFERED: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest -o addopts="" -vv -x -ra \
+            --timeout=45 --timeout-method=thread \
+            tests/test_application_execution.py \
+            tests/test_application_job_store.py \
+            tests/test_application_leases.py \
+            tests/test_application_transports.py \
+            tests/test_application_server.py \
+            tests/test_application_security.py \
+            tests/test_application_catalog.py \
+            tests/test_application_cancellation.py \
+            tests/test_application_inspection.py \
+            tests/test_application_repair_confirmation.py \
+            tests/test_application_repair_execution.py 2>&1 \
+            | tee reports/interface-pytest-${{ matrix.python-version }}.log
+
+      - name: Build interface wheel
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m build 2>&1 \
+            | tee reports/interface-build-${{ matrix.python-version }}.log
+
+      - name: Clean wheel interface smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-interface-wheel --python "${{ matrix.python-version }}"
+          uv pip install --python .venv-interface-wheel/bin/python \
+            dist/*.whl \
+            "fastapi>=0.115,<1" \
+            "typer>=0.16,<1" \
+            "rich>=13.7,<15" \
+            "uvicorn>=0.30,<1"
+          uv pip check --python .venv-interface-wheel/bin/python
+          .venv-interface-wheel/bin/python -c \
+            'import market_data_application as a; assert a.MarketDataApplication; assert a.ApiTokenAuthenticator; assert a.DatasetDetails; assert a.ExchangeListResponse; assert a.JobCancellationResponse; assert a.DatasetValidationResponse; assert a.RepairPlanPreviewResponse; assert a.CreateRepairConfirmationRequest; assert a.RepairConfirmationResponse; assert a.SQLiteRepairConfirmationStore; assert a.CreateRepairExecutionRequest; assert a.RepairJobRequest'
+          .venv-interface-wheel/bin/market-data-v1 version \
+            > reports/interface-wheel-cli-${{ matrix.python-version }}.json
+          .venv-interface-wheel/bin/market-data-v1 exchanges \
+            > reports/interface-wheel-exchanges-${{ matrix.python-version }}.json
+          .venv-interface-wheel/bin/market-data-v1 datasets list \
+            > reports/interface-wheel-datasets-${{ matrix.python-version }}.json
+          .venv-interface-wheel/bin/market-data-v1 datasets validate --help \
+            > reports/interface-wheel-validate-help-${{ matrix.python-version }}.log
+          .venv-interface-wheel/bin/market-data-v1 datasets repair-preview --help \
+            > reports/interface-wheel-repair-preview-help-${{ matrix.python-version }}.log
+          .venv-interface-wheel/bin/market-data-v1 datasets repair-confirm --help \
+            > reports/interface-wheel-repair-confirm-help-${{ matrix.python-version }}.log
+          .venv-interface-wheel/bin/market-data-v1 datasets repair-confirmation-show --help \
+            > reports/interface-wheel-repair-confirmation-show-help-${{ matrix.python-version }}.log
+          .venv-interface-wheel/bin/market-data-v1 datasets repair-execute --help \
+            > reports/interface-wheel-repair-execute-help-${{ matrix.python-version }}.log
+          .venv-interface-wheel/bin/market-data-v1 jobs cancel --help \
+            > reports/interface-wheel-cancel-help-${{ matrix.python-version }}.log
+          MDI_API_TOKENS_JSON='{"market-data-ci-check-token-000000000000000000":"admin"}' \
+            .venv-interface-wheel/bin/market-data-api --check \
+            > reports/interface-wheel-api-${{ matrix.python-version }}.json
+          MDI_API_TOKENS_JSON='{"auth-smoke-token-000000000000000000000000":"admin"}' \
+            .venv-interface-wheel/bin/market-data-api --check \
+            > reports/interface-wheel-api-auth-${{ matrix.python-version }}.json
+          .venv-interface-wheel/bin/python -c \
+            'import json, pathlib; p=json.loads(pathlib.Path("reports/interface-wheel-api-auth-${{ matrix.python-version }}.json").read_text()); assert p["authentication_enabled"] is True; assert p["remote_bind_allowed"] is False'
+
+      - name: Upload interface failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-interface-diagnostics-${{ matrix.python-version }}-${{ github.sha }}
+          path: |
+            modules/market_data_ingestion/reports/interface-*.log
+            modules/market_data_ingestion/reports/interface-*.json
+            modules/market_data_ingestion/dist/*
+          if-no-files-found: warn
+
+  quality-package:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          show-progress: false
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+
+      - name: Verify exact quality candidate
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: modules/market_data_ingestion/pyproject.toml
+          cache-suffix: market-data-ingestion
+
+      - name: Install component gates
+        run: |
+          uv pip install -e ".[dev,parquet,interface]"
+          uv pip check
+
+      - name: Compile
+        run: python -m compileall -q src tests scripts
+
+      - name: Ruff lint
+        shell: bash
+        run: |
+          set -o pipefail
+          ruff check --output-format=concise src tests scripts 2>&1 \
+            | tee reports/ruff-lint-${{ matrix.python-version }}.log
+
+      - name: Ruff format
+        shell: bash
+        run: |
+          set -o pipefail
+          ruff format --check src tests scripts 2>&1 \
+            | tee reports/ruff-format-${{ matrix.python-version }}.log
+
+      - name: Strict MyPy
+        shell: bash
+        run: |
+          set -o pipefail
+          mypy src/market_data_ingestion src/market_data_application 2>&1 \
+            | tee reports/mypy-${{ matrix.python-version }}.log
+
+      - name: Static security audit
+        run: python scripts/static_audit.py --output reports/static-audit-ci-${{ matrix.python-version }}.json
+
+      - name: Tests and coverage
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+        shell: bash
+        run: |
+          set -o pipefail
+          coverage erase
+          coverage run --branch -m pytest -o addopts="" -ra 2>&1 \
+            | tee reports/pytest-${{ matrix.python-version }}.log
+          coverage report --fail-under=80 2>&1 \
+            | tee reports/coverage-${{ matrix.python-version }}.log
+          coverage xml -o reports/coverage-${{ matrix.python-version }}.xml
+
+      - name: Build distributions
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m build 2>&1 | tee reports/build-${{ matrix.python-version }}.log
+
+      - name: Verify distributions
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m twine check dist/* 2>&1 \
+            | tee reports/twine-${{ matrix.python-version }}.log
+
+      - name: Clean wheel install
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv .venv-wheel --python "${{ matrix.python-version }}"
+          uv pip install --python .venv-wheel/bin/python \
+            dist/*.whl \
+            "fastapi>=0.115,<1" \
+            "typer>=0.16,<1" \
+            "rich>=13.7,<15" \
+            "uvicorn>=0.30,<1"
+          uv pip check --python .venv-wheel/bin/python
+          .venv-wheel/bin/python -c \
+            'import market_data_ingestion as m; import market_data_application as a; assert m.__version__ == "0.4.0"; assert a.DatasetDetails; assert a.JobCancellationResponse; assert a.DatasetValidationResponse; assert a.RepairPlanPreviewResponse; assert a.CreateRepairConfirmationRequest; assert a.RepairConfirmationResponse; assert a.SQLiteRepairConfirmationStore; assert a.CreateRepairExecutionRequest; assert a.RepairJobRequest'
+          .venv-wheel/bin/market-data exchanges > reports/wheel-cli-${{ matrix.python-version }}.json
+          .venv-wheel/bin/market-data-v1 version \
+            > reports/wheel-cli-v1-${{ matrix.python-version }}.json
+          .venv-wheel/bin/market-data-v1 datasets list \
+            > reports/wheel-datasets-${{ matrix.python-version }}.json
+          .venv-wheel/bin/market-data-v1 datasets validate --help \
+            > reports/wheel-validate-help-${{ matrix.python-version }}.log
+          .venv-wheel/bin/market-data-v1 datasets repair-preview --help \
+            > reports/wheel-repair-preview-help-${{ matrix.python-version }}.log
+          .venv-wheel/bin/market-data-v1 datasets repair-confirm --help \
+            > reports/wheel-repair-confirm-help-${{ matrix.python-version }}.log
+          .venv-wheel/bin/market-data-v1 datasets repair-confirmation-show --help \
+            > reports/wheel-repair-confirmation-show-help-${{ matrix.python-version }}.log
+          .venv-wheel/bin/market-data-v1 datasets repair-execute --help \
+            > reports/wheel-repair-execute-help-${{ matrix.python-version }}.log
+          .venv-wheel/bin/market-data-v1 jobs cancel --help \
+            > reports/wheel-cancel-help-${{ matrix.python-version }}.log
+          MDI_API_TOKENS_JSON='{"market-data-ci-check-token-000000000000000000":"admin"}' \
+            .venv-wheel/bin/market-data-api --check \
+            > reports/wheel-api-${{ matrix.python-version }}.json
+
+      - name: Record storage-pressure evidence identity
+        if: success()
+        id: storage_evidence
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path.cwd()
+          files = sorted(
+              {
+                  *root.glob("reports/market-data-control-plane-storage-*.json"),
+                  *root.glob("reports/shared-jobs-storage-pressure-*.json"),
+              },
+              key=lambda path: path.as_posix(),
+          )
+          files = [path for path in files if path.is_file()]
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          if not files:
+              with output.open("a", encoding="utf-8") as handle:
+                  handle.write("present=false\n")
+              print("No storage-pressure JSON was produced by this candidate; Release publication is not required for this job.")
+              raise SystemExit(0)
+
+          families = {
+              "control_plane": [path for path in files if path.name.startswith("market-data-control-plane-storage-")],
+              "shared_jobs": [path for path in files if path.name.startswith("shared-jobs-storage-pressure-")],
+          }
+          if any(len(group) != 1 for group in families.values()) or len(files) != 2:
+              raise SystemExit(f"Unexpected storage-pressure evidence set: {[path.name for path in files]}")
+
+          entries = []
+          release_dir = root / "reports" / f"storage-pressure-release-{os.environ['MATRIX_PYTHON_VERSION']}"
+          if release_dir.exists():
+              shutil.rmtree(release_dir)
+          release_dir.mkdir(parents=True)
+          for path in files:
+              data = path.read_bytes()
+              entries.append(
+                  {
+                      "bytes": len(data),
+                      "path": path.relative_to(root).as_posix(),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+              shutil.copyfile(path, release_dir / path.name)
+
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": entries,
+              "python_version": os.environ["MATRIX_PYTHON_VERSION"],
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest = release_dir / f"storage-pressure-evidence-{os.environ['MATRIX_PYTHON_VERSION']}.json"
+          manifest.write_text(canonical, encoding="utf-8")
+          manifest_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+          with output.open("a", encoding="utf-8") as handle:
+              handle.write("present=true\n")
+          print(canonical, end="")
+          print(f"MARKET_DATA_STORAGE_PRESSURE_EVIDENCE_SHA256={manifest_sha}")
+          PY
+
+      - name: Publish exact Market Data storage-pressure evidence
+        if: success() && steps.storage_evidence.outputs.present == 'true'
+        id: storage_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/market_data_ingestion/reports/storage-pressure-release-${{ matrix.python-version }}
+          asset_name: market-data-storage-pressure-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Market Data storage-pressure publication gate
+        if: success() && steps.storage_evidence.outputs.present == 'true'
+        run: test "${{ steps.storage_evidence_publish.outcome }}" = success
+
+      - name: Upload quality failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-ingestion-diagnostics-${{ matrix.python-version }}-${{ github.sha }}
+          path: |
+            modules/market_data_ingestion/reports/*.json
+            modules/market_data_ingestion/reports/*.xml
+            modules/market_data_ingestion/reports/*.log
+            modules/market_data_ingestion/dist/*
+          if-no-files-found: warn

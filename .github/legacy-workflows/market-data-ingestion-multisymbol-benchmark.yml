@@ -1,0 +1,263 @@
+name: market-data-ingestion-multisymbol-benchmark
+
+on:
+  pull_request:
+    paths:
+      - "modules/market_data_ingestion/src/market_data_ingestion/spool.py"
+      - "modules/market_data_ingestion/scripts/benchmark_spool_io.py"
+      - "modules/market_data_ingestion/scripts/benchmark_spool_multisymbol.py"
+      - ".github/workflows/market-data-ingestion-multisymbol-benchmark.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-ingestion-multisymbol-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  three-symbol-before-after:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: _baseline
+          show-progress: false
+
+      - name: Verify exact benchmark source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C _baseline rev-parse HEAD)" = "$BASE_SHA"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install benchmark dependencies
+        working-directory: modules/market_data_ingestion
+        run: |
+          uv pip install -e ".[dev]"
+          uv pip check
+
+      - name: Run three-symbol samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_root="modules/market_data_ingestion/reports/spool-multisymbol"
+          mkdir -p "$report_root"
+          for repetition in 1 2 3; do
+            for variant in baseline optimized; do
+              workdir="$RUNNER_TEMP/mdi-multisymbol-${variant}-${repetition}"
+              rm -rf "$workdir"
+              if [ "$variant" = baseline ]; then
+                package_root="$PWD/_baseline/modules/market_data_ingestion/src"
+                sha="$BASE_SHA"
+              else
+                package_root="$PWD/modules/market_data_ingestion/src"
+                sha="$HEAD_SHA"
+              fi
+              PYTHONPATH="$package_root" GITHUB_SHA="$sha" \
+                python modules/market_data_ingestion/scripts/benchmark_spool_multisymbol.py \
+                  --symbols ADAUSDT BTCUSDT ETHUSDT \
+                  --rows-per-symbol 8928 \
+                  --workdir "$workdir" \
+                  --output "$report_root/${variant}-${repetition}.json"
+              rm -rf "$workdir"
+            done
+          done
+
+      - name: Compare multi-symbol evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import statistics
+          from pathlib import Path
+
+          root = Path("modules/market_data_ingestion/reports/spool-multisymbol")
+          baseline = [
+              json.loads(path.read_text(encoding="utf-8"))
+              for path in sorted(root.glob("baseline-*.json"))
+          ]
+          optimized = [
+              json.loads(path.read_text(encoding="utf-8"))
+              for path in sorted(root.glob("optimized-*.json"))
+          ]
+          if len(baseline) != 3 or len(optimized) != 3:
+              raise SystemExit("expected three baseline and three optimized samples")
+
+          def digest_map(item):
+              return {
+                  symbol["symbol"]: symbol["validation"]["typed_reread_digest_sha256"]
+                  for symbol in item["symbols"]
+              }
+
+          baseline_digests = {json.dumps(digest_map(item), sort_keys=True) for item in baseline}
+          optimized_digests = {
+              json.dumps(digest_map(item), sort_keys=True) for item in optimized
+          }
+          equivalent = (
+              len(baseline_digests) == 1
+              and baseline_digests == optimized_digests
+              and all(item["gate"]["passed"] for item in (*baseline, *optimized))
+          )
+
+          def median(items, *keys):
+              values = []
+              for item in items:
+                  value = item
+                  for key in keys:
+                      value = value[key]
+                  values.append(float(value))
+              return statistics.median(values)
+
+          base_wall = median(baseline, "performance", "wall_seconds")
+          head_wall = median(optimized, "performance", "wall_seconds")
+          base_cpu = median(baseline, "performance", "cpu_seconds")
+          head_cpu = median(optimized, "performance", "cpu_seconds")
+          base_temp = median(
+              baseline,
+              "storage",
+              "peak_sampled_temporary_bytes_sum",
+          )
+          head_temp = median(
+              optimized,
+              "storage",
+              "peak_sampled_temporary_bytes_sum",
+          )
+          comparison = {
+              "benchmark_version": 1,
+              "base_sha": "${{ github.event.pull_request.base.sha }}",
+              "head_sha": "${{ github.event.pull_request.head.sha }}",
+              "repetitions": 3,
+              "cache_condition": "warm-process-isolated",
+              "corpus": {
+                  "symbols": ["ADAUSDT", "BTCUSDT", "ETHUSDT"],
+                  "timeframe": "5m",
+                  "rows_per_symbol": 8_928,
+                  "total_rows": 26_784,
+              },
+              "equivalence": {
+                  "per_symbol_typed_digests_equal": equivalent,
+                  "all_gates_passed": all(
+                      item["gate"]["passed"] for item in (*baseline, *optimized)
+                  ),
+              },
+              "baseline": {
+                  "median_wall_seconds": base_wall,
+                  "median_cpu_seconds": base_cpu,
+                  "median_peak_temporary_bytes_sum": base_temp,
+              },
+              "optimized": {
+                  "median_wall_seconds": head_wall,
+                  "median_cpu_seconds": head_cpu,
+                  "median_peak_temporary_bytes_sum": head_temp,
+              },
+              "change": {
+                  "wall_percent": round((head_wall / base_wall - 1) * 100, 3),
+                  "cpu_percent": round((head_cpu / base_cpu - 1) * 100, 3),
+                  "temporary_bytes_percent": round(
+                      (head_temp / base_temp - 1) * 100,
+                      3,
+                  ),
+              },
+              "gate": {"passed": equivalent},
+          }
+          output = root / "comparison.json"
+          output.write_text(
+              json.dumps(comparison, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(output.read_text(encoding="utf-8"))
+          if not equivalent:
+              raise SystemExit("multi-symbol baseline/head equivalence failed")
+          PY
+
+      - name: Enforce multi-symbol evidence privacy and inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import stat
+          from pathlib import Path
+
+          root = Path("modules/market_data_ingestion/reports/spool-multisymbol")
+          expected = {"comparison.json"}
+          for repetition in (1, 2, 3):
+              expected.add(f"baseline-{repetition}.json")
+              expected.add(f"optimized-{repetition}.json")
+          observed = {path.name for path in root.iterdir()}
+          if observed != expected:
+              raise SystemExit(
+                  f"multi-symbol evidence inventory mismatch: {sorted(observed)}"
+              )
+          forbidden = (
+              "/Users/",
+              "/home/",
+              "GoogleDrive-",
+              "My Drive",
+              "Мой диск",
+              "RUNNER_TEMP",
+              "runner.temp",
+              "file://",
+          )
+          for path in sorted(root.iterdir()):
+              if path.is_symlink():
+                  raise SystemExit(f"multi-symbol evidence contains symlink: {path.name}")
+              mode = path.stat(follow_symlinks=False).st_mode
+              if not stat.S_ISREG(mode):
+                  raise SystemExit(
+                      f"multi-symbol evidence contains non-regular file: {path.name}"
+                  )
+              text = path.read_text(encoding="utf-8")
+              json.loads(text)
+              if any(marker in text for marker in forbidden):
+                  raise SystemExit(f"private path marker leaked into {path.name}")
+          comparison = json.loads((root / "comparison.json").read_text(encoding="utf-8"))
+          if comparison.get("base_sha") != os.environ["BASE_SHA"]:
+              raise SystemExit("multi-symbol comparison base SHA mismatch")
+          if comparison.get("head_sha") != os.environ["HEAD_SHA"]:
+              raise SystemExit("multi-symbol comparison head SHA mismatch")
+          PY
+
+      - name: Publish exact multi-symbol benchmark evidence
+        if: success()
+        id: multisymbol_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/market_data_ingestion/reports/spool-multisymbol
+          asset_name: market-data-ingestion-multisymbol-benchmark.tar.gz
+          commit_sha: ${{ env.HEAD_SHA }}
+          draft: "true"
+
+      - name: Enforce multi-symbol benchmark publication gate
+        if: success()
+        run: test "${{ steps.multisymbol_evidence_publish.outcome }}" = success
+
+      - name: Cleanup multi-symbol benchmark state
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            modules/market_data_ingestion/reports/spool-multisymbol \
+            _baseline \
+            "$RUNNER_TEMP"/mdi-multisymbol-*

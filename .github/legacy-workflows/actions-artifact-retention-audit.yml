@@ -1,0 +1,95 @@
+name: Actions artifact retention audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/actions-artifact-retention-audit.yml"
+      - "scripts/actions_artifact_retention.py"
+      - "tests/test_actions_artifact_retention.py"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: actions-artifact-retention-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  audit:
+    name: Read-only retention audit
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+      MAX_DELETE: "1000"
+      MAX_DELETE_BYTES: "536870912"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact audit candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.12"
+          cache-suffix: artifact-retention-audit
+
+      - name: Install focused validation dependencies
+        run: uv pip install pytest ruff
+
+      - name: Validate retention tool
+        run: |
+          set -euo pipefail
+          python -m compileall -q scripts/actions_artifact_retention.py tests/test_actions_artifact_retention.py
+          ruff check scripts/actions_artifact_retention.py tests/test_actions_artifact_retention.py
+          ruff format --check scripts/actions_artifact_retention.py tests/test_actions_artifact_retention.py
+          python -m pytest -q tests/test_actions_artifact_retention.py
+
+      - name: Inventory eligible diagnostic artifacts without deleting
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python scripts/actions_artifact_retention.py \
+            --older-than-days 14 \
+            --max-delete "$MAX_DELETE" \
+            --max-delete-bytes "$MAX_DELETE_BYTES" \
+            > "$RUNNER_TEMP/artifact-retention-summary.json"
+          cat "$RUNNER_TEMP/artifact-retention-summary.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "artifact-retention-summary.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if summary["eligible_count"] > int(os.environ["MAX_DELETE"]):
+              raise SystemExit("eligible count exceeds configured audit ceiling")
+          if summary["eligible_bytes"] > int(os.environ["MAX_DELETE_BYTES"]):
+              raise SystemExit("eligible bytes exceed configured audit ceiling")
+          print(
+              "READ_ONLY_AUDIT "
+              f"count={summary['eligible_count']} "
+              f"bytes={summary['eligible_bytes']} "
+              f"mib={summary['eligible_mib']}"
+          )
+          PY

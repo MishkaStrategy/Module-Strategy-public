@@ -1,0 +1,64 @@
+name: Publish long-run release evidence handoff
+
+on:
+  workflow_call:
+    inputs:
+      payload:
+        description: Size-bounded sanitized evidence payload from the long-running producer job.
+        required: true
+        type: string
+      payload_sha256:
+        description: SHA-256 of the payload archive.
+        required: true
+        type: string
+      asset_name:
+        description: Purpose-specific release asset name.
+        required: true
+        type: string
+      commit_sha:
+        description: Exact source commit SHA proven by the evidence.
+        required: true
+        type: string
+      draft:
+        description: Publish to a draft evidence release.
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact evidence source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-suffix: long-run-evidence-publisher
+      - name: Verify exact source
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - name: Publish with fresh per-job GITHUB_TOKEN
+        uses: ./.github/actions/publish-release-evidence-handoff
+        with:
+          payload: ${{ inputs.payload }}
+          payload_sha256: ${{ inputs.payload_sha256 }}
+          asset_name: ${{ inputs.asset_name }}
+          commit_sha: ${{ inputs.commit_sha }}
+          draft: ${{ inputs.draft && 'true' || 'false' }}

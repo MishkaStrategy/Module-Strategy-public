@@ -1,0 +1,257 @@
+name: multi-family-technical-smoke
+
+on:
+  pull_request:
+    paths:
+      - "scripts/multi_family_technical_smoke.py"
+      - "tests/integration/test_multi_family_technical_smoke.py"
+      - "research/strategy_factory/**"
+      - "research/experiment_runner/**"
+      - "modules/setup_adapter/**"
+      - "modules/entry_model/**"
+      - "modules/protection_target/**"
+      - "modules/risk_request_composer/**"
+      - "modules/risk_sizing/**"
+      - "modules/trade_plan_router/**"
+      - "src/strategy_modules/**"
+      - ".github/workflows/multi-family-technical-smoke.yml"
+  push:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - "scripts/multi_family_technical_smoke.py"
+      - "tests/integration/test_multi_family_technical_smoke.py"
+      - "research/strategy_factory/**"
+      - "research/experiment_runner/**"
+      - "modules/setup_adapter/**"
+      - "modules/entry_model/**"
+      - "modules/protection_target/**"
+      - "modules/risk_request_composer/**"
+      - "modules/risk_sizing/**"
+      - "modules/trade_plan_router/**"
+      - "src/strategy_modules/**"
+      - ".github/workflows/multi-family-technical-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multi-family-technical-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bounded-smoke:
+    name: Bounded multi-family technical smoke
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - id: python-preflight
+        uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Report bounded smoke dependency cache state
+        env:
+          UV_CACHE_HIT: ${{ steps.python-preflight.outputs.cache-hit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "uv dependency cache hit: ${UV_CACHE_HIT:-not-reported-by-setup-uv}"
+          echo "uv cache directory: ${UV_CACHE_DIR:-unset}"
+          if [ -z "${UV_CACHE_DIR:-}" ] || [ ! -d "$UV_CACHE_DIR" ]; then
+            echo "uv cache directory is missing" >&2
+            exit 1
+          fi
+          if [ -n "$(ls -A "$UV_CACHE_DIR" 2>/dev/null)" ]; then
+            echo "uv cache has entries"
+          else
+            echo "uv cache is empty"
+          fi
+
+      - name: Install bounded smoke surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[dev,security]"
+          uv pip install -e "./modules/session_range[dev]"
+          uv pip install -e ./modules/setup_adapter
+          uv pip install -e ./modules/entry_model
+          uv pip install -e ./modules/protection_target
+          uv pip install -e ./modules/risk_sizing
+          uv pip install -e ./modules/risk_request_composer --no-deps
+          uv pip install -e ./modules/trade_plan_router
+          uv pip install -e ./research/experiment_runner
+          uv pip install -e ./modules/results_aggregator
+          uv pip install -e ./research/strategy_audit_validation
+          uv pip install -e "./research/strategy_factory[dev]"
+          uv pip check
+
+      - name: Run bounded smoke contract test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/integration/test_multi_family_technical_smoke.py
+
+      - name: Produce deterministic exact-head smoke evidence twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/multi-family-technical-smoke
+          mkdir -p reports/multi-family-technical-smoke
+          python scripts/multi_family_technical_smoke.py             --commit-sha "$EXPECTED_HEAD"             --state-root "$RUNNER_TEMP/multi-family-smoke-a-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"             --output reports/multi-family-technical-smoke/evidence-a.json
+          python scripts/multi_family_technical_smoke.py             --commit-sha "$EXPECTED_HEAD"             --state-root "$RUNNER_TEMP/multi-family-smoke-b-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"             --output reports/multi-family-technical-smoke/evidence-b.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          left = json.loads(
+              Path("reports/multi-family-technical-smoke/evidence-a.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          right = json.loads(
+              Path("reports/multi-family-technical-smoke/evidence-b.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          def first_difference(left_value, right_value, path="$"):
+              if type(left_value) is not type(right_value):
+                  return path, left_value, right_value
+              if isinstance(left_value, dict):
+                  left_keys = tuple(sorted(left_value))
+                  right_keys = tuple(sorted(right_value))
+                  if left_keys != right_keys:
+                      return f"{path}.__keys__", left_keys, right_keys
+                  for key in left_keys:
+                      difference = first_difference(
+                          left_value[key],
+                          right_value[key],
+                          f"{path}.{key}",
+                      )
+                      if difference is not None:
+                          return difference
+                  return None
+              if isinstance(left_value, list):
+                  if len(left_value) != len(right_value):
+                      return f"{path}.__len__", len(left_value), len(right_value)
+                  for index, (left_item, right_item) in enumerate(
+                      zip(left_value, right_value, strict=True)
+                  ):
+                      difference = first_difference(
+                          left_item,
+                          right_item,
+                          f"{path}[{index}]",
+                      )
+                      if difference is not None:
+                          return difference
+                  return None
+              if left_value != right_value:
+                  return path, left_value, right_value
+              return None
+
+          difference = first_difference(left, right)
+          if difference is not None:
+              path, left_value, right_value = difference
+              raise SystemExit(
+                  f"deterministic evidence drift at {path}: "
+                  f"left={left_value!r}; right={right_value!r}"
+              )
+          PY
+          shasum -a 256 reports/multi-family-technical-smoke/evidence-a.json             > reports/multi-family-technical-smoke/evidence.sha256
+
+      - name: Enforce no-authority smoke evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("reports/multi-family-technical-smoke/evidence-a.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          if payload["candidate_sha"] != os.environ["EXPECTED_HEAD"]:
+              raise SystemExit("technical smoke candidate SHA drift")
+          if payload["contract"] != "multi-family-technical-smoke-v1":
+              raise SystemExit("technical smoke contract drift")
+          if payload["family_count"] != 3:
+              raise SystemExit("technical smoke family count drift")
+          expected = ["breakout_return", "liquidity_sweep", "fvg_rt"]
+          if [row["family"] for row in payload["families"]] != expected:
+              raise SystemExit("technical smoke family ordering/identity drift")
+          if payload["holdout_accessed"] or payload["promotion_attempted"]:
+              raise SystemExit("technical smoke crossed a forbidden lifecycle boundary")
+          if payload["governed_search_authorized"]:
+              raise SystemExit("technical smoke must not create SEARCH authority")
+          for row in payload["families"]:
+              planning = row["strategy_factory_planning"]
+              if not str(planning["architecture_id"]).startswith("arch-"):
+                  raise SystemExit(f"{row['family']}: Strategy Factory architecture identity missing")
+              if not str(planning["parameter_space_id"]).startswith("space-"):
+                  raise SystemExit(f"{row['family']}: Strategy Factory parameter-space identity missing")
+              if planning["allocated_smoke_capacity"] != 1:
+                  raise SystemExit(f"{row['family']}: unexpected smoke planning capacity")
+              if len(str(planning["architecture_fingerprint"])) != 64:
+                  raise SystemExit(f"{row['family']}: architecture fingerprint drift")
+              if len(str(planning["parameter_space_fingerprint"])) != 64:
+                  raise SystemExit(f"{row['family']}: parameter-space fingerprint drift")
+              if len(str(row["research_specification_fingerprint"])) != 64:
+                  raise SystemExit(f"{row['family']}: research specification fingerprint drift")
+              if row["experiment_status"] != "completed":
+                  raise SystemExit(f"{row['family']}: Research Runner was not terminal")
+              if row["run_status_counts"] != {"succeeded": 1}:
+                  raise SystemExit(f"{row['family']}: unexpected Research Runner run counts")
+              if row["final_test_grants"] != 0 or row["holdout_accessed"]:
+                  raise SystemExit(f"{row['family']}: final-test/HOLDOUT access detected")
+              if row["promotion_attempted"]:
+                  raise SystemExit(f"{row['family']}: promotion detected")
+              if set(row["signal_case"]["counts"].values()) != {1}:
+                  raise SystemExit(f"{row['family']}: executable handoff lost a stage")
+              if set(row["no_signal_case"]["counts"].values()) != {0}:
+                  raise SystemExit(f"{row['family']}: no-signal fixture crossed a stage")
+          PY
+          python scripts/sanitize_ci_evidence.py reports/multi-family-technical-smoke
+
+      - name: Publish exact bounded smoke evidence
+        id: evidence_upload
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: multi-family-technical-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/multi-family-technical-smoke/evidence-a.json
+            reports/multi-family-technical-smoke/evidence.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce bounded smoke evidence publication
+        if: always()
+        shell: bash
+        run: test "${{ steps.evidence_upload.outcome }}" = "success"
+
+      - name: Cleanup bounded smoke state
+        if: always()
+        shell: bash
+        run: |
+          rm -rf             "$RUNNER_TEMP/multi-family-smoke-a-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"             "$RUNNER_TEMP/multi-family-smoke-b-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

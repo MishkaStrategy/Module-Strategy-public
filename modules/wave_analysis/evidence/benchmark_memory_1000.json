@@ -1,0 +1,16 @@
+{
+  "bars": 1000,
+  "checkpoint_size_bytes": 185858,
+  "elapsed_seconds": 1.0674403279999751,
+  "hypotheses": 1,
+  "peak_memory_bytes": 802205,
+  "pivots": 50,
+  "published_features": 650,
+  "restore_digest_equal": true,
+  "restore_latency_seconds": 0.013994263999848044,
+  "result_digest": "b4c1a3752fe0bcacdf6598da9f3ec7c2c760ea58bd7b89a494cb002410ffaa79",
+  "state_digest": "78241e1f288c88187709e89c10c17b0587b31e6918ab06585c5f0c66222fd830",
+  "throughput_bars_per_second": 936.8205170528495,
+  "timeframes": 1,
+  "wave_legs": 49
+}

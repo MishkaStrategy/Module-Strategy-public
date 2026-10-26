@@ -1,0 +1,90 @@
+{
+  "$id": "urn:modular-results-registry:artifact-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "media_type": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "package_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "producer_module_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "producer_module_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "relative_path": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "size_bytes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "source_artifact_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "REGISTERED",
+        "VERIFIED"
+      ]
+    },
+    "transform_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transform_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "artifact_id",
+    "package_id",
+    "relative_path",
+    "media_type",
+    "size_bytes",
+    "sha256",
+    "producer_module_id",
+    "producer_module_version",
+    "schema_id",
+    "schema_version",
+    "status",
+    "source_artifact_hash",
+    "transform_version",
+    "transform_hash"
+  ],
+  "type": "object"
+}

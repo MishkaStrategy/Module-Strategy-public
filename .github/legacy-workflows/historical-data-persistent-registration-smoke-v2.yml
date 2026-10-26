@@ -1,0 +1,374 @@
+name: historical-data-persistent-registration-smoke-v2
+
+on:
+  push:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - ".github/workflows/historical-data-persistent-registration-smoke-v2.yml"
+      - ".github/OWNER_DATA_CI_POLICY.md"
+      - "tests/ci_policy/test_owner_data_workflow_guards.py"
+      - ".github/actions/python-runner-preflight/**"
+      - "docs/integration/FULL_PROJECT_INTEGRATION_LEDGER.md"
+      - "docs/integration/FULL_RC_ACCEPTANCE_CHECKPOINT_2026-07-31.md"
+      - "src/modular_backtest/acceptance.py"
+      - "scripts/run_persistent_registration_smoke.py"
+      - "scripts/run_persistent_registration_smoke_v2.py"
+      - "tests/backtest_engine/test_acceptance_noop.py"
+      - "tests/backtest_engine/test_registered_config.py"
+      - "tests/backtest_engine/test_registered_data.py"
+      - "modules/market_data_ingestion/tests/test_dataset_reader.py"
+      - "src/modular_backtest/config.py"
+      - "src/modular_backtest/data.py"
+      - "src/modular_backtest/registered_data.py"
+      - "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json"
+      - "modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/drive_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_registration.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/integrity.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/registry.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/storage.py"
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+      - main
+    paths:
+      - ".github/workflows/historical-data-persistent-registration-smoke-v2.yml"
+      - ".github/OWNER_DATA_CI_POLICY.md"
+      - "tests/ci_policy/test_owner_data_workflow_guards.py"
+      - ".github/workflows/full-rc-release-readiness-ci.yml"
+      - ".github/actions/python-runner-preflight/**"
+      - "docs/integration/FULL_PROJECT_INTEGRATION_LEDGER.md"
+      - "docs/integration/FULL_RC_ACCEPTANCE_CHECKPOINT_2026-07-31.md"
+      - "src/modular_backtest/acceptance.py"
+      - "scripts/run_persistent_registration_smoke.py"
+      - "scripts/run_persistent_registration_smoke_v2.py"
+      - "tests/backtest_engine/test_acceptance_noop.py"
+      - "tests/backtest_engine/test_registered_config.py"
+      - "tests/backtest_engine/test_registered_data.py"
+      - "modules/market_data_ingestion/tests/test_dataset_reader.py"
+      - "src/modular_backtest/config.py"
+      - "src/modular_backtest/data.py"
+      - "src/modular_backtest/registered_data.py"
+      - "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json"
+      - "modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/drive_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_registration.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/integrity.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/registry.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/storage.py"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact candidate commit SHA to accept
+        required: true
+        type: string
+      candidate_branch:
+        description: Live branch whose head must equal expected_sha
+        required: true
+        default: integration/modular-strategy-full-rc
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical-data-persistent-registration-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-contract:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Verify exact candidate
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-suffix: historical-data-persistent-synthetic
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+
+      - name: Install synthetic registration test surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]" -e "modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Validate contracts and run synthetic registration tests
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            src/modular_backtest/acceptance.py \
+            scripts/run_persistent_registration_smoke.py \
+            scripts/run_persistent_registration_smoke_v2.py
+          ruff check --output-format=concise \
+            src/modular_backtest/acceptance.py \
+            scripts/run_persistent_registration_smoke.py \
+            scripts/run_persistent_registration_smoke_v2.py \
+            tests/backtest_engine/test_acceptance_noop.py
+          ruff format --check \
+            src/modular_backtest/acceptance.py \
+            scripts/run_persistent_registration_smoke.py \
+            scripts/run_persistent_registration_smoke_v2.py \
+            tests/backtest_engine/test_acceptance_noop.py
+          mypy --strict src/modular_backtest/acceptance.py
+          pytest -o addopts="" -q \
+            tests/backtest_engine/test_acceptance_noop.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py \
+            tests/ci_policy/test_owner_data_workflow_guards.py
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+  owner-authority-unavailable:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 2
+    steps:
+      - name: Explain owner registration gate
+        run: |
+          echo "Original-corpus registration and backtest are disabled: no operation-specific fresh authority and isolated catalog route is configured."
+          echo "Manual dispatch is not authorization; no owner registry, dataset, backtest, or publication was started."
+          exit 1
+
+  register-and-smoke:
+    # The manual diagnostic fails, so the preserved owner body cannot start.
+    needs: [owner-authority-unavailable]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, backtester]
+    permissions:
+      contents: write
+    timeout-minutes: 480
+    env:
+      EXPECTED_SHA: ${{ github.event_name == 'push' && github.sha || github.event.pull_request.head.sha || inputs.expected_sha }}
+      CANDIDATE_BRANCH: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.ref || inputs.candidate_branch }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+          clean: true
+
+      - name: Verify exact requested commit and live branch head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          case "$CANDIDATE_BRANCH" in
+            integration/historical-data-backtester-bridge|integration/modular-strategy-full-rc)
+              ;;
+            *)
+              echo "unsupported candidate branch: $CANDIDATE_BRANCH" >&2
+              exit 1
+              ;;
+          esac
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected_sha = os.environ["EXPECTED_SHA"]
+          candidate_branch = os.environ["CANDIDATE_BRANCH"]
+          token = os.environ["GH_TOKEN"]
+          branch = urllib.parse.quote(candidate_branch, safe="")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/branches/{branch}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "module-strategy-persistent-v2-head-fence",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          commit = payload.get("commit")
+          live_sha = commit.get("sha") if isinstance(commit, dict) else None
+          if live_sha != expected_sha:
+              raise SystemExit(
+                  f"live candidate head moved: expected {expected_sha}, got {live_sha!r}"
+              )
+          PY
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+
+      - name: Install exact registration and backtest surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]" -e "modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Validate v2 acceptance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            src/modular_backtest/acceptance.py \
+            scripts/run_persistent_registration_smoke.py \
+            scripts/run_persistent_registration_smoke_v2.py
+          ruff check --output-format=concise \
+            src/modular_backtest/acceptance.py \
+            scripts/run_persistent_registration_smoke.py \
+            scripts/run_persistent_registration_smoke_v2.py \
+            tests/backtest_engine/test_acceptance_noop.py
+          ruff format --check \
+            src/modular_backtest/acceptance.py \
+            scripts/run_persistent_registration_smoke.py \
+            scripts/run_persistent_registration_smoke_v2.py \
+            tests/backtest_engine/test_acceptance_noop.py
+          mypy --strict src/modular_backtest/acceptance.py
+          pytest -o addopts="" -q \
+            tests/backtest_engine/test_acceptance_noop.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py
+
+      - name: Run durable registration and BTCUSDT engine smoke v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/run_persistent_registration_smoke_v2.py \
+            > "$RUNNER_TEMP/persistent-registration-smoke-v2-command.json"
+
+      - name: Enforce sanitized command output and evidence
+        id: evidence_validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          command_path = Path(os.environ["RUNNER_TEMP"]) / "persistent-registration-smoke-v2-command.json"
+          payload = json.loads(command_path.read_text(encoding="utf-8"))
+          expected = {
+              "status": "PASS",
+              "dataset_count": 10,
+              "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+              "dataset_version": 1,
+              "smoke_rows": 576,
+              "evidence_files": ["registration.json", "smoke.json"],
+              "raw_market_data_uploaded": False,
+          }
+          if payload != expected:
+              raise SystemExit(f"persistent smoke v2 payload mismatch: {payload!r}")
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "persistent-acceptance"
+          expected_files = {"registration.json", "smoke.json"}
+          actual_files = {
+              path.relative_to(root).as_posix()
+              for path in root.rglob("*")
+              if path.is_file()
+          }
+          if actual_files != expected_files:
+              raise SystemExit(
+                  f"persistent acceptance inventory mismatch: expected={sorted(expected_files)!r} actual={sorted(actual_files)!r}"
+              )
+          if any(path.is_symlink() for path in root.rglob("*")):
+              raise SystemExit("symlink is forbidden in persistent acceptance evidence")
+          files = [root / name for name in sorted(expected_files)]
+          if sum(path.stat().st_size for path in files) > 64 * 1024:
+              raise SystemExit("persistent acceptance evidence exceeds the 64 KiB boundary")
+
+          private_markers = tuple(
+              marker
+              for marker in (
+                  "/Users/",
+                  "/home/",
+                  "/opt/",
+                  "file://",
+                  os.environ.get("HOME"),
+                  os.environ.get("GITHUB_WORKSPACE"),
+                  os.environ.get("RUNNER_TEMP"),
+              )
+              if marker
+          )
+          credential = re.compile(
+              r"(?i)(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*[^\s,}\]]+"
+          )
+          for path in files:
+              text = path.read_text(encoding="utf-8", errors="strict")
+              data = json.loads(text)
+              if not isinstance(data, dict):
+                  raise SystemExit(f"persistent evidence must be an object: {path.name}")
+              if data.get("raw_market_data_uploaded") is not False:
+                  raise SystemExit(f"raw market-data safety flag is not false: {path.name}")
+              if any(marker in text for marker in private_markers):
+                  raise SystemExit(f"private path leaked in persistent evidence: {path.name}")
+              if credential.search(text):
+                  raise SystemExit(f"credential-like value leaked in persistent evidence: {path.name}")
+          PY
+
+      - name: Publish sanitized persistent acceptance evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ runner.temp }}/persistent-acceptance
+          asset_name: historical-data-persistent-registration-v2.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+
+      - name: Enforce persistent acceptance publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload persistent acceptance failure diagnostics
+        if: ${{ (failure() || cancelled()) && steps.evidence_validation.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: historical-data-persistent-registration-v2-${{ github.run_id }}
+          path: ${{ runner.temp }}/persistent-acceptance
+          if-no-files-found: warn
+          include-hidden-files: false
+
+      - name: Remove transient smoke files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/persistent-registration-smoke-v2-command.json"
+          rm -rf \
+            "$RUNNER_TEMP/registered-btcusdt-smoke" \
+            "$RUNNER_TEMP/persistent-acceptance"

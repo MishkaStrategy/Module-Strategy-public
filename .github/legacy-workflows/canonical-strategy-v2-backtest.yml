@@ -1,0 +1,688 @@
+name: canonical-strategy-v2-backtest
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/canonical-strategy-v2-backtest.yml"
+      - ".github/OWNER_DATA_CI_POLICY.md"
+      - "config/test_suites.toml"
+      - "reports/strategy-governance-wave2f/handoff-to-stream-a.json"
+      - "research/experiment_runner/benchmarks/wave2a_canonical_strategy.py"
+      - "research/experiment_runner/src/**"
+      - "research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py"
+      - "research/strategy_audit_validation/benchmarks/**"
+      - "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.v2.json"
+      - "research/strategy_audit_validation/compositions/canonical-strategy-owner-decision-v2.json"
+      - "research/strategy_audit_validation/compositions/frozen-1h-short.v1.json"
+      - "research/strategy_audit_validation/compositions/frozen-4h-short.v1.json"
+      - "research/strategy_audit_validation/compositions/fvg-rt-final-15m.v2.json"
+      - "research/strategy_audit_validation/src/strategy_audit_validation/canonical_runtime.py"
+      - "tests/test_test_architecture_contract.py"
+      - "tests/ci_policy/test_owner_data_workflow_guards.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-backtester-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-compatibility:
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONHASHSEED: "0"
+      PYTHONPATH: research/strategy_audit_validation
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-suffix: canonical-strategy-v2-synthetic
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/setup_adapter/pyproject.toml
+            modules/entry_model/pyproject.toml
+            modules/protection_target/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            modules/risk_request_composer/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+      - name: Install exact synthetic test surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install \
+            -e './research/strategy_audit_validation[dev]' \
+            -e './research/experiment_runner[dev]' \
+            -e './modules/market_data_ingestion[dev,parquet]' \
+            -e './modules/setup_adapter[dev]' \
+            -e './modules/entry_model[dev]' \
+            -e './modules/protection_target[dev]' \
+            -e './modules/risk_sizing' \
+            -e './modules/risk_request_composer' \
+            -e './modules/trade_plan_router' \
+            -e '.[backtest]' \
+            -r research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+          uv pip check
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - name: Run automatic synthetic and workflow policy tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install_actionlint.sh "$RUNNER_TEMP/actionlint-bin"
+          "$RUNNER_TEMP/actionlint-bin/actionlint" \
+            .github/workflows/canonical-strategy-v2-backtest.yml \
+            .github/workflows/ms5a-funding-owner-v5-materialization.yml
+          python scripts/audit_runner_routing.py
+          ruff check research/strategy_audit_validation/benchmarks
+          ruff format --check research/strategy_audit_validation/benchmarks
+          ruff check \
+            research/experiment_runner/benchmarks/wave2a_canonical_strategy.py \
+            research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py
+          ruff format --check \
+            research/experiment_runner/benchmarks/wave2a_canonical_strategy.py \
+            research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py
+          pytest -q tests/test_test_architecture_contract.py
+          pytest -q tests/ci_policy/test_owner_data_workflow_guards.py
+          pytest -q research/strategy_audit_validation/benchmarks/tests
+          pytest -q \
+            modules/trade_plan_router/tests/test_normalizer_contracts.py \
+            modules/trade_plan_router/tests/test_router_policy_hardening.py
+          pytest -q \
+            research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py
+
+  owner-authority-unavailable:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 2
+    steps:
+      - name: Explain owner execution gate
+        run: |
+          echo "Owner-data backtests are disabled: no operation-specific fresh authority protocol is configured."
+          echo "Manual dispatch is not authorization; no API, owner data, backtest, or publication was started."
+          exit 1
+
+  official-binance-backtest:
+    # The manual diagnostic fails, so the preserved owner body cannot start.
+    needs: [owner-authority-unavailable]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, backtester]
+    permissions:
+      contents: write
+    timeout-minutes: 180
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      PYTHONPATH: research/strategy_audit_validation
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+          cache-suffix: canonical-strategy-v2-backtest
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+      - name: Install exact research and registered-data surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install \
+            -e './research/strategy_audit_validation[dev]' \
+            -e './research/experiment_runner[dev]' \
+            -e './modules/market_data_ingestion[dev,parquet]' \
+            -e './modules/setup_adapter[dev]' \
+            -e './modules/entry_model[dev]' \
+            -e './modules/protection_target[dev]' \
+            -e './modules/risk_sizing' \
+            -e './modules/risk_request_composer' \
+            -e './modules/trade_plan_router' \
+            -e '.[backtest]' \
+            -r research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+          uv pip check
+      - name: Self-hosted workflow and architecture gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install_actionlint.sh "$RUNNER_TEMP/actionlint-bin"
+          "$RUNNER_TEMP/actionlint-bin/actionlint" \
+            .github/workflows/canonical-strategy-v2-backtest.yml
+          python scripts/audit_runner_routing.py
+          pytest -q tests/test_test_architecture_contract.py
+      - name: Benchmark quality and synthetic execution tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check research/strategy_audit_validation/benchmarks
+          ruff format --check research/strategy_audit_validation/benchmarks
+          ruff check \
+            research/experiment_runner/benchmarks/wave2a_canonical_strategy.py \
+            research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py
+          ruff format --check \
+            research/experiment_runner/benchmarks/wave2a_canonical_strategy.py \
+            research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py
+          pytest -q research/strategy_audit_validation/benchmarks/tests
+          pytest -q \
+            modules/trade_plan_router/tests/test_normalizer_contracts.py \
+            modules/trade_plan_router/tests/test_router_policy_hardening.py
+          pytest -q \
+            research/experiment_runner/tests/test_wave2a_canonical_strategy_handoff.py
+      - name: Materialize canonical Binance dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          official="$RUNNER_TEMP/canonical-v2-official-dataset"
+          api_error="$RUNNER_TEMP/canonical-v2-api-error.txt"
+          rm -rf "$official"
+          mkdir -p "$official"
+          set +e
+          python -m benchmarks.official_usdtm_dataset \
+            --output "$official/BTCUSDT_5m.parquet" \
+            --provenance "$official/dataset-provenance.json" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            > "$RUNNER_TEMP/canonical-v2-dataset-command.json" \
+            2> "$api_error"
+          api_status=$?
+          set -e
+          if [[ "$api_status" -ne 0 ]]; then
+            if ! grep -q "Binance endpoint HTTP 451" "$api_error"; then
+              cat "$api_error" >&2
+              exit "$api_status"
+            fi
+            python scripts/run_persistent_registration_smoke_v2.py \
+              > "$RUNNER_TEMP/canonical-v2-registration-command.json"
+            python -m benchmarks.registered_canonical_dataset \
+              --storage-root "$HOME/ModuleStrategyData/market_data" \
+              --output "$official/BTCUSDT_5m.parquet" \
+              --provenance "$official/dataset-provenance.json" \
+              --generated-from-commit "$EXPECTED_SHA" \
+              > "$RUNNER_TEMP/canonical-v2-dataset-command.json"
+          fi
+      - name: Run deterministic full-corpus backtest twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          official="$RUNNER_TEMP/canonical-v2-official-dataset"
+          first="$RUNNER_TEMP/canonical-v2-backtest-a"
+          second="$RUNNER_TEMP/canonical-v2-backtest-b"
+          evidence="$RUNNER_TEMP/canonical-strategy-v2-backtest"
+          rm -rf "$first" "$second" "$evidence"
+          mkdir -p "$first" "$second" "$evidence"
+          python -m benchmarks.canonical_strategy_v2 \
+            --input "$official/BTCUSDT_5m.parquet" \
+            --dataset-provenance "$official/dataset-provenance.json" \
+            --output "$first" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            > "$RUNNER_TEMP/canonical-v2-command-a.json"
+          python -m benchmarks.canonical_strategy_v2 \
+            --input "$official/BTCUSDT_5m.parquet" \
+            --dataset-provenance "$official/dataset-provenance.json" \
+            --output "$second" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            > "$RUNNER_TEMP/canonical-v2-command-b.json"
+          diff -rq "$first" "$second"
+          diff -u \
+            "$RUNNER_TEMP/canonical-v2-command-a.json" \
+            "$RUNNER_TEMP/canonical-v2-command-b.json"
+          cp "$first"/* "$evidence"/
+          cp "$official/dataset-provenance.json" "$evidence"/
+      - name: Run modular FVG composition authoritative parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          official="$RUNNER_TEMP/canonical-v2-official-dataset"
+          baseline="$RUNNER_TEMP/canonical-v2-backtest-a"
+          evidence="$RUNNER_TEMP/modular-fvg-composition-parity"
+          rm -rf "$evidence"
+          python -m benchmarks.modular_fvg_composition_parity \
+            --input "$official/BTCUSDT_5m.parquet" \
+            --dataset-provenance "$official/dataset-provenance.json" \
+            --baseline "$baseline" \
+            --output "$evidence" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            > "$RUNNER_TEMP/modular-fvg-composition-command.json"
+      - name: Enforce modular FVG composition parity evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/modular-fvg-composition-parity"
+          python - "$evidence" "$EXPECTED_SHA" <<'PY'
+          from __future__ import annotations
+
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve(strict=True)
+          expected_sha = sys.argv[2]
+          report = json.loads(
+              (root / "composition-parity-report.json").read_text(encoding="utf-8")
+          )
+          if report.get("status") != "MODULAR_FVG_COMPOSITION_AUTHORITATIVE_PARITY":
+              raise SystemExit("modular FVG composition parity status mismatch")
+          if report.get("generated_from_commit") != expected_sha:
+              raise SystemExit("modular FVG composition commit provenance mismatch")
+          if report.get("candidate_id") != "strategy-candidate-51659c6ed582f2843357bd33":
+              raise SystemExit("modular FVG candidate identity mismatch")
+          if report.get("composition_hash") != (
+              "51659c6ed582f2843357bd33fbff35059f9a535dd27f05a585a9e7dfa78365c9"
+          ):
+              raise SystemExit("modular FVG composition identity mismatch")
+          if report.get("reference_semantic_digest") != (
+              "63a2c102601cec5a613ff3749754d31955d6513c654c73cd3dd7e09bbc5cefdb"
+          ):
+              raise SystemExit("modular FVG semantic reference mismatch")
+          required_true = (
+              "producer_snapshot_contract_exact",
+              "setup_adapter_contract_exact",
+              "entry_protection_contract_exact",
+              "risk_sizing_contract_accepted",
+              "router_arbitration_exact",
+              "single_active_order_position_policy",
+              "restart_verified",
+              "ledger_exact",
+              "metrics_exact",
+          )
+          if any(report.get(key) is not True for key in required_true):
+              raise SystemExit("modular FVG composition acceptance flags are incomplete")
+          if report.get("signal_input_source") != "immutable_historical_signal_corpus":
+              raise SystemExit("modular FVG signal oracle identity mismatch")
+          if report.get("producer_detection_full_corpus_replay") is not True:
+              raise SystemExit("modular FVG full producer replay evidence mismatch")
+          if report.get("producer_signal_count") != report.get("signal_count"):
+              raise SystemExit("modular FVG producer/runtime signal count mismatch")
+          if report.get("paper_only") is not True or report.get("live_trading") is not False:
+              raise SystemExit("modular FVG safety boundary mismatch")
+          if report.get("bars_processed") != 721597 or report.get("trade_count") != 438:
+              raise SystemExit("modular FVG authoritative corpus/trade count mismatch")
+          expected_metrics = {
+              "final_equity": 15266.31855203826,
+              "max_closed_equity_drawdown": 0.1164174394297347,
+              "net_return": 0.526631855203826,
+              "profit_factor": 1.328366621740268,
+              "trade_count": 438,
+              "win_rate": 0.3515981735159817,
+          }
+          if report.get("metrics") != expected_metrics:
+              raise SystemExit("modular FVG exact metrics mismatch")
+          expected_files = {
+              "composition-parity-report.json",
+              "modular-comparison-ledger.csv",
+          }
+          if {path.name for path in root.iterdir()} != expected_files:
+              raise SystemExit("modular FVG evidence inventory mismatch")
+          forbidden = ("/Users/", "/home/", "GoogleDrive-", "My Drive", "Мой диск")
+          for path in root.iterdir():
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit("modular FVG evidence must contain regular files only")
+              text = path.read_text(encoding="utf-8")
+              if any(marker in text for marker in forbidden):
+                  raise SystemExit(f"private path marker leaked into {path.name}")
+          PY
+      - name: Run canonical strategy through Research Platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          official="$RUNNER_TEMP/canonical-v2-official-dataset"
+          work="$RUNNER_TEMP/wave2a-canonical-work"
+          evidence="$RUNNER_TEMP/wave2a-canonical-evidence"
+          rm -rf "$work" "$evidence"
+          python research/experiment_runner/benchmarks/wave2a_canonical_strategy.py \
+            --input "$official/BTCUSDT_5m.parquet" \
+            --dataset-provenance "$official/dataset-provenance.json" \
+            --work "$work" \
+            --output "$evidence" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            > "$RUNNER_TEMP/wave2a-canonical-command.json"
+      - name: Enforce sanitized fail-closed evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/canonical-strategy-v2-backtest"
+          python - "$evidence" "$EXPECTED_SHA" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve(strict=True)
+          expected_sha = sys.argv[2]
+          summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+          provenance = json.loads(
+              (root / "dataset-provenance.json").read_text(encoding="utf-8")
+          )
+          if summary["status"] != "OFFICIAL_ENDPOINT_BACKTEST_COMPLETE":
+              raise SystemExit("unexpected canonical backtest status")
+          if summary.get("semantic_digest_contract") != "canonical-strategy-v2-result-v1":
+              raise SystemExit("semantic digest contract mismatch")
+          if summary["dataset"]["raw_5m_sha256"] != provenance["parquet_sha256"]:
+              raise SystemExit("canonical parquet identity mismatch")
+          if summary["dataset"].get("content_sha256") != provenance.get("content_sha256"):
+              raise SystemExit("canonical content identity mismatch")
+          retained_drive_sha = (
+              "2b8a20ef09e1c292abbbee4a6963a1cedb7904cfc4340c9de72d0d2cd0b87ed1"
+          )
+          registered_hash = (
+              "49ee948c7c22dc3c552bf6a96d2fdce9c5bba97662a694ae98ab85fc521c04f5"
+          )
+          official_content_sha = (
+              "7caf6cedc99e77991a1b618ee77c3b31f5433342ba88122fa6a1614708fed130"
+          )
+          if provenance["retained_drive_raw_sha256"] != retained_drive_sha:
+              raise SystemExit("retained Drive corpus identity mismatch")
+          if summary["dataset"].get("retained_registered_dataset_hash") != registered_hash:
+              raise SystemExit("retained registered dataset identity mismatch")
+          if provenance.get("content_sha256") != official_content_sha:
+              raise SystemExit("canonical content SHA drift")
+          if provenance.get("generated_from_commit") != expected_sha:
+              raise SystemExit("dataset provenance commit mismatch")
+          comparison = provenance["drive_comparison_status"]
+          parity = provenance["drive_content_parity"]
+          if comparison == "MATCH" and parity is not True:
+              raise SystemExit("Drive comparison did not prove parity")
+          if comparison == "NOT_REQUESTED" and parity is not None:
+              raise SystemExit("omitted Drive comparison declared an invalid parity result")
+          if comparison not in {"MATCH", "NOT_REQUESTED"}:
+              raise SystemExit("unapproved Drive comparison status")
+          source = provenance["source"]
+          relation = summary["dataset"]["registered_dataset_relation"]
+          if summary["dataset"].get("input_kind") != source:
+              raise SystemExit("summary input kind differs from dataset provenance")
+          if source == "OFFICIAL_BINANCE_USDTM_REST_API":
+              if provenance.get("request_count", 0) <= 0:
+                  raise SystemExit("official API request count is missing")
+              expected_relation = (
+                  "MATCHED_VIA_DRIVE_PARITY" if comparison == "MATCH" else "UNPROVEN_FOR_THIS_RUN"
+              )
+              if relation != expected_relation:
+                  raise SystemExit("official REST registered-dataset relation mismatch")
+          elif source == "REGISTERED_CANONICAL_BINANCE_USDTM_CORPUS":
+              if comparison != "NOT_REQUESTED" or parity is not None:
+                  raise SystemExit("registered canonical fallback must not claim Drive comparison")
+              if relation != "PROVEN_BY_REGISTERED_CANONICAL_IDENTITY":
+                  raise SystemExit("registered canonical relation mismatch")
+              if provenance.get("api_attempt_status") != "HTTP_451_RESTRICTED_LOCATION":
+                  raise SystemExit("registered fallback lacks exact HTTP 451 cause")
+              if provenance.get("official_rest_content_sha256") != official_content_sha:
+                  raise SystemExit("registered fallback official REST reference mismatch")
+              if provenance.get("official_content_parity") is not True:
+                  raise SystemExit("registered fallback lacks official content parity")
+              if provenance.get("schema_version") != 4:
+                  raise SystemExit("registered fallback provenance schema mismatch")
+              if provenance.get("symbol") != "BTCUSDT" or provenance.get("interval") != "5m":
+                  raise SystemExit("registered fallback market identity mismatch")
+              if provenance.get("row_count") != 721597:
+                  raise SystemExit("registered fallback row count mismatch")
+              if provenance.get("first_open_time") != "2019-09-08T17:55:00+00:00":
+                  raise SystemExit("registered fallback first timestamp mismatch")
+              if provenance.get("last_open_time") != "2026-07-19T06:55:00+00:00":
+                  raise SystemExit("registered fallback last timestamp mismatch")
+              registered = provenance.get("registered_dataset")
+              exact_registered = {
+                  "consumer": "modular_research_runner",
+                  "dataset_hash": registered_hash,
+                  "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+                  "dataset_version": 1,
+                  "partition_count": 83,
+                  "row_count": 721597,
+                  "source_uri": "dataset://binance_usdt-m-perpetual_btcusdt_5m/v1",
+                  "validation_status": "VALID",
+              }
+              if registered != exact_registered:
+                  raise SystemExit("registered canonical owner evidence mismatch")
+          else:
+              raise SystemExit("unapproved canonical dataset source")
+          semantic = {
+              key: value
+              for key, value in summary.items()
+              if key not in {"generated_from_commit", "semantic_digest"}
+          }
+          if source == "REGISTERED_CANONICAL_BINANCE_USDTM_CORPUS":
+              dataset = semantic.get("dataset")
+              if not isinstance(dataset, dict):
+                  raise SystemExit("semantic dataset payload is malformed")
+              dataset = dict(dataset)
+              dataset["input_kind"] = "OFFICIAL_BINANCE_USDTM_REST_API"
+              dataset["registered_dataset_relation"] = "UNPROVEN_FOR_THIS_RUN"
+              semantic["dataset"] = dataset
+          semantic_bytes = json.dumps(
+              semantic,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=True,
+              allow_nan=False,
+          ).encode()
+          digest = hashlib.sha256(semantic_bytes).hexdigest()
+          if digest != summary["semantic_digest"]:
+              raise SystemExit("semantic digest reconstruction mismatch")
+          if digest != "63a2c102601cec5a613ff3749754d31955d6513c654c73cd3dd7e09bbc5cefdb":
+              raise SystemExit("canonical strategy result drift")
+          if summary["composition_hash"] != (
+              "51659c6ed582f2843357bd33fbff35059f9a535dd27f05a585a9e7dfa78365c9"
+          ):
+              raise SystemExit("composition identity mismatch")
+          if summary["generated_from_commit"] != expected_sha:
+              raise SystemExit("generated commit mismatch")
+          forbidden = ("/Users/", "/home/", "GoogleDrive-", "My Drive", "Мой диск")
+          for path in root.iterdir():
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit("evidence inventory must contain regular files only")
+              text = path.read_text(encoding="utf-8")
+              if any(marker in text for marker in forbidden):
+                  raise SystemExit(f"private path marker leaked into {path.name}")
+          expected = {
+              "combined-ledger.csv",
+              "dataset-provenance.json",
+              "frozen_1h_short-ledger.csv",
+              "frozen_4h_short-ledger.csv",
+              "fvg_rt_final_15m-ledger.csv",
+              "summary.json",
+          }
+          if {path.name for path in root.iterdir()} != expected:
+              raise SystemExit("evidence inventory mismatch")
+          PY
+      - name: Enforce Research Platform evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/wave2a-canonical-evidence"
+          python - "$evidence" "$EXPECTED_SHA" <<'PY'
+          from __future__ import annotations
+
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1]).resolve(strict=True)
+          expected_sha = sys.argv[2]
+          report = json.loads(
+              (root / "research-platform-summary.json").read_text(encoding="utf-8")
+          )
+          if report["status"] != "CANONICAL_STRATEGY_RESEARCH_PLATFORM_REPRODUCED":
+              raise SystemExit("Research Platform canonical status mismatch")
+          if report["generated_from_commit"] != expected_sha:
+              raise SystemExit("Research Platform commit provenance mismatch")
+          if report["semantic_digest"] != (
+              "63a2c102601cec5a613ff3749754d31955d6513c654c73cd3dd7e09bbc5cefdb"
+          ):
+              raise SystemExit("Research Platform semantic result drift")
+          if report["inserted_jobs"] != 2 or report["restart_replay_engine_calls"] != 0:
+              raise SystemExit("Research Platform execution/restart counts mismatch")
+          if report["paper_only"] is not True or report["live_trading"] is not False:
+              raise SystemExit("Research Platform safety boundary mismatch")
+          expected_root = {
+              "authoritative-parity",
+              "dataset-provenance.json",
+              "repetition-1",
+              "repetition-2",
+              "research-platform-summary.json",
+          }
+          if {path.name for path in root.iterdir()} != expected_root:
+              raise SystemExit("Research Platform evidence inventory mismatch")
+          expected_run = {
+              "combined-ledger.csv",
+              "frozen_1h_short-ledger.csv",
+              "frozen_4h_short-ledger.csv",
+              "fvg_rt_final_15m-ledger.csv",
+              "summary.json",
+          }
+          for name in ("repetition-1", "repetition-2"):
+              directory = root / name
+              if not directory.is_dir() or directory.is_symlink():
+                  raise SystemExit("Research Platform repetition must be a real directory")
+              if {path.name for path in directory.iterdir()} != expected_run:
+                  raise SystemExit("Research Platform repetition inventory mismatch")
+          authoritative = root / "authoritative-parity"
+          if not authoritative.is_dir() or authoritative.is_symlink():
+              raise SystemExit("authoritative parity evidence must be a real directory")
+          expected_authoritative = {
+              "authoritative-comparison-ledger.csv",
+              "parity-report.json",
+          }
+          if {path.name for path in authoritative.iterdir()} != expected_authoritative:
+              raise SystemExit("authoritative parity evidence inventory mismatch")
+          authoritative_report = json.loads(
+              (authoritative / "parity-report.json").read_text(encoding="utf-8")
+          )
+          if authoritative_report != report.get("authoritative_historical_parity"):
+              raise SystemExit("authoritative parity report differs from Research summary")
+          if authoritative_report.get("status") != "AUTHORITATIVE_CORE_BACKTEST_HISTORICAL_PARITY":
+              raise SystemExit("authoritative parity status mismatch")
+          if authoritative_report.get("generated_from_commit") != expected_sha:
+              raise SystemExit("authoritative parity commit provenance mismatch")
+          if authoritative_report.get("paper_only") is not True:
+              raise SystemExit("authoritative parity paper-only boundary mismatch")
+          if authoritative_report.get("funding") != "disabled":
+              raise SystemExit("authoritative parity funding boundary mismatch")
+          if authoritative_report.get("valuation_policy") != "last":
+              raise SystemExit("authoritative parity valuation policy mismatch")
+          if authoritative_report.get("bars_processed") != 721597:
+              raise SystemExit("authoritative parity bar count mismatch")
+          if authoritative_report.get("trade_count") != 438:
+              raise SystemExit("authoritative parity trade count mismatch")
+          if authoritative_report.get("restart_verified") is not True:
+              raise SystemExit("authoritative parity restart evidence mismatch")
+          if authoritative_report.get("ledger_exact") is not True:
+              raise SystemExit("authoritative parity ledger evidence mismatch")
+          if authoritative_report.get("metrics_exact") is not True:
+              raise SystemExit("authoritative parity metric evidence mismatch")
+          expected_metrics = {
+              "final_equity": 15266.31855203826,
+              "max_closed_equity_drawdown": 0.1164174394297347,
+              "net_return": 0.526631855203826,
+              "profit_factor": 1.328366621740268,
+              "trade_count": 438,
+              "win_rate": 0.3515981735159817,
+          }
+          if authoritative_report.get("metrics") != expected_metrics:
+              raise SystemExit("authoritative parity exact metrics mismatch")
+          forbidden = ("/Users/", "/home/", "GoogleDrive-", "My Drive", "Мой диск")
+          for path in root.rglob("*"):
+              if path.is_symlink():
+                  raise SystemExit("Research Platform evidence must not contain symlinks")
+              if path.is_file():
+                  text = path.read_text(encoding="utf-8")
+                  if any(marker in text for marker in forbidden):
+                      raise SystemExit(f"private path marker leaked into {path.name}")
+          PY
+      - name: Publish exact canonical backtest evidence
+        if: success()
+        id: backtest_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ runner.temp }}/canonical-strategy-v2-backtest
+          asset_name: canonical-strategy-v2-backtest.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+      - name: Enforce canonical backtest publication gate
+        if: success()
+        run: test "${{ steps.backtest_evidence_publish.outcome }}" = success
+      - name: Publish exact modular FVG composition evidence
+        if: success()
+        id: modular_fvg_composition_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ runner.temp }}/modular-fvg-composition-parity
+          asset_name: modular-fvg-composition-parity.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+      - name: Enforce modular FVG composition publication gate
+        if: success()
+        run: test "${{ steps.modular_fvg_composition_evidence_publish.outcome }}" = success
+      - name: Publish exact Research Platform evidence
+        if: success()
+        id: research_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ runner.temp }}/wave2a-canonical-evidence
+          asset_name: canonical-strategy-v2-research-platform.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+      - name: Enforce Research Platform publication gate
+        if: success()
+        run: test "${{ steps.research_evidence_publish.outcome }}" = success
+      - name: Cleanup canonical strategy temporary data
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            "$RUNNER_TEMP/canonical-v2-official-dataset" \
+            "$RUNNER_TEMP/canonical-v2-backtest-a" \
+            "$RUNNER_TEMP/canonical-v2-backtest-b" \
+            "$RUNNER_TEMP/canonical-strategy-v2-backtest" \
+            "$RUNNER_TEMP/modular-fvg-composition-parity" \
+            "$RUNNER_TEMP/persistent-acceptance" \
+            "$RUNNER_TEMP/wave2a-canonical-work" \
+            "$RUNNER_TEMP/wave2a-canonical-evidence"
+          rm -f \
+            "$RUNNER_TEMP/canonical-v2-api-error.txt" \
+            "$RUNNER_TEMP/canonical-v2-dataset-command.json" \
+            "$RUNNER_TEMP/canonical-v2-registration-command.json" \
+            "$RUNNER_TEMP/canonical-v2-command-a.json" \
+            "$RUNNER_TEMP/canonical-v2-command-b.json" \
+            "$RUNNER_TEMP/modular-fvg-composition-command.json" \
+            "$RUNNER_TEMP/wave2a-canonical-command.json"

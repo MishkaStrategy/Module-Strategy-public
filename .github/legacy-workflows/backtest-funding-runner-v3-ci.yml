@@ -1,0 +1,124 @@
+name: Backtest funding runner V3 CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/backtest-funding-runner-v3-ci.yml"
+      - "src/modular_backtest/funding.py"
+      - "src/modular_backtest/funding_application.py"
+      - "src/modular_backtest/futures_execution.py"
+      - "src/modular_backtest/results.py"
+      - "src/modular_backtest/runner.py"
+      - "tests/backtest_engine/test_funding_application.py"
+      - "tests/backtest_engine/test_funding_runner_v3.py"
+      - "tests/backtest_engine/test_funding_runtime_v2.py"
+      - "tests/backtest_engine/test_registered_funding_adapter.py"
+      - "tests/backtest_engine/test_runner.py"
+      - "tests/backtest_engine/test_results.py"
+      - "tests/backtest_engine/test_recovery.py"
+      - "docs/backtest/FUNDING_RUNNER_PUBLICATION_V3.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-funding-runner-v3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Funding runner V3 / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact funding runner candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+          cache-suffix: backtest-funding-runner-v3
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]"
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          src/modular_backtest/funding.py
+          src/modular_backtest/funding_application.py
+          src/modular_backtest/futures_execution.py
+          src/modular_backtest/results.py
+          src/modular_backtest/runner.py
+          tests/backtest_engine/test_funding_application.py
+          tests/backtest_engine/test_funding_runner_v3.py
+
+      - name: Ruff format
+        run: >-
+          ruff format --check
+          src/modular_backtest/funding_application.py
+          src/modular_backtest/results.py
+          src/modular_backtest/runner.py
+          tests/backtest_engine/test_funding_application.py
+          tests/backtest_engine/test_funding_runner_v3.py
+
+      - name: Ruff lint
+        run: >-
+          ruff check
+          src/modular_backtest/funding_application.py
+          src/modular_backtest/results.py
+          src/modular_backtest/runner.py
+          tests/backtest_engine/test_funding_application.py
+          tests/backtest_engine/test_funding_runner_v3.py
+
+      - name: Strict MyPy funding runner
+        run: >-
+          mypy --strict
+          src/modular_backtest/funding_application.py
+          src/modular_backtest/results.py
+          src/modular_backtest/runner.py
+
+      - name: Funding V1-V3 and publication tests
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_registered_funding_adapter.py
+          tests/backtest_engine/test_funding_runtime_v2.py
+          tests/backtest_engine/test_funding_application.py
+          tests/backtest_engine/test_funding_runner_v3.py
+          tests/backtest_engine/test_runner.py
+          tests/backtest_engine/test_results.py
+
+      - name: Real recovery regression
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_recovery.py

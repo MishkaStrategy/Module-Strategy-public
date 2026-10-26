@@ -1,0 +1,24 @@
+enabled: true
+allow_scale_out: true
+require_setup_validity: false
+require_liquidation_distance: false
+require_margin_usage: false
+rules:
+  - stage: 1
+    mode: scale_out
+    action: reduce
+    trigger_kind: r_multiple
+    trigger_value: 1
+    quantity_kind: current_fraction
+    quantity_value: 0.25
+    cooldown_bars: 1
+    expires_bars: 1
+  - stage: 2
+    mode: scale_out
+    action: reduce
+    trigger_kind: r_multiple
+    trigger_value: 2
+    quantity_kind: current_fraction
+    quantity_value: 0.50
+    cooldown_bars: 1
+    expires_bars: 1

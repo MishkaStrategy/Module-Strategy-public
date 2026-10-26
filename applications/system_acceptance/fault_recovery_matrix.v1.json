@@ -1,0 +1,655 @@
+{
+  "schema_version": "1",
+  "scenarios": [
+    {
+      "scenario_id": "runner_process_kill",
+      "fault_class": "process_kill",
+      "suite": "smoke",
+      "target_owner": "trading_runner",
+      "injector": "process_kill_after_owner_commit",
+      "expected_owner_state": "replay_from_owner_checkpoint",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "transport_unhealthy"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "trading_runner",
+        "health": "unavailable",
+        "reason_code": "owner_unavailable"
+      },
+      "recovery_action": "restart_and_replay_owner_journal",
+      "forbidden_side_effects": [
+        "duplicate_order",
+        "duplicate_fill",
+        "duplicate_position_transition"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "runner_checkpoint_seq"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "runner_process_kill_before_checkpoint",
+      "fault_class": "process_kill",
+      "suite": "smoke",
+      "target_owner": "trading_runner",
+      "injector": "process_kill_before_owner_commit",
+      "expected_owner_state": "retain_last_committed_checkpoint_only",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "transport_unhealthy"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "trading_runner",
+        "health": "unavailable",
+        "reason_code": "owner_unavailable"
+      },
+      "recovery_action": "restart_from_last_committed_checkpoint",
+      "forbidden_side_effects": [
+        "uncommitted_work_publication",
+        "duplicate_order",
+        "duplicate_fill"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "runner_checkpoint_seq"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "market_data_stale_interrupt",
+      "fault_class": "stale_interrupted_market_data",
+      "suite": "smoke",
+      "target_owner": "market_data",
+      "injector": "freeze_market_data_progress",
+      "expected_owner_state": "last_committed_dataset_state_only",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "market_data_stale"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "market_data",
+        "health": "unavailable",
+        "reason_code": "source_stale"
+      },
+      "recovery_action": "resume_from_owner_cursor",
+      "forbidden_side_effects": [
+        "fabricated_market_event",
+        "new_order_while_stale",
+        "cursor_regression"
+      ],
+      "factual_state_fields": [
+        "market_cursor",
+        "dataset_version",
+        "order_count",
+        "fill_count"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "out_of_order_owner_evidence",
+      "fault_class": "delayed_out_of_order",
+      "suite": "extended",
+      "target_owner": "risk_supervisor",
+      "injector": "reorder_authoritative_snapshot",
+      "expected_owner_state": "reject_non_monotonic_snapshot",
+      "risk_supervisor": {
+        "state": "manual_review",
+        "guard_code": "snapshot_out_of_order"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "healthy",
+        "reason_code": null
+      },
+      "recovery_action": "supply_newer_authoritative_snapshot",
+      "forbidden_side_effects": [
+        "duplicate_order",
+        "state_revision_regression",
+        "accept_stale_snapshot"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "risk_decision_revision"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "acceptance_sqlite_busy_wal",
+      "fault_class": "sqlite_busy_locked_wal",
+      "suite": "smoke",
+      "target_owner": "system_acceptance",
+      "injector": "exclusive_sqlite_lock",
+      "expected_owner_state": "transaction_rollback_no_partial_state",
+      "risk_supervisor": {
+        "state": "healthy",
+        "guard_code": null
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "system_acceptance_recovery",
+        "health": "unavailable",
+        "reason_code": "owner_unavailable"
+      },
+      "recovery_action": "release_lock_and_reopen_owner_store",
+      "forbidden_side_effects": [
+        "partial_acceptance_mutation",
+        "duplicate_acceptance_run",
+        "sqlite_integrity_loss"
+      ],
+      "factual_state_fields": [
+        "acceptance_run_count",
+        "acceptance_mutation_count",
+        "acceptance_latest_revision"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "disk_pressure_read_only",
+      "fault_class": "disk_pressure_read_only",
+      "suite": "smoke",
+      "target_owner": "risk_supervisor",
+      "injector": "bounded_disk_capacity_signal",
+      "expected_owner_state": "halt_new_risk_admission",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "resource_pressure"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "blocked",
+        "reason_code": "risk_supervisor.resource_pressure"
+      },
+      "recovery_action": "restore_verified_capacity_then_operator_recover",
+      "forbidden_side_effects": [
+        "new_order_under_pressure",
+        "unverified_prune",
+        "silent_write_drop"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "risk_decision_revision"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "corrupt_truncated_checkpoint",
+      "fault_class": "corrupt_truncated_state",
+      "suite": "smoke",
+      "target_owner": "trading_runner",
+      "injector": "truncate_checkpoint_copy",
+      "expected_owner_state": "reject_checkpoint_replay",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "checkpoint_integrity_failure"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "blocked",
+        "reason_code": "risk_supervisor.checkpoint_integrity_failure"
+      },
+      "recovery_action": "restore_verified_owner_checkpoint",
+      "forbidden_side_effects": [
+        "accept_corrupt_checkpoint",
+        "duplicate_order",
+        "duplicate_fill"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "runner_checkpoint_seq"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "wall_clock_forward_backward",
+      "fault_class": "wall_clock_jump",
+      "suite": "extended",
+      "target_owner": "risk_supervisor",
+      "injector": "deterministic_clock_jump",
+      "expected_owner_state": "reject_non_monotonic_time_evidence",
+      "risk_supervisor": {
+        "state": "manual_review",
+        "guard_code": "clock_anomaly"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "healthy",
+        "reason_code": null
+      },
+      "recovery_action": "restore_monotonic_clock_and_operator_recover",
+      "forbidden_side_effects": [
+        "accept_future_snapshot",
+        "expire_fence_early",
+        "duplicate_order"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "risk_decision_revision"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "signal_bot_unavailable",
+      "fault_class": "signal_bot_unavailable",
+      "suite": "smoke",
+      "target_owner": "signal_bot",
+      "injector": "signal_transport_unavailable",
+      "expected_owner_state": "preserve_outbox_and_delivery_fences",
+      "risk_supervisor": {
+        "state": "healthy",
+        "guard_code": null
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "signal_bot",
+        "health": "unavailable",
+        "reason_code": "owner_unavailable"
+      },
+      "recovery_action": "resume_from_owner_outbox_cursor",
+      "forbidden_side_effects": [
+        "duplicate_notification",
+        "cursor_regression",
+        "fabricated_delivery_success"
+      ],
+      "factual_state_fields": [
+        "signal_outbox_count",
+        "signal_cursor",
+        "notification_count"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "control_plane_restart",
+      "fault_class": "control_plane_restart",
+      "suite": "smoke",
+      "target_owner": "control_plane",
+      "injector": "sigkill_loopback_rebind",
+      "expected_owner_state": "preserve_authoritative_owner_truth",
+      "risk_supervisor": {
+        "state": "healthy",
+        "guard_code": null
+      },
+      "observability": {
+        "kind": "transport",
+        "subject": "control_plane_transport",
+        "health": "unavailable",
+        "reason_code": "transport_unavailable"
+      },
+      "recovery_action": "rebind_and_reattach_owner_read_contracts",
+      "forbidden_side_effects": [
+        "owner_state_mutation",
+        "health_inference_from_cache",
+        "credential_persistence"
+      ],
+      "factual_state_fields": [
+        "acceptance_run_id",
+        "acceptance_status",
+        "acceptance_phase",
+        "acceptance_active_test_time",
+        "acceptance_restart_count",
+        "acceptance_identity"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "partial_outage_recovery_order",
+      "fault_class": "partial_outage_recovery_order",
+      "suite": "extended",
+      "target_owner": "system_recovery",
+      "injector": "recover_dependencies_out_of_order",
+      "expected_owner_state": "block_runtime_until_owner_admission_complete",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "recovery_required"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "blocked",
+        "reason_code": "risk_supervisor.recovery_required"
+      },
+      "recovery_action": "replay_declared_owner_recovery_order",
+      "forbidden_side_effects": [
+        "paper_admission_before_recovery",
+        "duplicate_order",
+        "partial_restore_publication"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "position_revision",
+        "recovery_manifest_revision"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "operator_retry_after_timeout",
+      "fault_class": "operator_retry_after_timeout",
+      "suite": "smoke",
+      "target_owner": "risk_supervisor",
+      "injector": "drop_operator_response_after_commit",
+      "expected_owner_state": "idempotent_operator_request_replay",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "operator_emergency_halt"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "blocked",
+        "reason_code": "risk_supervisor.operator_emergency_halt"
+      },
+      "recovery_action": "retry_same_request_id",
+      "forbidden_side_effects": [
+        "duplicate_operator_transition",
+        "duplicate_order",
+        "command_replay_mismatch"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "risk_decision_revision",
+        "operator_request_count"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    },
+    {
+      "scenario_id": "bounded_queue_resource_pressure",
+      "fault_class": "resource_pressure_bounded_queue",
+      "suite": "smoke",
+      "target_owner": "trading_runner",
+      "injector": "saturate_bounded_runtime_queue",
+      "expected_owner_state": "backpressure_without_committed_work_loss",
+      "risk_supervisor": {
+        "state": "halt",
+        "guard_code": "resource_pressure"
+      },
+      "observability": {
+        "kind": "component",
+        "subject": "risk_supervisor",
+        "health": "blocked",
+        "reason_code": "risk_supervisor.resource_pressure"
+      },
+      "recovery_action": "drain_committed_work_then_operator_recover",
+      "forbidden_side_effects": [
+        "unbounded_queue_growth",
+        "committed_work_drop",
+        "duplicate_order"
+      ],
+      "factual_state_fields": [
+        "order_count",
+        "fill_count",
+        "runner_checkpoint_seq",
+        "committed_work_count"
+      ],
+      "evidence_fields": [
+        "schema_version",
+        "scenario_id",
+        "fault_class",
+        "suite",
+        "candidate_sha",
+        "target_owner",
+        "expected_owner_state",
+        "risk_state",
+        "risk_guard_code",
+        "observability_kind",
+        "observability_subject",
+        "observability_health",
+        "observability_reason_code",
+        "verification_status",
+        "residual_risk_id",
+        "continuous_state_sha256",
+        "recovered_state_sha256",
+        "factual_state_fields"
+      ]
+    }
+  ]
+}

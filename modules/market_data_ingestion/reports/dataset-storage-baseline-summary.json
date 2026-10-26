@@ -1,0 +1,350 @@
+{
+  "runs": [
+    {
+      "environment": {
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.13",
+        "seed": 20260802,
+        "sqlite": "3.53.1"
+      },
+      "local_storage": {
+        "cleanup_api_supported": false,
+        "corruption_detection_ms": 317.187084,
+        "deterministic_list_count": 101,
+        "deterministic_list_ms": 12.780458,
+        "idempotent_manifest_publish_ms": 318.008417,
+        "immutable_conflict_detected": true,
+        "large_manifest_bytes": 1780064,
+        "large_manifest_partition_count": 10000,
+        "large_manifest_publish_ms": 318.026458,
+        "orphan_paths_after": [
+          "manifests/storage-bench-large/.crash-orphan.tmp"
+        ],
+        "orphan_paths_before": [
+          "manifests/storage-bench-large/.crash-orphan.tmp"
+        ],
+        "reopen_ms": 0.251375,
+        "small_manifest_publish_latency": {
+          "count": 100,
+          "p50_ms": 0.603833,
+          "p95_ms": 0.899542,
+          "p99_ms": 2.751916
+        },
+        "stale_lock_recovery_ms": 0.457375,
+        "temp_bytes_after": 6
+      },
+      "process": {
+        "fd_growth": 0,
+        "peak_rss_growth_mib": 21.421875
+      },
+      "raw_file": "dataset-storage-baseline-py312.json",
+      "raw_sha256": "7a8f135c1a11ad34e373063dcbd0716578ec9a9b9273c99694b89b0818a5d37d",
+      "registry": [
+        {
+          "bytes_per_dataset": 16625.62181818182,
+          "checksum_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.002875,
+            "p95_ms": 0.006417,
+            "p99_ms": 0.013208
+          },
+          "concurrency": {
+            "busy_error_count": 0,
+            "reader_attempts": 400,
+            "reader_availability": 1.0,
+            "reader_successes": 400,
+            "transaction_retry_count": 0,
+            "writer_attempts": 100,
+            "writer_latency": {
+              "count": 100,
+              "p50_ms": 2.644167,
+              "p95_ms": 6.6185,
+              "p99_ms": 12.396208
+            },
+            "writer_successes": 100
+          },
+          "dataset_count": 1000,
+          "exact_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.109334,
+            "p95_ms": 0.1555,
+            "p99_ms": 0.27775
+          },
+          "final_dataset_count": 1100,
+          "integrity_check_ms": 1.393417,
+          "integrity_check_result": "ok",
+          "latest_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.10875,
+            "p95_ms": 0.15475,
+            "p99_ms": 0.2475
+          },
+          "pragma_user_version": 0,
+          "query_plans": {
+            "checksum": [
+              "SEARCH datasets USING INDEX idx_datasets_hash (dataset_hash=?)"
+            ],
+            "exact": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=? AND version=?)"
+            ],
+            "latest": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=?)"
+            ]
+          },
+          "register_latency": {
+            "count": 1000,
+            "p50_ms": 0.410209,
+            "p95_ms": 0.601791,
+            "p99_ms": 0.716292
+          },
+          "registrations_per_second": 2338.119107735134,
+          "reopen_ms": 0.894708,
+          "sizes_with_reader_snapshot": {
+            "database_bytes": 24576,
+            "shm_bytes": 65536,
+            "wal_bytes": 18198072
+          }
+        },
+        {
+          "bytes_per_dataset": 17051.276831683168,
+          "checksum_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.00525,
+            "p95_ms": 0.009459,
+            "p99_ms": 0.014625
+          },
+          "concurrency": {
+            "busy_error_count": 0,
+            "reader_attempts": 400,
+            "reader_availability": 1.0,
+            "reader_successes": 400,
+            "transaction_retry_count": 0,
+            "writer_attempts": 100,
+            "writer_latency": {
+              "count": 100,
+              "p50_ms": 2.94875,
+              "p95_ms": 6.763791,
+              "p99_ms": 7.444125
+            },
+            "writer_successes": 100
+          },
+          "dataset_count": 10000,
+          "exact_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.108334,
+            "p95_ms": 0.143542,
+            "p99_ms": 0.294625
+          },
+          "final_dataset_count": 10100,
+          "integrity_check_ms": 12.167541,
+          "integrity_check_result": "ok",
+          "latest_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.1065,
+            "p95_ms": 0.135667,
+            "p99_ms": 0.198791
+          },
+          "pragma_user_version": 0,
+          "query_plans": {
+            "checksum": [
+              "SEARCH datasets USING INDEX idx_datasets_hash (dataset_hash=?)"
+            ],
+            "exact": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=? AND version=?)"
+            ],
+            "latest": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=?)"
+            ]
+          },
+          "register_latency": {
+            "count": 10000,
+            "p50_ms": 1.036709,
+            "p95_ms": 1.868459,
+            "p99_ms": 1.992375
+          },
+          "registrations_per_second": 911.2086165636972,
+          "reopen_ms": 1.085667,
+          "sizes_with_reader_snapshot": {
+            "database_bytes": 24576,
+            "shm_bytes": 360448,
+            "wal_bytes": 171832872
+          }
+        }
+      ]
+    },
+    {
+      "environment": {
+        "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "python": "3.13.14",
+        "seed": 20260802,
+        "sqlite": "3.53.1"
+      },
+      "local_storage": {
+        "cleanup_api_supported": false,
+        "corruption_detection_ms": 57.7215,
+        "deterministic_list_count": 101,
+        "deterministic_list_ms": 8.146875,
+        "idempotent_manifest_publish_ms": 59.333334,
+        "immutable_conflict_detected": true,
+        "large_manifest_bytes": 1780064,
+        "large_manifest_partition_count": 10000,
+        "large_manifest_publish_ms": 57.96675,
+        "orphan_paths_after": [
+          "manifests/storage-bench-large/.crash-orphan.tmp"
+        ],
+        "orphan_paths_before": [
+          "manifests/storage-bench-large/.crash-orphan.tmp"
+        ],
+        "reopen_ms": 0.213083,
+        "small_manifest_publish_latency": {
+          "count": 100,
+          "p50_ms": 0.571375,
+          "p95_ms": 0.792292,
+          "p99_ms": 0.859334
+        },
+        "stale_lock_recovery_ms": 0.4555,
+        "temp_bytes_after": 6
+      },
+      "process": {
+        "fd_growth": 0,
+        "peak_rss_growth_mib": 20.21875
+      },
+      "raw_file": "dataset-storage-baseline-py313.json",
+      "raw_sha256": "8bc5bc15be81c8671c0fffc569972cd7bfc3059bfab343ae954ff9ef076cdc0c",
+      "registry": [
+        {
+          "bytes_per_dataset": 16614.385454545456,
+          "checksum_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.003041,
+            "p95_ms": 0.006458,
+            "p99_ms": 0.008958
+          },
+          "concurrency": {
+            "busy_error_count": 0,
+            "reader_attempts": 400,
+            "reader_availability": 1.0,
+            "reader_successes": 400,
+            "transaction_retry_count": 0,
+            "writer_attempts": 100,
+            "writer_latency": {
+              "count": 100,
+              "p50_ms": 2.215292,
+              "p95_ms": 6.317584,
+              "p99_ms": 13.2375
+            },
+            "writer_successes": 100
+          },
+          "dataset_count": 1000,
+          "exact_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.114417,
+            "p95_ms": 0.215875,
+            "p99_ms": 0.384875
+          },
+          "final_dataset_count": 1100,
+          "integrity_check_ms": 1.254917,
+          "integrity_check_result": "ok",
+          "latest_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.114,
+            "p95_ms": 0.231208,
+            "p99_ms": 0.386417
+          },
+          "pragma_user_version": 0,
+          "query_plans": {
+            "checksum": [
+              "SEARCH datasets USING INDEX idx_datasets_hash (dataset_hash=?)"
+            ],
+            "exact": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=? AND version=?)"
+            ],
+            "latest": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=?)"
+            ]
+          },
+          "register_latency": {
+            "count": 1000,
+            "p50_ms": 0.552292,
+            "p95_ms": 1.413917,
+            "p99_ms": 2.799875
+          },
+          "registrations_per_second": 1507.9386379463554,
+          "reopen_ms": 0.779667,
+          "sizes_with_reader_snapshot": {
+            "database_bytes": 24576,
+            "shm_bytes": 65536,
+            "wal_bytes": 18185712
+          }
+        },
+        {
+          "bytes_per_dataset": 17050.05306930693,
+          "checksum_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.005458,
+            "p95_ms": 0.008542,
+            "p99_ms": 0.011875
+          },
+          "concurrency": {
+            "busy_error_count": 0,
+            "reader_attempts": 400,
+            "reader_availability": 1.0,
+            "reader_successes": 400,
+            "transaction_retry_count": 0,
+            "writer_attempts": 100,
+            "writer_latency": {
+              "count": 100,
+              "p50_ms": 3.222083,
+              "p95_ms": 6.510792,
+              "p99_ms": 12.768417
+            },
+            "writer_successes": 100
+          },
+          "dataset_count": 10000,
+          "exact_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.110083,
+            "p95_ms": 0.143917,
+            "p99_ms": 0.276416
+          },
+          "final_dataset_count": 10100,
+          "integrity_check_ms": 12.233875,
+          "integrity_check_result": "ok",
+          "latest_lookup_latency": {
+            "count": 1000,
+            "p50_ms": 0.108917,
+            "p95_ms": 0.142458,
+            "p99_ms": 0.235042
+          },
+          "pragma_user_version": 0,
+          "query_plans": {
+            "checksum": [
+              "SEARCH datasets USING INDEX idx_datasets_hash (dataset_hash=?)"
+            ],
+            "exact": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=? AND version=?)"
+            ],
+            "latest": [
+              "SEARCH datasets USING INDEX sqlite_autoindex_datasets_1 (dataset_id=?)"
+            ]
+          },
+          "register_latency": {
+            "count": 10000,
+            "p50_ms": 1.02275,
+            "p95_ms": 1.861792,
+            "p99_ms": 1.987125
+          },
+          "registrations_per_second": 923.7978264190398,
+          "reopen_ms": 0.85425,
+          "sizes_with_reader_snapshot": {
+            "database_bytes": 24576,
+            "shm_bytes": 360448,
+            "wal_bytes": 171820512
+          }
+        }
+      ]
+    }
+  ],
+  "schema": "wave2d-baseline-evidence-v1",
+  "source_head": "0564816b9f98dc00c120d1940860dec301c23366"
+}

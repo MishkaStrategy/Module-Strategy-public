@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.json
+htmlcov/
+build/
+dist/
+*.egg-info/
+.venv/
+.venv-local-test/
+.local-tests/
+.env
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Local analysis caches are not publication source.
+graphify-out/
+.ruff_cache/

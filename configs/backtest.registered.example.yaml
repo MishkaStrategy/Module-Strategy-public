@@ -1,0 +1,55 @@
+data:
+  # Use an absolute path. The registry, immutable raw lineage, normalized monthly
+  # partitions and manifests live below this root; no market bytes belong in Git.
+  storage_root: /Users/USERNAME/ModuleStrategyData/market_data
+  dataset_id: binance_usdt-m-perpetual_btcusdt_5m
+  dataset_version: 1
+  symbol: BTCUSDT
+  market_type: binance-usdt-m-perpetual
+  base_timeframe: 5m
+  gap_policy: reject
+  start: 2024-01-01T00:00:00Z
+  end: 2024-02-01T00:00:00Z
+
+modules: integration.example.yaml
+initial_capital: 10000
+requested_timeframes: [15m, 1h, 4h, 1d]
+seed: 0
+end_of_test_policy: force_close
+
+checkpoint:
+  mode: replay
+  restart_at_bar: 100000
+
+fees:
+  maker_rate: 0.0002
+  taker_rate: 0.00055
+
+execution:
+  slippage_bps: 2.5
+  stop_slippage_bps: 2.5
+  intrabar_priority: stop
+  limit_fill_policy: at_limit
+  allow_exit_on_entry_bar: false
+  allow_reentry_on_exit_bar: false
+  target_liquidity: maker
+  stop_limit_same_bar_policy: defer
+
+risk:
+  default_risk_fraction: 0.005
+  max_risk_fraction: 0.02
+  max_notional_multiple: 3.0
+
+instrument:
+  base_asset: BTC
+  quote_asset: USDT
+  market_type: linear_futures
+  tick_size: 0.1
+  quantity_step: 0.001
+  min_quantity: 0.001
+  min_notional: 5
+  price_precision: 1
+  quantity_precision: 3
+
+output:
+  directory: ../results/registered-btcusdt-smoke

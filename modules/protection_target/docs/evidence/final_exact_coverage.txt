@@ -1,0 +1,13 @@
+Name                                                                                                                            Stmts   Miss Branch BrPart  Cover   Missing
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/__init__.py            9      0      0      0   100%
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/config.py            166      8     76      6    94%   39, 42-43, 45, 59, 75, 242, 251
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/constants.py           5      0      0      0   100%
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/contracts.py         196     10    104      9    94%   36-37, 94, 104, 110, 126, 192, 196, 260, 282->286, 302
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/decimal_utils.py      11      0      6      0   100%
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/exceptions.py         10      0      0      0   100%
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/models.py             66      0      0      0   100%
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/module.py            331     19    116     15    92%   335-342, 361, 379, 542, 571, 616, 640-641, 726, 735, 740, 776, 781, 786, 810, 834, 893->899, 989
+/mnt/data/protection_target_final_exact_venv/lib/python3.13/site-packages/modular_strategy_protection_target/state.py             214     16    116     12    92%   38, 40, 122, 191, 202, 216, 246, 258, 299, 317, 319, 322-323, 332, 335-336
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                                                            1008     53    418     42    93%

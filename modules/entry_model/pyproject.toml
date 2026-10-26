@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-entry-model"
+version = "0.2.0"
+description = "Deterministic confirmed-setup to entry-plan module for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "LicenseRef-Proprietary"
+authors = [{name = "Modular Strategy Project"}]
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.entry-points."modular_strategy.modules"]
+entry_model = "modular_modules.entry_model:EntryModelModule"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "coverage>=7.6",
+  "hypothesis>=6.100",
+  "mypy>=1.11",
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"modular_modules.entry_model" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+
+[tool.coverage.run]
+branch = true
+source = ["modular_modules.entry_model"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 90
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["src"]
+packages = ["modular_modules.entry_model"]

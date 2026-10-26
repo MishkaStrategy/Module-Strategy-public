@@ -1,0 +1,115 @@
+name: risk-supervisor-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "applications/risk_supervisor/**"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "modules/trade_plan_router/**"
+      - ".github/workflows/risk-supervisor-ci.yml"
+  push:
+    branches:
+      - "runtime-safety/**"
+      - "integration/**"
+    paths:
+      - "applications/risk_supervisor/**"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "modules/trade_plan_router/**"
+      - ".github/workflows/risk-supervisor-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: risk-supervisor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  component:
+    name: Risk Supervisor / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Risk Supervisor candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/risk_supervisor/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+          cache-suffix: risk-supervisor
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./applications/risk_supervisor[dev]"
+          uv pip check
+
+      - name: Compile
+        run: python -m compileall -q applications/risk_supervisor/src applications/risk_supervisor/tests
+
+      - name: Ruff format
+        run: ruff format --check applications/risk_supervisor/src applications/risk_supervisor/tests
+
+      - name: Ruff lint
+        run: ruff check applications/risk_supervisor/src applications/risk_supervisor/tests
+
+      - name: Strict MyPy
+        run: mypy --strict applications/risk_supervisor/src
+
+      - name: Deterministic component tests
+        run: pytest -q applications/risk_supervisor/tests
+
+      - name: Build package
+        run: (cd applications/risk_supervisor && python -m build)
+
+      - name: Enforce PAPER-only source boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          forbidden = (
+              "LiveExecutionAdapter",
+              "private_api_key",
+              "private_exchange",
+              "production_trading",
+              "place_live_order",
+          )
+          findings = []
+          for path in Path("applications/risk_supervisor/src").rglob("*.py"):
+              text = path.read_text(encoding="utf-8")
+              for token in forbidden:
+                  if token in text:
+                      findings.append(f"{path}: {token}")
+          if findings:
+              raise SystemExit("forbidden live surface:\n" + "\n".join(findings))
+          print(f"PASS exact_head={__import__('os').environ['EXPECTED_HEAD']}")
+          PY

@@ -1,0 +1,81 @@
+{
+  "acceptance_kind": "binance_public_full_available_history",
+  "acceptance_version": 1,
+  "adapter_version": "0.3.0",
+  "completed_at": "2026-07-27T19:23:50.745076Z",
+  "dataset": {
+    "data_types": [
+      "exchange_metadata",
+      "instrument_metadata",
+      "klines"
+    ],
+    "dataset_hash": "198844fea7b8efbe35eb30a5bddb46cef8c87a7175f370554d6dbe372e83cfb2",
+    "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+    "end": "2026-07-27T19:20:00Z",
+    "final_state": "COMPLETED",
+    "market_type": "usdt_m_perpetual",
+    "start": "2019-09-08T17:55:00Z",
+    "symbol": "BTCUSDT",
+    "timeframes": [
+      "5m"
+    ],
+    "unresolved_issues": [],
+    "validation_status": "VALID",
+    "version": 1
+  },
+  "deep_validation": {
+    "issues": [],
+    "partitions_checked": 85,
+    "raw_artifacts_checked": 98,
+    "rows_checked": 724051,
+    "status": "ok"
+  },
+  "download": {
+    "elapsed_seconds": 210,
+    "exit_code": 0,
+    "head_sha": "6b1e855a7ae6c1aafd69fc4e107f485573e8876d",
+    "request_id": "github-binance-btcusdt-full-history",
+    "run_id": "mdi:418e877f2dc774e27d9e12d7"
+  },
+  "gate": {
+    "criteria": {
+      "deep_integrity_ok": true,
+      "earliest_timestamp_exact": true,
+      "minimum_baseline_rows_reached": true,
+      "required_klines_present": true,
+      "validation_valid": true,
+      "zero_duplicates": true,
+      "zero_gaps": true,
+      "zero_issues": true
+    },
+    "passed": true
+  },
+  "storage": {
+    "byte_counts": {
+      "checkpoints": 5755,
+      "derived": 0,
+      "manifests": 446038,
+      "normalized": 47661873,
+      "raw": 38823956,
+      "runs": 896
+    },
+    "file_counts": {
+      "checkpoints": 1,
+      "derived": 0,
+      "manifests": 1,
+      "normalized": 85,
+      "raw": 196,
+      "runs": 1
+    },
+    "kline_partitions": 83
+  },
+  "validation": {
+    "duplicates": [],
+    "gaps": [],
+    "issues": [],
+    "klines_rows_checked": 724049,
+    "rows_checked_with_metadata": 724051,
+    "status": "VALID",
+    "warnings": []
+  }
+}

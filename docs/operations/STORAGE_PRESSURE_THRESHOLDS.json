@@ -1,0 +1,321 @@
+{
+  "schema_version": 2,
+  "status": "PARTIAL_MEASURED_FAIL_CLOSED",
+  "policy": {
+    "unknown_means": "NO_DESTRUCTIVE_OR_CAPACITY_CLAIM",
+    "measurement_bound_is_not_physical_disk_watermark": true,
+    "physical_capacity_thresholds_require_owner_evidence": true,
+    "forecast_owner": "system_resources_issue_370_pr_371",
+    "no_duplicate_monitor": true
+  },
+  "tiers": {
+    "self_hosted_runner": {
+      "kind": "physical_free_disk_watermark",
+      "status": "ACCEPTED",
+      "source": ".github/RUNNER_LABELS.md",
+      "capabilities": {
+        "fast": {
+          "high_water_free_gib": 2,
+          "critical_free_gib": 1
+        },
+        "docker": {
+          "high_water_free_gib": 15,
+          "critical_free_gib": 10
+        },
+        "macos": {
+          "high_water_free_gib": 12,
+          "critical_free_gib": 8
+        },
+        "backtester": {
+          "high_water_free_gib": 30,
+          "critical_free_gib": 20
+        }
+      }
+    },
+    "system_acceptance": {
+      "kind": "owner_measurement_and_hard_bound",
+      "status": "MEASURED_NEAR_BOUNDARY_PROVEN_THRESHOLD_UNKNOWN",
+      "sources": [
+        "applications/system_acceptance/src/modular_system_acceptance/storage.py",
+        "applications/system_acceptance/src/modular_system_acceptance/storage_growth_benchmark.py",
+        "applications/system_acceptance/src/modular_system_acceptance/storage_boundary_benchmark.py",
+        "applications/system_acceptance/tests/test_storage_boundary_benchmark.py",
+        ".github/workflows/system-acceptance-owner-ci.yml"
+      ],
+      "hard_owner_bounds": {
+        "critical_database_bytes": 1073741824,
+        "critical_behavior": "STORAGE_FAILURE",
+        "max_encoded_run_payload_bytes": 256000
+      },
+      "accepted_measurement": {
+        "python": "3.12",
+        "scales": [
+          1,
+          100,
+          1000
+        ],
+        "repeats": 3,
+        "repeat_noise_at_1000_runs_bytes": 0,
+        "live_total_bytes_at_1000_runs": 6618784,
+        "settled_database_bytes_at_1000_runs": 2600960,
+        "growth_bytes_at_1000_runs": 6532448,
+        "growth_bytes_per_run_at_1000_runs": 6532.448,
+        "live_wal_bytes_at_1000_runs": 4152992,
+        "live_shm_bytes_at_1000_runs": 32768,
+        "restart_recovery_increment_bytes": 4152,
+        "restart_recovery_and_terminalization_peak_increment_bytes": 24752,
+        "integrity_reopen": "PASS"
+      },
+      "accepted_near_boundary_proof": {
+        "issue": 590,
+        "pull_request": 591,
+        "fault": "SQLITE_FULL_VIA_BOUNDED_PRAGMA_MAX_PAGE_COUNT",
+        "public_failure": "STORAGE_FAILURE",
+        "transaction_atomicity": "PASS",
+        "integrity_reopen": "PASS",
+        "capacity_restore_recovery": "PASS",
+        "deletion_authority": "NONE"
+      },
+      "physical_free_disk": {
+        "high_water_free_bytes": null,
+        "critical_free_bytes": null,
+        "status": "UNKNOWN_NO_OWNER_FREE_SPACE_ADMISSION_THRESHOLD",
+        "rationale": "The accepted owner benchmark and real bounded SQLITE_FULL proof establish stable growth, atomic failure and recovery semantics, but no earlier host free-space admission threshold was derived. The existing 1 GiB database bound remains an owner database limit, not a filesystem watermark."
+      },
+      "deletion_authority": "NONE"
+    },
+    "market_data_registry_storage": {
+      "kind": "measurement_bound_and_dynamic_publication_admission",
+      "status": "DYNAMIC_NEXT_PUBLICATION_ADMISSION_ACCEPTED",
+      "sources": [
+        "modules/market_data_ingestion/reports/dataset-storage-slo-proposal.json",
+        "modules/market_data_ingestion/src/market_data_ingestion/publication_admission.py",
+        "modules/market_data_ingestion/src/market_data_ingestion/pipeline.py",
+        "modules/market_data_ingestion/tests/test_publication_admission.py",
+        "modules/market_data_ingestion/tests/test_publication_admission_execute.py"
+      ],
+      "accepted_measurement": {
+        "max_total_bytes_per_dataset": 24576,
+        "max_pinned_reader_wal_bytes": 251658240,
+        "large_10000_partition_manifest_observed_bytes_approx": 1780064,
+        "integrity_reopen_atomic_recovery": "COVERED_BY_WAVE_2D",
+        "representative_rows": 721597,
+        "representative_monthly_partitions": 83,
+        "representative_settled_publication_bytes": 11270332,
+        "representative_largest_atomic_payload_bytes": 140813,
+        "representative_manifest_bytes": 44609
+      },
+      "accepted_publication_admission": {
+        "issue": 595,
+        "pull_request": 600,
+        "formats": [
+          "csv",
+          "parquet"
+        ],
+        "serialization_parity": "PASS",
+        "exact_prospective_manifest_bytes": true,
+        "filesystem_allocation_unit_rounding": true,
+        "registry_transaction_recovery_reserve_bytes": 24576,
+        "separate_registry_filesystem_accounting": true,
+        "reject_before_first_version_write": true,
+        "capacity_failure_code": "PUBLICATION_CAPACITY_INSUFFICIENT",
+        "capacity_failure_retryable": true,
+        "publication_drift_code": "PUBLICATION_PLAN_DRIFT",
+        "owner_retry_idempotency": "PASS",
+        "deletion_authority": "NONE"
+      },
+      "physical_free_disk": {
+        "high_water_free_bytes": null,
+        "critical_free_bytes": null,
+        "status": "DYNAMIC_NEXT_PUBLICATION_ADMISSION_ACCEPTED_NO_GLOBAL_WATERMARK",
+        "rationale": "Market Data now proves an operation-specific next-publication reserve before the first immutable version write using serialization-parity partition sizing, exact prospective manifest bytes, filesystem allocation-unit rounding and registry recovery reserve. This is not a universal percentage or tier-wide free-disk watermark."
+      },
+      "deletion_authority": "NONE"
+    },
+    "market_data_application_control_plane_storage": {
+      "kind": "measurement_bound_with_near_boundary_recovery",
+      "status": "MEASURED_NEAR_BOUNDARY_PROVEN_THRESHOLD_UNKNOWN",
+      "sources": [
+        "modules/market_data_ingestion/src/market_data_application/job_store.py",
+        "modules/market_data_ingestion/src/market_data_application/lease_store.py",
+        "modules/market_data_ingestion/src/market_data_application/repair_confirmation_store.py",
+        "modules/market_data_ingestion/src/market_data_application/control_plane_store.py",
+        "modules/market_data_ingestion/src/market_data_application/storage_pressure_benchmark.py",
+        "modules/market_data_ingestion/tests/test_control_plane_storage_measurement.py",
+        "modules/market_data_ingestion/tests/test_control_plane_storage_pressure.py",
+        "modules/market_data_ingestion/tests/test_shared_jobs_storage_measurement.py"
+      ],
+      "accepted_measurement": {
+        "issue": 603,
+        "pull_request": 604,
+        "accepted_run_id": 31500006636,
+        "matrix_python_versions": [
+          "3.12",
+          "3.13"
+        ],
+        "scales": [
+          1,
+          100,
+          1000
+        ],
+        "repeats": 3,
+        "component_maxima_are_independent_observations": true,
+        "do_not_sum_component_maxima_into_synthetic_total": true,
+        "max_live_bytes_per_item_semantics": "TOTAL_LIVE_FOOTPRINT_DIVIDED_BY_SCALE_NOT_MARGINAL_GROWTH",
+        "operational_jobs_scale_1000": {
+          "max_database_bytes": 1077248,
+          "max_wal_bytes": 4157112,
+          "max_shm_bytes": 32768,
+          "max_observed_live_total_bytes": 5267128,
+          "max_settled_database_bytes": 1089536,
+          "max_repeat_live_total_range_bytes": 16432,
+          "max_live_bytes_per_item": 5268
+        },
+        "security_token_audit_scale_1000": {
+          "max_database_bytes": 360448,
+          "max_wal_bytes": 4132392,
+          "max_shm_bytes": 32768,
+          "max_observed_live_total_bytes": 4525608,
+          "max_settled_database_bytes": 417792,
+          "max_repeat_live_total_range_bytes": 0,
+          "max_live_bytes_per_item": 4526
+        },
+        "shared_jobs_sqlite_scale_1000": {
+          "durable_counts": {
+            "jobs": 1000,
+            "events": 2000,
+            "leases": 0,
+            "repair_confirmations": 1000
+          },
+          "max_database_bytes": 1724416,
+          "max_wal_bytes": 4169472,
+          "max_shm_bytes": 32768,
+          "max_observed_live_total_bytes": 5914344,
+          "max_settled_database_bytes": 1748992,
+          "max_repeat_live_total_range_bytes": 12360,
+          "max_live_bytes_per_item": 5915
+        },
+        "representative_live_totals": {
+          "operational_jobs_scale_1_bytes": 205360,
+          "operational_jobs_scale_100_bytes": 4328952,
+          "shared_jobs_scale_1_bytes": 230080,
+          "shared_jobs_scale_100_bytes": 4370056
+        }
+      },
+      "accepted_near_boundary_proof": {
+        "issue": 603,
+        "pull_request": 604,
+        "fault": "SQLITE_FULL_VIA_BOUNDED_PRAGMA_MAX_PAGE_COUNT",
+        "boundary_evidence_sha256": "3bdac93a5776851322d52b5b366af21de0e86f35b8aa1fc52b7ce482a64d2774",
+        "operational_transaction_atomicity": "PASS",
+        "operational_idempotent_retry": "PASS",
+        "security_committed_generation_preserved": "PASS",
+        "security_audit_chain_preserved": "PASS",
+        "capacity_restore_recovery": "PASS",
+        "integrity_reopen": "PASS",
+        "deletion_authority": "NONE"
+      },
+      "physical_free_disk": {
+        "high_water_free_bytes": null,
+        "critical_free_bytes": null,
+        "status": "UNKNOWN_NO_OWNER_FREE_SPACE_ADMISSION_THRESHOLD",
+        "rationale": "The accepted representative SQLite measurements and real bounded SQLITE_FULL recovery proof establish owner footprint and failure/recovery semantics. They do not define a host free-space admission reserve or global physical watermark, so no percentage or tier-wide high/critical threshold is adopted."
+      },
+      "deletion_authority": "NONE"
+    },
+    "research_platform": {
+      "kind": "measurement_bound_with_near_boundary_recovery",
+      "status": "MEASURED_NEAR_BOUNDARY_PROVEN_THRESHOLD_UNKNOWN",
+      "sources": [
+        "reports/research-platform-wave2a/slo-proposal.json",
+        "research/experiment_runner/src/modular_research_runner/repository.py",
+        "research/experiment_runner/tests/test_storage_boundary.py",
+        "modules/results_aggregator/src/modular_results_registry/storage_lifecycle.py",
+        "modules/results_aggregator/tests/test_storage_boundary.py",
+        "research/experiment_runner/tests/test_artifact_storage_pressure.py"
+      ],
+      "accepted_measurement": {
+        "max_scheduler_temporary_bytes": 16777216,
+        "max_results_registry_bytes": 33554432,
+        "max_immutable_artifact_bytes_per_experiment": 4096
+      },
+      "accepted_near_boundary_proofs": {
+        "sqlite": {
+          "issue": 592,
+          "pull_request": 593,
+          "fault": "SQLITE_FULL_VIA_BOUNDED_PRAGMA_MAX_PAGE_COUNT",
+          "scheduler_transaction_atomicity": "PASS",
+          "scheduler_integrity_reopen_retry": "PASS",
+          "results_registry_transaction_atomicity": "PASS",
+          "results_registry_integrity_reopen_retry": "PASS"
+        },
+        "artifact_publication": {
+          "issue": 562,
+          "pull_request": 596,
+          "fault": "ENOSPC_AT_FILE_FSYNC_OR_PRE_REPLACE_BOUNDARY",
+          "target_preservation": "PASS",
+          "temporary_cleanup": "PASS",
+          "retry": "PASS"
+        },
+        "deletion_authority": "NONE"
+      },
+      "physical_free_disk": {
+        "high_water_free_bytes": null,
+        "critical_free_bytes": null,
+        "status": "UNKNOWN_NO_OWNER_FREE_SPACE_ADMISSION_THRESHOLD",
+        "rationale": "Accepted Wave 2A bounds plus real SQLite and atomic-artifact near-boundary proofs establish owner failure, atomicity and recovery semantics. They do not define a host free-space admission model, so no physical high-water or critical watermark is adopted."
+      },
+      "deletion_authority": "NONE"
+    },
+    "github_actions_artifacts": {
+      "kind": "external_quota_and_maintenance_bound",
+      "status": "PARTIAL_EXTERNAL_QUOTA",
+      "sources": [
+        "scripts/actions_artifact_prune_batch.py",
+        "docs/operations/STORAGE_PRESSURE_MANUAL_RECOVERY.md"
+      ],
+      "quota": {
+        "high_water": null,
+        "critical_signal": "CREATE_ARTIFACT_QUOTA_FAILURE",
+        "proactive_usage_status": "UNKNOWN_NO_ACCEPTED_USAGE_SOURCE"
+      },
+      "failed_cancelled_diagnostic_maintenance": {
+        "operational_max_count": 400,
+        "max_bytes": 536870912,
+        "core_rate_limit_reserve_requests": 100,
+        "delete_delay_seconds_min": 1.0,
+        "ordering": "created_at_artifact_id_oldest_first",
+        "requires_exact_batch_sha256": true,
+        "bound_type": "MAINTENANCE_SAFETY_BOUND_NOT_QUOTA_WATERMARK"
+      }
+    },
+    "core_paper_trading_durable_state": {
+      "kind": "unresolved_deployment_capacity",
+      "status": "UNKNOWN_DO_NOT_PRUNE",
+      "high_water_free_bytes": null,
+      "critical_free_bytes": null,
+      "source_review": {
+        "core_durable_capabilities": [
+          "src/modular_core/events.py::JsonLinesEventStore",
+          "src/modular_core/extensions.py::AtomicJsonStateRepository"
+        ],
+        "paper_execution_event_store_contract": "INJECTED_CORE_EVENT_STORE_DEFAULTS_TO_IN_MEMORY",
+        "trading_runner_checkpoint_contract": "INJECTED_CORE_STATE_REPOSITORY",
+        "trading_runner_journal_contract": "INJECTED_CORE_EVENT_STORE_DEFAULTS_TO_IN_MEMORY",
+        "current_owner_tests": "IN_MEMORY_BACKENDS",
+        "selected_full_rc_persistent_backend": null
+      },
+      "reason": "NO_CONCRETE_PERSISTENT_BACKEND_SELECTED_IN_CURRENT_FULL_RC_PAPER_RUNTIME_COMPOSITION",
+      "deletion_authority": "NONE"
+    }
+  },
+  "adoption_rule": {
+    "threshold_requires": [
+      "owner_specific_measurement",
+      "bounded_atomic_or_recovery_reserve",
+      "negative_near_boundary_recovery_integrity_proof"
+    ],
+    "insufficient_evidence_result": "UNKNOWN",
+    "unknown_is_not_deletion_permission": true
+  }
+}

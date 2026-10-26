@@ -1,0 +1,10 @@
+{
+  "contract_type": "platform_compatibility_coverage_policy",
+  "contract_version": 1,
+  "required_capabilities": [
+    "python_distributions",
+    "market_data_web_console"
+  ],
+  "provider_evidence_gate_prefix": "compatibility:provider-",
+  "provider_evidence_gate_suffix_length": 16
+}

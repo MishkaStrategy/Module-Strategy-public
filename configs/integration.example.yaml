@@ -1,0 +1,74 @@
+modules:
+  # Deliberately listed before its producer. Dependency planning must move
+  # session_range ahead of breakout_return through the required feature.
+  - class: strategy_modules.breakout_return:BreakoutReturnModule
+    enabled: true
+    parameters:
+      reference_mode: feature
+      reference_feature_key: session_range.completed
+      direction: above
+      breakout_confirmation: body
+      return_confirmation: body
+      min_return_depth: 0.02
+      max_return_depth: 0.20
+      max_return_bars: 6
+
+  - class: modular_session_range:SessionRangeModule
+    enabled: true
+    parameters:
+      strict_data_validation: true
+      sessions:
+        - name: ny_first_4h
+          timezone: America/New_York
+          start: "00:00"
+          end: "04:00"
+          weekdays: [0, 1, 2, 3, 4, 5, 6]
+          minimum_bars: 48
+          minimum_range: "0"
+          maximum_range: null
+          emit_active: true
+          dst_fold: 0
+
+  - class: market_regime:MarketRegimeModule
+    enabled: true
+    parameters:
+      timeframe: 15m
+      fast_ema_period: 2
+      slow_ema_period: 4
+      atr_period: 3
+      volatility_baseline_period: 5
+      efficiency_period: 3
+      slope_lookback: 2
+      regime_confirmation_bars: 1
+      volatility_confirmation_bars: 1
+
+  - class: modular_strategy_fvg:FvgModule
+    enabled: true
+    parameters:
+      timeframes: [15m]
+      direction_filter: both
+      min_gap_absolute: "0"
+      min_gap_fraction: "0"
+      invalidation_level: full_fill
+      invalidation_basis: wick
+      require_consecutive_bars: true
+      order_violation_policy: raise
+      publish_lifecycle_events: true
+
+  - class: strategy_modules.liquidity_sweep:LiquiditySweepModule
+    enabled: true
+    parameters:
+      timeframe: 15m
+      pivot_left_bars: 2
+      pivot_right_bars: 2
+      min_level_age_bars: 1
+      max_level_age_bars: 100
+      max_active_levels: 32
+      min_penetration_bps: 0
+      max_penetration_bps: 100
+      close_reclaim_bps: 0
+      invalidation_close_bps: 0
+      min_wick_to_body_ratio: 1
+      min_wick_fraction: 0.35
+      require_directional_close: false
+      emit_signals: false

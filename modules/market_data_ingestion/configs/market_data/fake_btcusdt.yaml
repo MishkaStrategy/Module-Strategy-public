@@ -1,0 +1,31 @@
+schema_version: 1
+request_id: fake-btcusdt-20260101
+exchange:
+  id: fake
+  market_type: usdt_m_perpetual
+instrument:
+  symbol: BTCUSDT
+range:
+  mode: explicit
+  start: "2026-01-01T00:00:00Z"
+  end: "2026-01-01T02:00:00Z"
+data:
+  base_timeframe: 5m
+  derived_timeframes: [15m, 1h]
+  required_types: [klines]
+  optional_types: []
+download:
+  concurrency: 1
+  retries: 2
+  timeout_seconds: 5
+  resume: true
+validation:
+  deep: true
+  repair_gaps: true
+  reject_unresolved_required_gaps: true
+  allow_partial_optional_data: true
+storage:
+  root: ../../.local-market-data/fake
+  format: csv
+  compression: zstd
+  partition: monthly

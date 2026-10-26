@@ -1,0 +1,96 @@
+name: local-pretest-tooling-ci
+
+on:
+  pull_request:
+    paths:
+      - "scripts/local_pretest.py"
+      - "scripts/reset_local_test_results.py"
+      - "scripts/pretest_support/**"
+      - "scripts/run_local_test_suite.sh"
+      - "tests/local_pretest/**"
+      - "docs/LOCAL_COMPUTER_TESTING.md"
+      - ".github/workflows/local-pretest-tooling-ci.yml"
+      - ".gitignore"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - "scripts/local_pretest.py"
+      - "scripts/reset_local_test_results.py"
+      - "scripts/pretest_support/**"
+      - "scripts/run_local_test_suite.sh"
+      - "tests/local_pretest/**"
+      - "docs/LOCAL_COMPUTER_TESTING.md"
+      - ".github/workflows/local-pretest-tooling-ci.yml"
+      - ".gitignore"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-pretest-tooling-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: .github/workflows/local-pretest-tooling-ci.yml
+          cache-suffix: local-pretest-tooling
+      - run: uv pip install pytest ruff
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          scripts/local_pretest.py scripts/reset_local_test_results.py
+          scripts/pretest_support tests/local_pretest
+      - name: Shell syntax
+        run: bash -n scripts/run_local_test_suite.sh
+      - name: Ruff check
+        run: >-
+          ruff check --output-format=concise
+          scripts/local_pretest.py scripts/reset_local_test_results.py
+          scripts/pretest_support tests/local_pretest
+      - name: Capture format diagnostics
+        run: |
+          set +e
+          ruff format --check --diff \
+            scripts/local_pretest.py scripts/reset_local_test_results.py \
+            scripts/pretest_support tests/local_pretest \
+            > format-${{ matrix.python-version }}.txt 2>&1
+          echo "$?" > format-${{ matrix.python-version }}.status
+          exit 0
+      - name: Enforce format
+        run: |
+          cat format-${{ matrix.python-version }}.txt
+          test "$(cat format-${{ matrix.python-version }}.status)" = "0"
+      - name: Tests
+        run: python -m pytest -q tests/local_pretest
+      - name: CLI help
+        run: |
+          python scripts/local_pretest.py --help
+          python scripts/reset_local_test_results.py --help
+      - name: Upload format failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: local-pretest-format-${{ matrix.python-version }}
+          path: |
+            format-${{ matrix.python-version }}.txt
+            format-${{ matrix.python-version }}.status
+          if-no-files-found: error

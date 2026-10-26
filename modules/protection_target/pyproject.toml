@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-protection-target"
+version = "1.1.1"
+description = "Deterministic stop-loss, invalidation and take-profit planning module for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<10",
+  "coverage>=7,<8",
+  "ruff>=0.8,<1",
+  "mypy>=1.10,<2",
+  "build>=1,<2",
+]
+
+[project.entry-points."modular_strategy.modules"]
+protection_target = "modular_strategy_protection_target:ProtectionTargetModule"
+
+[tool.setuptools.package-data]
+modular_strategy_protection_target = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["modular_strategy_protection_target"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true

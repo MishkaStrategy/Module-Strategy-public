@@ -1,0 +1,311 @@
+{
+  "approved_at": "2026-08-03T03:40:00Z",
+  "approved_by": "mishkacher",
+  "authorization": {
+    "historical_counts_are_non_binding_references": true,
+    "live_trading_authorized": false,
+    "new_canonical_candidate_authorized": true,
+    "private_exchange_access_authorized": false,
+    "research_and_paper_only": true
+  },
+  "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "decision_id": "STRATEGY-312-VARIANT-2",
+  "decisions": {
+    "STRATEGY-312-01": {
+      "checkpoint_and_restart": {
+        "identity_fields": [
+          "composition_hash",
+          "candidate_id",
+          "module_id",
+          "module_version",
+          "dataset_id",
+          "dataset_version",
+          "dataset_hash",
+          "symbol",
+          "last_processed_5m_open_utc"
+        ],
+        "open_position_restore": "restore exact side, quantity, entry, stop, target, fill index, remaining hold, fees, MFE and state sequence; reject any identity or digest mismatch",
+        "pending_order_restore": "restore exact limit, stop, target, remaining TTL, signal identity and priority; cancel if expired, crossed a data gap, or any identity/digest differs",
+        "schema_version": "canonical-strategy-state-v1"
+      },
+      "cost_and_sizing": {
+        "inherit_from": "canonical-execution-costs-v1",
+        "overrides": {}
+      },
+      "ema50_falling": {
+        "formula": "EMA50_1h(C) < EMA50_1h four completed 1h candles before C",
+        "lookback_completed_1h_candles": 4
+      },
+      "execution": {
+        "fill_condition": "sell limit fills when a post-signal 5m high is greater than or equal to entry; fill price is the configured limit even when the bar opens above it",
+        "first_eligible_bar": "first 5m bar whose open is exactly the first 5m boundary after completed 1h candle C close",
+        "gap_through_stop": "fill at the worse of configured stop and first available 5m open/market price, then apply market fee and adverse slippage",
+        "same_bar_stop_target_priority": "stop first; target is disabled on the fill bar"
+      },
+      "fvg_geometry": {
+        "bearish_condition": "C.high < A.low for three completed 1h candles A, B, C",
+        "equality_included": false,
+        "zone_lower": "C.high",
+        "zone_upper": "A.low"
+      },
+      "minimum_atr_fraction_inclusive": true,
+      "minimum_atr_fraction_of_close": 0.0,
+      "no_progress": {
+        "check_bar_event_priority": [
+          "stop",
+          "full_target",
+          "close_based_no_progress_exit"
+        ],
+        "check_time": "72 completed 5m bars after fill (6h)",
+        "fill_bar_included": false,
+        "mfe_formula": "(entry_price - minimum_low_after_fill_excluding_fill_bar) / initial_R"
+      },
+      "short_location": {
+        "formula": "(range_high_8h - C.close) / (range_high_8h - range_low_8h), using eight completed 1h candles including C",
+        "lookback_completed_1h_candles": 8,
+        "minimum": 0.75,
+        "minimum_inclusive": true,
+        "zero_range_behavior": "reject fail-closed"
+      }
+    },
+    "STRATEGY-312-02": {
+      "checkpoint_and_restart": {
+        "identity_fields": [
+          "composition_hash",
+          "candidate_id",
+          "module_id",
+          "module_version",
+          "dataset_id",
+          "dataset_version",
+          "dataset_hash",
+          "symbol",
+          "last_processed_5m_open_utc"
+        ],
+        "open_position_restore": "restore exact side, quantity, entry, stop, target, fill index, remaining hold, fees, MFE and state sequence; reject any identity or digest mismatch",
+        "pending_order_restore": "restore exact limit, stop, target, remaining TTL, signal identity and priority; cancel if expired, crossed a data gap, or any identity/digest differs",
+        "schema_version": "canonical-strategy-state-v1"
+      },
+      "cost_and_sizing": {
+        "inherit_from": "canonical-execution-costs-v1",
+        "overrides": {}
+      },
+      "direction": "short",
+      "entry": {
+        "cancellation": "cancel on TTL expiry, data gap, identity mismatch, position open, or higher-priority preemption before fill",
+        "fill_condition": "sell limit touch inclusive: 5m high >= entry; fill at configured limit",
+        "first_eligible_bar": "first 5m bar whose open is exactly the first 5m boundary after completed 4h candle C close",
+        "formula": "C.high + 0.50 * (A.low - C.high)",
+        "ttl": "576 completed 5m bars (48h)"
+      },
+      "filters": [
+        {
+          "formula": "(A.low - C.high) / ATR14_4h",
+          "name": "fvg_size_atr",
+          "operator": "between_inclusive",
+          "threshold": [
+            0.05,
+            1.25
+          ]
+        },
+        {
+          "formula": "abs(B.close - B.open) / ATR14_4h",
+          "name": "middle_body_atr",
+          "operator": ">=",
+          "threshold": 0.15
+        },
+        {
+          "formula": "B.close < B.open",
+          "name": "middle_direction_bearish",
+          "operator": "==",
+          "threshold": true
+        },
+        {
+          "formula": "B.volume / SMA20_volume_4h",
+          "name": "volume_ratio",
+          "operator": ">=",
+          "threshold": 1.15
+        },
+        {
+          "formula": "abs(C.close - A.open) / sum(range(A), range(B), range(C))",
+          "name": "impulse_efficiency",
+          "operator": ">=",
+          "threshold": 0.55
+        },
+        {
+          "formula": "RSI14_Wilder_4h(C)",
+          "name": "rsi14",
+          "operator": "<=",
+          "threshold": 40.0
+        },
+        {
+          "formula": "(range_high_8x4h - C.close) / (range_high_8x4h - range_low_8x4h)",
+          "name": "short_location",
+          "operator": ">=",
+          "threshold": 0.35
+        },
+        {
+          "formula": "ATR14_4h / C.close",
+          "name": "atr_fraction_of_close",
+          "operator": "between_inclusive",
+          "threshold": [
+            0.0,
+            0.025
+          ]
+        }
+      ],
+      "hold": {
+        "last_index_convention": "fill_index + 575",
+        "maximum": "576 completed 5m bars (48h)"
+      },
+      "indicators": [
+        {
+          "completed_candles_only": true,
+          "formula": "simple moving average of true range",
+          "name": "ATR",
+          "period": 14,
+          "warmup": "14 completed 4h bars after any gap reset"
+        },
+        {
+          "completed_candles_only": true,
+          "formula": "Wilder EWM alpha=1/14 adjust=false",
+          "name": "RSI",
+          "period": 14,
+          "warmup": "14 completed 4h bars after any gap reset"
+        },
+        {
+          "completed_candles_only": true,
+          "formula": "simple moving average of volume",
+          "name": "volume_SMA",
+          "period": 20,
+          "warmup": "20 completed 4h bars after any gap reset"
+        }
+      ],
+      "module_id": "frozen_4h_short",
+      "no_progress": {
+        "check_after": "432 completed 5m bars after fill (36h)",
+        "event_priority": [
+          "stop",
+          "full_target",
+          "close_based_no_progress_exit"
+        ],
+        "fill_bar_included": false,
+        "mfe_formula": "(entry_price - minimum_low_after_fill_excluding_fill_bar) / initial_R",
+        "minimum_R": 0.35
+      },
+      "setup": {
+        "candles": "three completed 4h candles A, B, C",
+        "definition": "bearish FVG when C.high < A.low",
+        "equality_conventions": {
+          "bearish_fvg": "strict; equality rejects",
+          "thresholds": "inclusive unless explicitly stated"
+        },
+        "zone_boundaries": [
+          "C.high",
+          "A.low"
+        ]
+      },
+      "signal_timeframe": "4h",
+      "stop": {
+        "buffer": "0.05 * ATR14_4h",
+        "formula": "maximum high of the last two completed 4h candles including C plus buffer",
+        "gap_through_rule": "fill at the worse of configured stop and first available 5m open/market price, then apply market fee and adverse slippage",
+        "maximum_distance": 0.08
+      },
+      "target": {
+        "R_multiple": 6.0,
+        "formula": "entry_price - 6.0 * (stop_price - entry_price)"
+      }
+    },
+    "STRATEGY-312-03": {
+      "cancellation_order": [
+        "data_gap_or_identity_invalidation",
+        "ttl_expiry",
+        "higher_priority_preemption",
+        "strategy_explicit_invalidation"
+      ],
+      "gap_invalidation_order": [
+        "cancel_pending_order",
+        "close_open_position_at_first_available_market_price",
+        "reset_indicators_and_runtime_state"
+      ],
+      "maximum_active_limits": 1,
+      "maximum_open_positions": 1,
+      "passed_signal_blocks_lower_priority_before_fill": true,
+      "preemption": "a newly eligible higher-priority signal may cancel one lower-priority pending order before fill; no signal may preempt an open position",
+      "priority_high_to_low": [
+        "fvg_rt_final_15m",
+        "frozen_1h_short",
+        "frozen_4h_short"
+      ],
+      "same_timestamp_tie_breaker": "priority index, then module_id, then setup_id, then semantic_input_digest ascending",
+      "scope": "portfolio for BTCUSDT"
+    },
+    "STRATEGY-312-04": {
+      "modules": [
+        {
+          "feature_inputs": [
+            "canonical-fvg-final-15m-feature-snapshot-v1"
+          ],
+          "module_id": "fvg_rt_final_15m",
+          "module_version": "2.0.0",
+          "output_contract": "canonical-strategy-order-plan-v1",
+          "package": "strategy_audit_validation",
+          "setup_adapter": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+          "state_schema_version": "canonical-strategy-state-v1"
+        },
+        {
+          "feature_inputs": [
+            "canonical-frozen-1h-feature-snapshot-v1"
+          ],
+          "module_id": "frozen_1h_short",
+          "module_version": "1.0.0",
+          "output_contract": "canonical-strategy-order-plan-v1",
+          "package": "strategy_audit_validation",
+          "setup_adapter": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+          "state_schema_version": "canonical-strategy-state-v1"
+        },
+        {
+          "feature_inputs": [
+            "canonical-frozen-4h-feature-snapshot-v1"
+          ],
+          "module_id": "frozen_4h_short",
+          "module_version": "1.0.0",
+          "output_contract": "canonical-strategy-order-plan-v1",
+          "package": "strategy_audit_validation",
+          "setup_adapter": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+          "state_schema_version": "canonical-strategy-state-v1"
+        }
+      ]
+    },
+    "STRATEGY-312-05": {
+      "dataset_generation": {
+        "base_url": "https://fapi.binance.com",
+        "endpoint": "GET /fapi/v1/klines",
+        "interval": "5m",
+        "market": "usdt_m_perpetual",
+        "security": "NONE",
+        "symbol": "BTCUSDT",
+        "timezone": "UTC"
+      },
+      "historical_control_counts": {
+        "combined": 395,
+        "frozen_1h_short": 91,
+        "frozen_4h_short": 21,
+        "fvg_rt_final_15m": 283
+      },
+      "historical_counts_mandatory": false,
+      "new_ledgers_required": true,
+      "status": "ENDPOINT_AND_GENERATION_CONTRACT_APPROVED_NEW_LEDGER_PENDING"
+    },
+    "STRATEGY-312-06": {
+      "impulse_efficiency_minimum": 0.45,
+      "long_regime": "last completed 4h close > completed 4h EMA200",
+      "short_regime": "last completed 1d close < completed 1d EMA200",
+      "stable_module_id": "fvg_rt_final_15m",
+      "stable_module_version": "2.0.0",
+      "supersedes": "FVG-RT v7 plus Final quality/regime recovery contract"
+    }
+  },
+  "schema_version": 2,
+  "source": "https://github.com/MishkaStrategy/Module-Strategy/issues/312#issuecomment-5162067264"
+}

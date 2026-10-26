@@ -1,0 +1,7 @@
+include BOUNDARY.md
+include CHECKPOINT_F0717A1.md
+include REMOTE_CHECKPOINT.md
+recursive-include evidence *.json
+recursive-include schemas *.json
+recursive-include tests *.py
+recursive-include tools *.py

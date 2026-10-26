@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-trade-plan-router"
+version = "0.1.0"
+description = "Deterministic decision router and executable trade plan composer"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+readme = "README.md"
+license = {text = "Proprietary"}
+
+[project.entry-points."modular_strategy.modules"]
+trade_plan_router = "modular_strategy_trade_plan_router.module:TradePlanRouterModule"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+markers = ["slow: long-running deterministic stress tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["modular_strategy_trade_plan_router"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["modular_strategy_trade_plan_router"]

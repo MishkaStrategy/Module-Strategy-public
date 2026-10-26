@@ -1,0 +1,99 @@
+name: Backtest registered funding adapter CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/backtest-registered-funding-adapter-ci.yml"
+      - "src/modular_backtest/funding.py"
+      - "tests/backtest_engine/test_registered_funding_adapter.py"
+      - "docs/backtest/REGISTERED_FUNDING_ADAPTER_V1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-registered-funding-adapter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Registered funding adapter / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact adapter candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+          cache-suffix: backtest-registered-funding-adapter
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]"
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          src/modular_backtest/funding.py
+          tests/backtest_engine/test_registered_funding_adapter.py
+
+      - name: Ruff format
+        run: >-
+          ruff format --check
+          src/modular_backtest/funding.py
+          tests/backtest_engine/test_registered_funding_adapter.py
+
+      - name: Ruff lint
+        run: >-
+          ruff check
+          src/modular_backtest/funding.py
+          tests/backtest_engine/test_registered_funding_adapter.py
+
+      - name: Strict MyPy adapter
+        run: mypy --strict src/modular_backtest/funding.py
+
+      - name: Focused adapter and owner-boundary tests
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_registered_funding_adapter.py
+          modules/market_data_ingestion/tests/test_funding_dataset_reader.py
+          modules/market_data_ingestion/tests/test_funding_dataset_reader_acceptance.py
+
+      - name: Registered candle bridge regression
+        run: pytest -o addopts="" -q tests/backtest_engine/test_registered_data.py
+
+      - name: Public import smoke
+        run: >-
+          python -c
+          "from modular_backtest.funding import FundingSettlementLedger, RegisteredFundingSource, open_registered_funding_source; assert FundingSettlementLedger and RegisteredFundingSource and open_registered_funding_source"

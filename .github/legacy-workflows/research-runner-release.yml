@@ -1,0 +1,585 @@
+name: research-runner-release
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-runner-release-${{ github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.event.label.name || github.event.action || 'dispatch' }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Research Runner release / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+    env:
+      SOURCE_DATE_EPOCH: "946684800"
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      EVIDENCE_DIR: evidence/research-runner-release
+    defaults:
+      run:
+        working-directory: research-runner-release-${{ github.run_id }}-py${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Checkout Release evidence publisher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          sparse-checkout: .github/actions/publish-release-evidence
+          persist-credentials: false
+          show-progress: false
+
+      - name: Checkout exact Research Runner candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: research-runner-release-${{ github.run_id }}-py${{ matrix.python-version }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          enable-cache: false
+          working-directory: research-runner-release-${{ github.run_id }}-py${{ matrix.python-version }}
+
+      - name: Prepare exact Research Runner release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$EXPECTED_HEAD" = "$(git rev-parse HEAD)"
+          rm -rf "$EVIDENCE_DIR" dist
+          mkdir -p "$EVIDENCE_DIR" dist
+          printf '%s\n' "$EXPECTED_HEAD" > "$EVIDENCE_DIR/commit-sha.txt"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$EVIDENCE_DIR/workflow-run-id.txt"
+          python --version > "$EVIDENCE_DIR/python-version.txt"
+
+      - name: Install release validation environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./research/experiment_runner[dev]"
+          uv pip install build pytest-timeout
+          uv pip check
+
+      - name: Run complete suite with optimized Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -O -m pytest -vv research/experiment_runner/tests \
+            --timeout=180 \
+            --timeout-method=thread \
+            --durations=20 \
+            --junitxml="$EVIDENCE_DIR/research-runner-optimized-tests.xml"
+
+      - name: Build release artifacts twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip wheel . --no-deps -w dist/core
+          python -m pip wheel ./research/experiment_runner --no-deps \
+            -w dist/research_runner
+          python -m build --sdist --outdir dist/research_runner_sdist \
+            research/experiment_runner
+          python -m pip wheel ./research/experiment_runner --no-deps \
+            -w dist/research_runner_repro
+          python -m build --sdist --outdir dist/research_runner_sdist_repro \
+            research/experiment_runner
+          find dist -name .gitignore -type f -delete
+
+      - name: Normalize source distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            dist/research_runner_sdist/*.tar.gz \
+            dist/research_runner_sdist_repro/*.tar.gz
+          do
+            python research/experiment_runner/tools/normalize_sdist.py \
+              "$path" --epoch "$SOURCE_DATE_EPOCH"
+          done
+
+      - name: Verify reproducible wheel and sdist
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          pairs = {
+              "wheel": (
+                  glob.glob("dist/research_runner/*.whl")[0],
+                  glob.glob("dist/research_runner_repro/*.whl")[0],
+              ),
+              "sdist": (
+                  glob.glob("dist/research_runner_sdist/*.tar.gz")[0],
+                  glob.glob("dist/research_runner_sdist_repro/*.tar.gz")[0],
+              ),
+          }
+          report = {
+              name: {
+                  "first": hashlib.sha256(Path(first).read_bytes()).hexdigest(),
+                  "second": hashlib.sha256(Path(second).read_bytes()).hexdigest(),
+              }
+              for name, (first, second) in pairs.items()
+          }
+          (evidence / "reproducibility.json").write_text(
+              json.dumps(report, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          mismatched = {
+              name: hashes
+              for name, hashes in report.items()
+              if hashes["first"] != hashes["second"]
+          }
+          if mismatched:
+              raise SystemExit(f"release artifact SHA mismatch: {mismatched}")
+          PY
+
+      - name: Verify clean installation from sdist
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          root = Path(".venv-research-runner-sdist-smoke")
+          subprocess.check_call([sys.executable, "-m", "venv", str(root)])
+          python = root / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+          subprocess.check_call(
+              [str(python), "-m", "pip", "install", "--upgrade", "pip"]
+          )
+          core = glob.glob("dist/core/*.whl")[0]
+          sdist = glob.glob("dist/research_runner_sdist/*.tar.gz")[0]
+          subprocess.check_call(
+              [str(python), "-m", "pip", "install", core, "PyYAML>=6.0"]
+          )
+          subprocess.check_call(
+              [str(python), "-m", "pip", "install", "--no-deps", sdist]
+          )
+
+          pip_check = subprocess.run(
+              [str(python), "-m", "pip", "check"],
+              check=True,
+              capture_output=True,
+              text=True,
+              encoding="utf-8",
+          )
+          (evidence / "pip-check.txt").write_text(
+              pip_check.stdout + pip_check.stderr,
+              encoding="utf-8",
+          )
+
+          validation = subprocess.run(
+              [
+                  str(python),
+                  "-m",
+                  "modular_research_runner",
+                  "validate",
+                  "research/experiment_runner/examples/research.example.yaml",
+              ],
+              check=True,
+              capture_output=True,
+              text=True,
+              encoding="utf-8",
+          )
+          (evidence / "validate-smoke.txt").write_text(
+              validation.stdout + validation.stderr,
+              encoding="utf-8",
+          )
+
+          code = """
+          import json
+          from importlib.metadata import metadata, version
+
+          package_metadata = metadata("modular-strategy-research-runner")
+          print(
+              json.dumps(
+                  {
+                      "name": package_metadata["Name"],
+                      "version": version("modular-strategy-research-runner"),
+                      "requires_python": package_metadata["Requires-Python"],
+                  },
+                  sort_keys=True,
+              )
+          )
+          """
+          completed = subprocess.run(
+              [str(python), "-c", code],
+              check=True,
+              capture_output=True,
+              text=True,
+              encoding="utf-8",
+          )
+          installed_metadata = json.loads(completed.stdout)
+          expected = {
+              "name": "modular-strategy-research-runner",
+              "version": "0.3.0",
+              "requires_python": ">=3.12",
+          }
+          (evidence / "installed-metadata.json").write_text(
+              json.dumps(installed_metadata, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          if installed_metadata != expected:
+              raise SystemExit(f"installed metadata mismatch: {installed_metadata}")
+          PY
+
+      - name: Sanitize and verify release evidence
+        id: evidence_privacy
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/sanitize_ci_evidence.py "$EVIDENCE_DIR"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import glob
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          expected_files = {
+              "commit-sha.txt",
+              "installed-metadata.json",
+              "pip-check.txt",
+              "privacy-status.json",
+              "python-version.txt",
+              "reproducibility.json",
+              "research-runner-optimized-tests.xml",
+              "validate-smoke.txt",
+              "workflow-run-id.txt",
+          }
+          actual_files = {
+              path.relative_to(evidence).as_posix()
+              for path in evidence.rglob("*")
+              if path.is_file()
+          }
+          if actual_files != expected_files:
+              raise SystemExit(
+                  "Research Runner release evidence scope mismatch: "
+                  f"missing={sorted(expected_files - actual_files)}, "
+                  f"extra={sorted(actual_files - expected_files)}"
+              )
+
+          privacy = json.loads(
+              (evidence / "privacy-status.json").read_text(encoding="utf-8")
+          )
+          if privacy.get("status") != "PASS":
+              raise SystemExit("Research Runner release privacy status is not PASS")
+          if privacy.get("credential_findings") != 0:
+              raise SystemExit("Research Runner release evidence contains credentials")
+
+          expected_head = os.environ["EXPECTED_HEAD"]
+          expected_run = os.environ["GITHUB_RUN_ID"]
+          if (evidence / "commit-sha.txt").read_text(
+              encoding="utf-8"
+          ).strip() != expected_head:
+              raise SystemExit("Research Runner release evidence SHA mismatch")
+          if (evidence / "workflow-run-id.txt").read_text(
+              encoding="utf-8"
+          ).strip() != expected_run:
+              raise SystemExit("Research Runner release evidence run mismatch")
+
+          reproducibility = json.loads(
+              (evidence / "reproducibility.json").read_text(encoding="utf-8")
+          )
+          for kind in ("wheel", "sdist"):
+              hashes = reproducibility.get(kind)
+              if not isinstance(hashes, dict) or hashes.get("first") != hashes.get(
+                  "second"
+              ):
+                  raise SystemExit(
+                      f"Research Runner {kind} is not reproducible: {hashes!r}"
+                  )
+
+          metadata = json.loads(
+              (evidence / "installed-metadata.json").read_text(encoding="utf-8")
+          )
+          if metadata != {
+              "name": "modular-strategy-research-runner",
+              "version": "0.3.0",
+              "requires_python": ">=3.12",
+          }:
+              raise SystemExit(f"Research Runner installed metadata mismatch: {metadata}")
+
+          root = ET.parse(evidence / "research-runner-optimized-tests.xml").getroot()
+          suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+          if not suites:
+              raise SystemExit("Research Runner release JUnit contains no suites")
+          hostnames = {suite.attrib.get("hostname") for suite in suites}
+          if hostnames != {"redacted-runner"}:
+              raise SystemExit(
+                  f"unsafe Research Runner release hostnames: {sorted(hostnames)!r}"
+              )
+          for suite in suites:
+              if int(suite.attrib.get("failures", "0")) != 0:
+                  raise SystemExit("Research Runner release JUnit reports failures")
+              if int(suite.attrib.get("errors", "0")) != 0:
+                  raise SystemExit("Research Runner release JUnit reports errors")
+              if int(suite.attrib.get("tests", "0")) <= 0:
+                  raise SystemExit("Research Runner release JUnit reports no tests")
+
+          package_files = [
+              *map(Path, glob.glob("dist/core/*.whl")),
+              *map(Path, glob.glob("dist/research_runner/*.whl")),
+              *map(Path, glob.glob("dist/research_runner_sdist/*.tar.gz")),
+          ]
+          if len(package_files) != 3:
+              raise SystemExit(
+                  f"Research Runner release package scope mismatch: {package_files}"
+              )
+
+          dynamic_markers = {
+              value.encode("utf-8")
+              for value in (
+                  os.environ.get("RUNNER_NAME"),
+                  os.environ.get("HOSTNAME"),
+                  os.environ.get("GITHUB_WORKSPACE"),
+                  os.environ.get("RUNNER_TEMP"),
+                  os.environ.get("HOME"),
+              )
+              if value and len(value) >= 4
+          }
+          forbidden = dynamic_markers | {
+              b"/Users/",
+              b"/home/",
+              b"/tmp/",
+              b"/private/var/",
+              b"/var/folders/",
+              b"file://",
+              b"GitHubActionsRunners",
+              b"_work/Module-Strategy",
+          }
+          hits: list[str] = []
+          for path in [*sorted(evidence.rglob("*")), *package_files]:
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              for marker in forbidden:
+                  if marker in data:
+                      hits.append(
+                          f"{path}: {marker.decode('utf-8', errors='replace')}"
+                      )
+          if hits:
+              raise SystemExit(
+                  "private Research Runner release markers found:\n"
+                  + "\n".join(hits)
+              )
+          PY
+
+      - name: Record closed Research Runner release inventory
+        id: evidence_inventory
+        if: always() && steps.evidence_privacy.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import glob
+          import hashlib
+          import os
+          import stat
+          import tarfile
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          evidence_inventory = evidence / "evidence-sha256.txt"
+          package_inventory = evidence / "package-sha256.txt"
+          evidence_inventory.unlink(missing_ok=True)
+          package_inventory.unlink(missing_ok=True)
+
+          package_files = [
+              *map(Path, glob.glob("dist/core/*.whl")),
+              *map(Path, glob.glob("dist/research_runner/*.whl")),
+              *map(Path, glob.glob("dist/research_runner_sdist/*.tar.gz")),
+          ]
+          if len(package_files) != 3:
+              raise SystemExit(
+                  f"Research Runner release package scope mismatch: {package_files}"
+              )
+
+          for root in (
+              evidence,
+              Path("dist/core"),
+              Path("dist/research_runner"),
+              Path("dist/research_runner_sdist"),
+          ):
+              for path in root.rglob("*"):
+                  if path.is_symlink():
+                      raise SystemExit(
+                          f"Research Runner release contains symlink: {path}"
+                      )
+                  if path.exists() and not (path.is_file() or path.is_dir()):
+                      raise SystemExit(
+                          f"Research Runner release contains special entry: {path}"
+                      )
+
+          def safe_archive_name(name: str) -> bool:
+              pure = PurePosixPath(name)
+              return not (
+                  pure.is_absolute() or ".." in pure.parts or "\\" in name
+              )
+
+          for wheel in [path for path in package_files if path.suffix == ".whl"]:
+              with zipfile.ZipFile(wheel) as archive:
+                  for info in archive.infolist():
+                      if not safe_archive_name(info.filename):
+                          raise SystemExit(
+                              f"unsafe wheel path {info.filename!r} in {wheel}"
+                          )
+                      mode = info.external_attr >> 16
+                      file_type = stat.S_IFMT(mode)
+                      if file_type not in (0, stat.S_IFREG, stat.S_IFDIR):
+                          raise SystemExit(
+                              f"unsafe wheel entry {info.filename!r} in {wheel}"
+                          )
+
+          for sdist in [path for path in package_files if path.name.endswith(".tar.gz")]:
+              with tarfile.open(sdist, "r:gz") as archive:
+                  for member in archive.getmembers():
+                      if not safe_archive_name(member.name):
+                          raise SystemExit(
+                              f"unsafe sdist path {member.name!r} in {sdist}"
+                          )
+                      if not (member.isfile() or member.isdir()):
+                          raise SystemExit(
+                              f"unsafe sdist entry {member.name!r} in {sdist}"
+                          )
+
+          package_rows = [
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.as_posix()}"
+              for path in sorted(package_files)
+          ]
+          package_inventory.write_text(
+              "\n".join(package_rows) + "\n",
+              encoding="utf-8",
+          )
+
+          evidence_files = [
+              path
+              for path in sorted(evidence.rglob("*"))
+              if path.is_file() and path != evidence_inventory
+          ]
+          evidence_rows = [
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.as_posix()}"
+              for path in evidence_files
+          ]
+          evidence_inventory.write_text(
+              "\n".join(evidence_rows) + "\n",
+              encoding="utf-8",
+          )
+
+          recorded: dict[str, str] = {}
+          for manifest in (evidence_inventory, package_inventory):
+              for line in manifest.read_text(encoding="utf-8").splitlines():
+                  digest, separator, relative = line.partition("  ")
+                  if separator != "  " or len(digest) != 64:
+                      raise SystemExit(f"invalid release checksum line: {line!r}")
+                  if relative in recorded:
+                      raise SystemExit(
+                          f"duplicate release checksum path: {relative}"
+                      )
+                  pure = PurePosixPath(relative)
+                  if pure.is_absolute() or ".." in pure.parts or "\\" in relative:
+                      raise SystemExit(f"unsafe release checksum path: {relative}")
+                  recorded[relative] = digest
+
+          expected = {
+              path.as_posix()
+              for path in [
+                  *[
+                      path
+                      for path in evidence.rglob("*")
+                      if path.is_file() and path != evidence_inventory
+                  ],
+                  *package_files,
+              ]
+          }
+          if set(recorded) != expected:
+              raise SystemExit(
+                  "Research Runner release inventory is not closed: "
+                  f"missing={sorted(expected - set(recorded))}, "
+                  f"extra={sorted(set(recorded) - expected)}"
+              )
+
+          for relative, digest in recorded.items():
+              path = Path(relative)
+              mode = path.lstat().st_mode
+              if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+                  raise SystemExit(f"unsafe release artifact entry: {relative}")
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f"release checksum mismatch: {relative}")
+          PY
+
+      - name: Assemble exact Research Runner release evidence
+        if: >-
+          ${{ success()
+              && steps.evidence_privacy.outcome == 'success'
+              && steps.evidence_inventory.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="release-evidence/research-runner-release"
+          rm -rf "$bundle"
+          mkdir -p "$bundle/evidence" "$bundle/dist"
+          cp -R "$EVIDENCE_DIR" "$bundle/evidence/research-runner-release"
+          cp -R dist/core "$bundle/dist/core"
+          cp -R dist/research_runner "$bundle/dist/research_runner"
+          cp -R dist/research_runner_sdist "$bundle/dist/research_runner_sdist"
+          test -n "$(find "$bundle" -type f -print -quit)"
+
+      - name: Publish exact Research Runner release evidence
+        id: evidence_publish
+        if: >-
+          ${{ success()
+              && steps.evidence_privacy.outcome == 'success'
+              && steps.evidence_inventory.outcome == 'success' }}
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ github.workspace }}/research-runner-release-${{ github.run_id }}-py${{ matrix.python-version }}/release-evidence/research-runner-release
+          asset_name: research-runner-release-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Research Runner release publication gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.evidence_privacy.outcome }}" = success
+          test "${{ steps.evidence_inventory.outcome }}" = success
+          test "${{ steps.evidence_publish.outcome }}" = success

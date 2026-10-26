@@ -1,0 +1,41 @@
+name: Publish release evidence from bounded handoff
+description: Decode a sanitized job-output handoff and publish it with the current job token.
+inputs:
+  payload:
+    description: Base64 deterministic tar.gz produced by prepare-release-evidence-handoff.
+    required: true
+  payload_sha256:
+    description: Expected SHA-256 of the decoded archive.
+    required: true
+  asset_name:
+    description: Purpose-specific release asset name.
+    required: true
+  commit_sha:
+    description: Exact source commit SHA proven by the evidence.
+    required: true
+  draft:
+    description: Create a private draft evidence release when no release exists.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Decode bounded handoff
+      id: decode
+      shell: bash
+      env:
+        HANDOFF_PAYLOAD: ${{ inputs.payload }}
+        HANDOFF_SHA256: ${{ inputs.payload_sha256 }}
+      run: |
+        set -euo pipefail
+        archive="${RUNNER_TEMP}/release-evidence-handoff.tar.gz"
+        rm -f "${archive}"
+        python3 scripts/release_evidence_handoff.py unpack-input --output "${archive}"
+        printf 'source_path=%s\n' "${archive}" >> "${GITHUB_OUTPUT}"
+    - name: Publish immutable evidence with this job token
+      uses: ./.github/actions/publish-release-evidence
+      with:
+        source_path: ${{ steps.decode.outputs.source_path }}
+        asset_name: ${{ inputs.asset_name }}
+        commit_sha: ${{ inputs.commit_sha }}
+        draft: ${{ inputs.draft }}

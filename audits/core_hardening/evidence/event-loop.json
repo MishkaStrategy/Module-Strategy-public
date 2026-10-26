@@ -1,0 +1,16 @@
+{
+  "bars": 5000,
+  "deterministic": true,
+  "durations_seconds": [
+    0.3780769369996051,
+    0.3364498050000293,
+    0.32543570400002864
+  ],
+  "max_base_history": 2000,
+  "median_seconds": 0.3364498050000293,
+  "module_calls": 25000,
+  "modules": 5,
+  "repeats": 3,
+  "run_id": "run-aff9a009e00def45",
+  "throughput_calls_per_second": 74305.28901628527
+}

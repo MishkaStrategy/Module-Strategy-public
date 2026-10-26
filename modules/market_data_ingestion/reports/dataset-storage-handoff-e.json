@@ -1,0 +1,100 @@
+{
+  "contract_version": "wave2d-dataset-storage-v1",
+  "consumer": "Optimization Wave 2E Control Plane",
+  "manifest_contract": {
+    "manifest_version": 2,
+    "descriptor_version": 1,
+    "registry_schema_version": 1,
+    "identity": [
+      "dataset_id",
+      "version",
+      "dataset_hash"
+    ],
+    "lineage": "Every partition must reference existing raw or partition identities; self-reference, unknown parents and cycles are rejected."
+  },
+  "registry": {
+    "legacy_compatibility_class": "market_data_ingestion.registry.SQLiteDatasetRegistry",
+    "wave2_entrypoint_class": "market_data_ingestion.registry_schema.VersionedSQLiteDatasetRegistry",
+    "factory": "market_data_ingestion.registry_schema.open_versioned_registry",
+    "methods": [
+      "claim_request",
+      "complete_request",
+      "next_version",
+      "register",
+      "register_for_request",
+      "inspect",
+      "health"
+    ],
+    "transaction_behavior": "One short-lived SQLite connection and transaction per public operation. WAL, foreign_keys=ON, synchronous=FULL and a 10 second SQLite busy timeout are retained. No internal retry is promised.",
+    "contention_behavior": "Concurrent readers are supported. SQLite writer contention is surfaced by SQLite or typed RegistryError; the caller may retry only retryable failures without changing dataset identity.",
+    "schema_behavior": "Existing version-0 canonical registries are adopted idempotently as schema version 1 after exact table/index validation. Newer schemas are rejected before mutation."
+  },
+  "storage": {
+    "legacy_compatibility_class": "market_data_ingestion.storage.LocalStorage",
+    "wave2_entrypoint_class": "market_data_ingestion.storage_recovery.RecoverableLocalStorage",
+    "factory": "market_data_ingestion.storage_recovery.open_recoverable_storage",
+    "methods_added": [
+      "list_manifests",
+      "find_unregistered_manifests",
+      "cleanup_orphan_temporary_files"
+    ],
+    "publication": "File payload is written to a same-directory temporary file, flushed, fsynced, atomically replaced and followed by directory fsync. Immutable conflicts fail closed.",
+    "cleanup": "Only aged files matching the LocalStorage atomic temporary naming pattern are automatically removed. Immutable manifests that lack a Registry row are detected and reported, never auto-deleted.",
+    "symlink_policy": "Storage and Registry paths reject symbolic-link escape or destination substitution."
+  },
+  "error_taxonomy": [
+    "REGISTRY_PATH_INVALID",
+    "REGISTRY_SCHEMA_IO",
+    "REGISTRY_SCHEMA_INVALID",
+    "REGISTRY_SCHEMA_VERSION_UNSUPPORTED",
+    "REGISTRY_SCHEMA_DOWNGRADE_REJECTED",
+    "REGISTRY_SCHEMA_VERSION_INVALID",
+    "REGISTRATION_CONFLICT",
+    "REQUEST_ID_CONFLICT",
+    "REQUEST_CLAIM_LOST",
+    "MANIFEST_PATH_INVALID",
+    "PATH_TRAVERSAL",
+    "SYMLINK_PATH",
+    "IMMUTABLE_CONFLICT",
+    "STORAGE_IO_ERROR",
+    "DISK_SPACE_EXHAUSTED",
+    "STORAGE_PERMISSION_DENIED",
+    "PARTITION_MISSING",
+    "PARTITION_CHECKSUM_MISMATCH",
+    "RAW_CHECKSUM_MISMATCH"
+  ],
+  "read_only_paths_for_stream_e": [
+    "modules/market_data_ingestion/src/market_data_ingestion/registry.py",
+    "modules/market_data_ingestion/src/market_data_ingestion/registry_schema.py",
+    "modules/market_data_ingestion/src/market_data_ingestion/storage.py",
+    "modules/market_data_ingestion/src/market_data_ingestion/storage_recovery.py",
+    "modules/market_data_ingestion/src/market_data_ingestion/contracts.py",
+    "modules/market_data_ingestion/src/market_data_ingestion/manifest_io.py",
+    "modules/market_data_ingestion/src/market_data_ingestion/integrity.py"
+  ],
+  "forbidden_direct_mutations": [
+    "direct INSERT, UPDATE or DELETE against Registry SQLite tables",
+    "direct PRAGMA changes that weaken WAL, foreign keys or synchronous durability",
+    "direct manifest, partition or raw-artifact replacement",
+    "deleting immutable unregistered manifests without an explicit repair decision",
+    "bypassing descriptor or manifest schema validation",
+    "disabling checksum, lineage, root-containment or symlink checks"
+  ],
+  "measured_limits": {
+    "validated_dataset_count": 10000,
+    "registration_throughput_min_observed_per_second": 911.21,
+    "register_p99_ms_max_observed": 1.9924,
+    "lookup_p99_ms_max_observed": 0.2946,
+    "writer_contention_p99_ms_max_observed": 12.7684,
+    "concurrent_reader_availability": 1.0,
+    "busy_errors_observed": 0,
+    "pinned_reader_wal_bytes_max_observed": 171832872,
+    "crash_recovery_ms_max_observed": 3.075834,
+    "aged_orphan_cleanup_ms_max_observed_for_20_files": 6.589208
+  },
+  "benchmark_generators": [
+    "modules/market_data_ingestion/scripts/benchmark_dataset_storage_slo.py",
+    "modules/market_data_ingestion/scripts/benchmark_dataset_storage_recovery.py"
+  ],
+  "status": "FROZEN FOR STREAM E READ-ONLY CONSUMPTION"
+}

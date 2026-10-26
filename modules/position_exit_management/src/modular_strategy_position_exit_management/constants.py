@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+MODULE_NAME = "position_exit_management"
+MODULE_VERSION = "0.2.1"
+MODULE_API_VERSION = "1.0"
+STATE_SCHEMA_VERSION = "2"
+FEATURE_SCHEMA_VERSION = "2"
+
+STATUS_FEATURE_KEY = "position_exit_management.status"
+DEFAULT_MANAGED_ORDER_TAG_PREFIX = "position-exit:"
+DEFAULT_MAX_TRACKED_CANCELS = 1024
+DEFAULT_MAX_CANCEL_REQUESTS_PER_BAR = 64
+MAX_COUNTER_VALUE = 2**63 - 1

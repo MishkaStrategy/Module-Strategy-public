@@ -1,0 +1,290 @@
+name: research-runner-security
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-runner-security-${{ github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.event.label.name || github.event.action || 'dispatch' }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Research Runner security / Python 3.13
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        working-directory: research-runner-security-${{ github.run_id }}
+
+    steps:
+      - name: Checkout Release evidence publisher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          sparse-checkout: .github/actions/publish-release-evidence
+          persist-credentials: false
+          show-progress: false
+
+      - name: Checkout exact Research Runner candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: research-runner-security-${{ github.run_id }}
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: "3.13"
+          activate-environment: true
+          enable-cache: false
+          working-directory: research-runner-security-${{ github.run_id }}
+
+      - name: Install Research Runner and security tools
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          uv pip install --upgrade pip
+          uv pip install -e "."
+          uv pip install -e "./research/experiment_runner"
+          uv pip install "bandit>=1.7" "detect-secrets>=1.5" "pip-audit>=2.7" "cyclonedx-bom>=4.5"
+          uv pip check
+          python -c "from pathlib import Path; Path('evidence/research-runner-security').mkdir(parents=True, exist_ok=True)"
+          python -VV
+          python -m pip freeze
+
+      - name: Record exact candidate and toolchain
+        run: >-
+          python -c "import json, os, platform; from importlib.metadata import version; from pathlib import Path;
+          tools={name: version(dist) for name, dist in [('bandit','bandit'),('detect-secrets','detect-secrets'),('pip-audit','pip-audit'),('cyclonedx-bom','cyclonedx-bom')]};
+          report={'expected_head':os.environ['EXPECTED_HEAD'],'python':platform.python_version(),'platform':platform.platform(),'tools':tools};
+          Path('evidence/research-runner-security/environment.json').write_text(json.dumps(report, sort_keys=True, indent=2)+'\n', encoding='utf-8')"
+
+      - name: Bandit source and release-tool audit
+        id: bandit
+        continue-on-error: true
+        run: >-
+          bandit -q -r
+          research/experiment_runner/src/modular_research_runner
+          research/experiment_runner/tools
+          -f json -o evidence/research-runner-security/bandit.json
+
+      - name: Secret detection
+        id: secrets
+        continue-on-error: true
+        run: >-
+          python -c "import json, subprocess, sys; from pathlib import Path;
+          workflows=sorted(str(path) for path in Path('.github/workflows').glob('research-runner-*.yml'));
+          targets=['research/experiment_runner/src','research/experiment_runner/tests','research/experiment_runner/stress_tests','research/experiment_runner/tools','research/experiment_runner/examples','research/experiment_runner/pyproject.toml','research/experiment_runner/README.md','docs/research_runner',*workflows];
+          completed=subprocess.run(['detect-secrets','scan',*targets], check=True, capture_output=True, text=True, encoding='utf-8');
+          path=Path('evidence/research-runner-security/secrets.json'); path.write_text(completed.stdout, encoding='utf-8');
+          report=json.loads(completed.stdout); findings=sum(len(rows) for rows in report.get('results',{}).values());
+          Path('evidence/research-runner-security/secret-count.txt').write_text(f'{findings}\n', encoding='utf-8');
+          sys.exit(f'detect-secrets found {findings} candidate(s)') if findings else None"
+
+      - name: Runtime dependency vulnerability audit
+        run: >-
+          python -c "from pathlib import Path;
+          Path('evidence/research-runner-security/runtime-requirements.txt').write_text('PyYAML>=6.0\n', encoding='utf-8')"
+
+      - name: Audit runtime dependencies
+        id: pip_audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit_ok=false
+          for attempt in 1 2 3; do
+            rm -f evidence/research-runner-security/pip-audit.json
+            if pip-audit \
+              -r evidence/research-runner-security/runtime-requirements.txt \
+              --strict --format json \
+              --output evidence/research-runner-security/pip-audit.json; then
+              audit_ok=true
+              break
+            fi
+            echo "pip-audit attempt ${attempt} failed" >&2
+            sleep $((attempt * 10))
+          done
+          test "$audit_ok" = true
+
+      - name: Generate CycloneDX SBOM
+        id: sbom
+        continue-on-error: true
+        run: >-
+          cyclonedx-py environment --output-format JSON
+          --output-file evidence/research-runner-security/research-runner-sbom.json
+
+      - name: Sanitize and verify security evidence
+        id: privacy
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path("evidence/research-runner-security")
+          root.mkdir(parents=True, exist_ok=True)
+          checksum_path = root / "SHA256SUMS.txt"
+          privacy_path = root / "privacy-status.json"
+          checksum_path.unlink(missing_ok=True)
+          privacy_path.unlink(missing_ok=True)
+
+          roots = {
+              value
+              for key in (
+                  "GITHUB_WORKSPACE",
+                  "RUNNER_TEMP",
+                  "HOME",
+                  "VIRTUAL_ENV",
+                  "UV_CACHE_DIR",
+              )
+              if (value := os.environ.get(key))
+          }
+          runner_user = os.environ.get("USER", "")
+
+          def scrub(text: str) -> str:
+              text = re.sub(r"file://[^\s\"']+", "redacted-local-uri", text)
+              for local_root in sorted(roots, key=len, reverse=True):
+                  text = text.replace(local_root, "<redacted-path>")
+              for pattern in (
+                  r"/Users/[^\s\"'<>]+",
+                  r"/home/[^\s\"'<>]+",
+                  r"/tmp/[^\s\"'<>]+",
+                  r"/private/var/[^\s\"'<>]+",
+                  r"/var/folders/[^\s\"'<>]+",
+              ):
+                  text = re.sub(pattern, "<redacted-path>", text)
+              text = (
+                  text.replace("file://", "redacted-local-uri:")
+                  .replace("GitHubActionsRunners", "redacted-runner-root")
+                  .replace("_work/Module-Strategy", "redacted-workspace")
+              )
+              if runner_user:
+                  text = text.replace(runner_user, "redacted-user")
+              return text
+
+          sanitized: list[str] = []
+          for path in sorted(root.rglob("*")):
+              if not path.is_file():
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              cleaned = scrub(text)
+              if cleaned != text:
+                  path.write_text(cleaned, encoding="utf-8")
+                  sanitized.append(path.relative_to(root).as_posix())
+
+          forbidden = [
+              b"/Users/",
+              b"/home/",
+              b"/tmp/",
+              b"/private/var/",
+              b"/var/folders/",
+              b"file://",
+              b"GitHubActionsRunners",
+              b"_work/Module-Strategy",
+          ]
+          if runner_user:
+              forbidden.append(runner_user.encode("utf-8"))
+
+          def scan() -> list[str]:
+              hits: list[str] = []
+              for path in sorted(root.rglob("*")):
+                  if not path.is_file():
+                      continue
+                  data = path.read_bytes()
+                  for marker in forbidden:
+                      if marker and marker in data:
+                          hits.append(
+                              f"{path.relative_to(root).as_posix()}: "
+                              f"{marker.decode('utf-8', 'replace')}"
+                          )
+              return hits
+
+          hits = scan()
+          assert not hits, "private evidence markers found:\n" + "\n".join(hits)
+
+          privacy_path.write_text(
+              json.dumps(
+                  {
+                      "status": "PASS",
+                      "sanitized_files": sorted(sanitized),
+                      "scan_scope": [root.as_posix()],
+                      "forbidden_marker_count": 0,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+
+          files = sorted(
+              path
+              for path in root.rglob("*")
+              if path.is_file() and path != checksum_path
+          )
+          rows = [
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+              f"{path.relative_to(root).as_posix()}"
+              for path in files
+          ]
+          checksum_path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+          for row in rows:
+              expected, relative = row.split("  ", 1)
+              actual = hashlib.sha256((root / relative).read_bytes()).hexdigest()
+              assert actual == expected, (relative, expected, actual)
+
+          hits = scan()
+          assert not hits, "private evidence markers found:\n" + "\n".join(hits)
+          PY
+
+      - name: Enforce security gate
+        if: always()
+        env:
+          BANDIT_OUTCOME: ${{ steps.bandit.outcome }}
+          SECRETS_OUTCOME: ${{ steps.secrets.outcome }}
+          PIP_AUDIT_OUTCOME: ${{ steps.pip_audit.outcome }}
+          SBOM_OUTCOME: ${{ steps.sbom.outcome }}
+          PRIVACY_OUTCOME: ${{ steps.privacy.outcome }}
+        run: >-
+          python -c "import os, sys;
+          outcomes={name:os.environ[name] for name in ('BANDIT_OUTCOME','SECRETS_OUTCOME','PIP_AUDIT_OUTCOME','SBOM_OUTCOME','PRIVACY_OUTCOME')};
+          failed={name:value for name,value in outcomes.items() if value != 'success'};
+          sys.exit(f'security gate failures: {failed}') if failed else None"
+
+      - name: Publish exact Research Runner security evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ github.workspace }}/research-runner-security-${{ github.run_id }}/evidence/research-runner-security
+          asset_name: research-runner-security-py3.13.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Research Runner security publication gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.evidence_publish.outcome }}" = success

@@ -1,0 +1,246 @@
+name: control-ui-research-backend-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "research/experiment_runner/**"
+      - ".github/workflows/control-ui-research-backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-research-backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  research-backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Research backend candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/control_plane/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_factory/pyproject.toml
+          cache-suffix: control-ui-research-backend
+
+      - name: Install native Research and Control Plane
+        run: |
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "research/experiment_runner"
+          uv pip install -e "modules/results_aggregator"
+          uv pip install -e "research/strategy_audit_validation"
+          uv pip install -e "research/strategy_factory" --no-deps
+          uv pip install -e "applications/trading_runner"
+          uv pip install -e "modules/paper_execution"
+          uv pip install -e "applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Compile and format
+        run: |
+          python -m compileall -q applications/control_plane/src research/experiment_runner/src
+          ruff format --check \
+            applications/control_plane/src/modular_control_plane/research.py \
+            applications/control_plane/src/modular_control_plane/research_api.py \
+            applications/control_plane/src/modular_control_plane/adapters/research.py \
+            applications/control_plane/src/modular_control_plane/server.py \
+            research/experiment_runner/src/modular_research_runner/query.py \
+            research/experiment_runner/tests/test_readonly_query.py
+
+      - name: Ruff and Control Plane strict MyPy
+        run: |
+          ruff check --output-format=concise applications/control_plane/src research/experiment_runner/src research/experiment_runner/tests/test_readonly_query.py
+          mypy --strict applications/control_plane/src
+
+      - name: Native read-only repository tests
+        run: pytest -q research/experiment_runner/tests/test_readonly_query.py
+
+      - name: Lightweight import boundary
+        run: |
+          python - <<'PY'
+          import sys
+          import modular_control_plane
+
+          assert "modular_research_runner" not in sys.modules
+          assert "modular_trading_runner" not in sys.modules
+          assert "paper_execution" not in sys.modules
+          assert modular_control_plane.ResearchControlService.__name__ == "ResearchControlService"
+          print("PASS: Control Plane import remains Research-engine lazy")
+          PY
+
+      - name: Real Research Control API read-only smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-research-backend-${{ matrix.python-version }}"
+          rm -rf "$root"
+          mkdir -p "$root"
+          export RESEARCH_ACCEPTANCE_ROOT="$root"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          from fastapi.testclient import TestClient
+          from modular_control_plane.server import ServerSettings, create_server
+          from modular_research_runner import (
+              BacktestJob,
+              BacktestRunReference,
+              ExperimentStatus,
+              SqliteExperimentRepository,
+          )
+
+          now = datetime(2026, 8, 7, 11, 0, tzinfo=UTC)
+          root = Path(os.environ["RESEARCH_ACCEPTANCE_ROOT"])
+          db = root / "research.sqlite3"
+          repo = SqliteExperimentRepository(db)
+          repo.register_experiment(
+              experiment_id="acceptance-experiment",
+              specification_sha256="a" * 64,
+              manifest={"private_manifest": "DO-NOT-PROJECT"},
+              created_at=now,
+          )
+          job = BacktestJob(
+              run_id="acceptance-run",
+              experiment_id="acceptance-experiment",
+              stage_id="walk-forward",
+              split_id="split-1",
+              dataset_id="dataset-1",
+              scenario_id="baseline",
+              seed=11,
+              parameters={"private_parameter": "DO-NOT-PROJECT"},
+              output_directory=root / "private-job-output",
+              stage_role="validation",
+              repetition_index=0,
+              metadata={"private_metadata": "DO-NOT-PROJECT"},
+          )
+          assert repo.register_jobs((job,), max_attempts=1, created_at=now) == 1
+          assert repo.queue_planned("acceptance-experiment", at=now) == 1
+          claim = repo.claim_next(
+              experiment_id="acceptance-experiment",
+              worker_id="private-worker",
+              session_id="private-session",
+              lease_token="private-lease",
+              at=now,
+              lease_seconds=60,
+          )
+          assert claim is not None
+          claimed_job, _state, lease = claim
+          assert claimed_job.run_id == "acceptance-run"
+          repo.succeed(
+              "acceptance-run",
+              worker_id="private-worker",
+              session_id="private-session",
+              lease_token="private-lease",
+              expected_revision=lease.revision,
+              result=BacktestRunReference(
+                  requested_run_id="acceptance-run",
+                  engine_run_id="engine-acceptance-run",
+                  output_directory=root / "private-result-output",
+                  bars_processed=96,
+                  restart_verified=True,
+              ),
+              at=now,
+          )
+          repo.set_experiment_status(
+              "acceptance-experiment",
+              ExperimentStatus.COMPLETED,
+              at=now,
+          )
+
+          before_hash = hashlib.sha256(db.read_bytes()).hexdigest()
+          before_files = sorted(path.name for path in root.iterdir() if path.is_file())
+          settings = ServerSettings(
+              reader_token="reader-token",
+              research_state_path=db,
+          )
+          app = create_server(settings)
+          with TestClient(app) as client:
+              headers = {"Authorization": "Bearer reader-token"}
+              health = client.get("/api/control/v1/components/research/health", headers=headers)
+              assert health.status_code == 200, health.text
+              assert health.json()["status"] == "HEALTHY"
+
+              experiments = client.get(
+                  "/api/control/v1/research/experiments?limit=200&offset=0",
+                  headers=headers,
+              )
+              assert experiments.status_code == 200, experiments.text
+              experiment_payload = experiments.json()
+              assert experiment_payload["has_more"] is False
+              assert experiment_payload["experiments"][0]["native_status"] == "COMPLETED"
+              assert experiment_payload["experiments"][0]["status"] == "SUCCEEDED"
+
+              runs = client.get(
+                  "/api/control/v1/research/experiments/acceptance-experiment/runs",
+                  headers=headers,
+              )
+              assert runs.status_code == 200, runs.text
+              run = runs.json()["runs"][0]
+              assert run["native_status"] == "SUCCEEDED"
+              assert run["engine_run_id"] == "engine-acceptance-run"
+              assert run["bars_processed"] == 96
+              assert run["restart_verified"] is True
+
+              rendered = json.dumps({"experiment": experiment_payload, "runs": runs.json()})
+              for forbidden in (
+                  "DO-NOT-PROJECT",
+                  "private-worker",
+                  "private-session",
+                  "private-lease",
+                  "private-job-output",
+                  "private-result-output",
+              ):
+                  assert forbidden not in rendered
+
+              openapi = client.get(
+                  "/api/control/v1/openapi.json",
+                  headers=headers,
+              )
+              assert openapi.status_code == 200
+              for path, operations in openapi.json()["paths"].items():
+                  if path.startswith("/api/control/v1/research/"):
+                      assert set(operations) <= {"get"}, (path, operations)
+
+          after_hash = hashlib.sha256(db.read_bytes()).hexdigest()
+          after_files = sorted(path.name for path in root.iterdir() if path.is_file())
+          assert after_hash == before_hash
+          assert after_files == before_files
+          print("PASS: Research Control API is read-only and safe-projected")
+          PY

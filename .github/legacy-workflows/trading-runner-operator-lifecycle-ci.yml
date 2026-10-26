@@ -1,0 +1,82 @@
+name: trading-runner-operator-lifecycle-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/trading_runner/src/modular_trading_runner/operator_lifecycle.py"
+      - "applications/trading_runner/src/modular_trading_runner/operator_http.py"
+      - "applications/trading_runner/src/modular_trading_runner/__init__.py"
+      - "applications/trading_runner/tests/test_operator_lifecycle.py"
+      - "applications/trading_runner/tests/test_operator_http.py"
+      - "docs/trading_runner/OPERATOR_LIFECYCLE_CONTRACT_V1.md"
+      - ".github/workflows/trading-runner-operator-lifecycle-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trading-runner-operator-lifecycle-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  owner-contract:
+    name: Trading Runner Operator Lifecycle / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact lifecycle owner candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            applications/trading_runner/pyproject.toml
+          cache-suffix: trading-runner-operator-lifecycle
+
+      - name: Install dependencies
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/trading_runner[dev]"
+          uv pip check
+
+      - name: Compile
+        run: python -m compileall -q applications/trading_runner/src applications/trading_runner/tests
+
+      - name: Ruff lint
+        run: ruff check applications/trading_runner/src applications/trading_runner/tests
+
+      - name: Ruff format
+        run: ruff format --check applications/trading_runner/src applications/trading_runner/tests
+
+      - name: Strict MyPy
+        run: mypy --strict applications/trading_runner/src
+
+      - name: Lifecycle owner focused tests
+        run: |
+          pytest -q --tb=no \
+            applications/trading_runner/tests/test_operator_lifecycle.py \
+            applications/trading_runner/tests/test_operator_http.py

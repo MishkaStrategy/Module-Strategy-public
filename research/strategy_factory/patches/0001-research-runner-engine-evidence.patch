@@ -1,0 +1,39 @@
+From: Strategy Factory integration
+Subject: [PATCH] Allow manifest-declared Backtest evidence in Research Runner packages
+
+Related: #219, Draft PR #218
+Base: 9b7cc5cac837f8d66c691117143e0dcb9cf2d8f8
+
+This is a reviewable ownership patch, not a workaround in Strategy Factory.
+Existing manifest, checksum, path, symlink and byte-limit checks remain authoritative.
+
+---
+ research/experiment_runner/src/modular_research_runner/registry_package.py | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/research/experiment_runner/src/modular_research_runner/registry_package.py b/research/experiment_runner/src/modular_research_runner/registry_package.py
+index 5e2de18..strategy-factory-review 100644
+--- a/research/experiment_runner/src/modular_research_runner/registry_package.py
++++ b/research/experiment_runner/src/modular_research_runner/registry_package.py
+@@ -31,7 +31,11 @@ _REQUIRED_FILES = (
+     "restart-evidence.json",
+     _ENGINE_MANIFEST_FILENAME,
+ )
+-_OPTIONAL_FILES = ("replay-checkpoint.json",)
++_OPTIONAL_FILES = (
++    "replay-checkpoint.json",
++    "environment.json",
++    "SHA256SUMS.txt",
++)
+ _CORE_FILE_SCHEMAS: Mapping[str, tuple[str, str, str]] = {
+     "run.json": ("application/json", "modular-core.run-export", "0.4.0"),
+     "metrics.json": ("application/json", "modular-core.metrics", "0.4.0"),
+@@ -48,6 +52,8 @@ _MEDIA_TYPES: Mapping[str, str] = {
+     "data-validation.json": "application/json",
+     "restart-evidence.json": "application/json",
+     "replay-checkpoint.json": "application/json",
++    "environment.json": "application/json",
++    "SHA256SUMS.txt": "text/plain",
+ }
+-- 
+2.0

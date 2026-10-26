@@ -1,0 +1,477 @@
+name: liquidity-sweep-hardening-ci
+
+on:
+  pull_request:
+    paths:
+      - "src/strategy_modules/liquidity_sweep/**"
+      - "src/strategy_modules/py.typed"
+      - "tests/test_liquidity_sweep_*.py"
+      - "benchmarks/liquidity_sweep*.py"
+      - "docs/modules/liquidity_sweep.md"
+      - "docs/audits/liquidity_sweep/**"
+      - "pyproject.toml"
+      - ".github/workflows/liquidity-sweep-hardening-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  quality:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 180
+    env:
+      UV_HTTP_RETRIES: "5"
+      UV_HTTP_CONNECT_TIMEOUT: "20"
+      UV_HTTP_TIMEOUT: "60"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          echo "runner_name=${RUNNER_NAME:-unknown}"
+          echo "runner_os=${RUNNER_OS:-unknown}"
+          echo "runner_arch=${RUNNER_ARCH:-unknown}"
+          uname -a
+          df -h .
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          show-progress: false
+          fetch-depth: 1
+          clean: true
+          persist-credentials: false
+
+      - name: Verify exact Liquidity Sweep hardening candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Configure temporary paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-py${{ matrix.python-version }}"
+          {
+            echo "VENV=$RUNNER_TEMP/liquidity-sweep-ci-$suffix"
+            echo "WHEEL_VENV=$RUNNER_TEMP/liquidity-sweep-wheel-$suffix"
+            echo "SDIST_VENV=$RUNNER_TEMP/liquidity-sweep-sdist-$suffix"
+            echo "INTEGRATION_VENV=$RUNNER_TEMP/liquidity-sweep-integration-$suffix"
+            echo "UV_CACHE_DIR=$RUNNER_TEMP/liquidity-sweep-uv-cache-$suffix"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up pinned uv and managed Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          venv-path: ${{ runner.temp }}/liquidity-sweep-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}-py${{ matrix.python-version }}
+          enable-cache: false
+
+      - name: Install Core, Liquidity Sweep and audit tools
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e '.[dev,backtest,signal-bot]'
+          uv pip install build bandit detect-secrets cyclonedx-bom pip-audit twine
+          uv pip check
+
+      - name: Compile and static quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            src/strategy_modules/liquidity_sweep \
+            tests/test_liquidity_sweep_*.py \
+            benchmarks/liquidity_sweep_deep.py \
+            benchmarks/liquidity_sweep_restart_stress.py
+          ruff check \
+            src/strategy_modules/liquidity_sweep \
+            tests/test_liquidity_sweep_*.py \
+            benchmarks/liquidity_sweep_deep.py \
+            benchmarks/liquidity_sweep_restart_stress.py \
+            2>&1 | tee liquidity-sweep-ruff.txt
+          mypy --strict src/strategy_modules/liquidity_sweep \
+            2>&1 | tee liquidity-sweep-mypy.txt
+
+      - name: Focused tests and branch coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          coverage erase
+          coverage run --branch --source=src/strategy_modules/liquidity_sweep -m pytest \
+            tests/test_liquidity_sweep_*.py \
+            --junitxml=liquidity-sweep-junit.xml
+          coverage json -o liquidity-sweep-coverage.json
+          coverage report --show-missing --fail-under=90 \
+            | tee liquidity-sweep-coverage.txt
+
+      - name: Explicit causality, restart and lifecycle gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_liquidity_sweep_unit.py \
+            tests/test_liquidity_sweep_error_discovery.py \
+            tests/test_liquidity_sweep_lifecycle_edges.py \
+            tests/test_liquidity_sweep_state_capacity_edges.py \
+            tests/test_liquidity_sweep_timeframe_edges.py \
+            --junitxml=liquidity-sweep-causality-junit.xml
+
+      - name: Install integrated public packages
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          uv pip install -e './modules/session_range[dev]' --no-deps
+          uv pip install -e ./modules/market_regime --no-deps
+          uv pip install -e ./plugins/fvg --no-deps
+          uv pip install -e './modules/wave_analysis[dev]' --no-deps
+          uv pip install -e ./modules/setup_adapter --no-deps
+          uv pip install -e ./modules/entry_model --no-deps
+          uv pip install -e './modules/protection_target[dev]' --no-deps
+          uv pip install -e ./modules/risk_sizing --no-deps
+          uv pip install -e ./modules/position_scaling --no-deps
+          uv pip install -e ./modules/trade_plan_router --no-deps
+          uv pip install -e './modules/paper_execution[dev]' --no-deps
+          uv pip install -e './modules/position_exit_management[dev]' --no-deps
+          uv pip install -e './applications/trading_runner[dev]' --no-deps
+          uv pip check
+
+      - name: Install isolated Stage1 compatibility environment
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$INTEGRATION_VENV"
+          "$INTEGRATION_VENV/bin/python" -m pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          "$INTEGRATION_VENV/bin/python" -m pip install -e '.[dev,backtest,signal-bot]'
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './modules/session_range[dev]' --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/market_regime --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./plugins/fvg --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './modules/wave_analysis[dev]' --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/setup_adapter --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/entry_model --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './modules/protection_target[dev]' --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/risk_sizing --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/position_scaling --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/trade_plan_router --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './modules/paper_execution[dev]' --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './modules/position_exit_management[dev]' --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './applications/trading_runner[dev]' --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './modules/market_data_ingestion[dev,parquet]'
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./research/experiment_runner
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/results_aggregator
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './research/strategy_audit_validation[dev]'
+          "$INTEGRATION_VENV/bin/python" -m pip install -e ./modules/risk_request_composer --no-deps
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './research/strategy_factory[dev]'
+          "$INTEGRATION_VENV/bin/python" -m pip install -e './applications/system_acceptance[dev]'
+          "$INTEGRATION_VENV/bin/python" -m pip check
+
+      - name: Central repository compatibility
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/liquidity-sweep-repository
+          "$INTEGRATION_VENV/bin/python" -m pytest -q tests/test_*.py \
+            --ignore=tests/test_liquidity_sweep_deep_hardening.py \
+            --ignore=tests/test_liquidity_sweep_error_discovery.py \
+            --ignore=tests/test_liquidity_sweep_lifecycle_edges.py \
+            --ignore=tests/test_liquidity_sweep_state_capacity_edges.py \
+            --ignore=tests/test_liquidity_sweep_timeframe_edges.py \
+            --ignore=tests/test_liquidity_sweep_validation_edges.py \
+            --junitxml=reports/liquidity-sweep-repository/root.xml
+          "$INTEGRATION_VENV/bin/python" -m pytest -q tests/backtest_engine \
+            --junitxml=reports/liquidity-sweep-repository/backtest.xml
+          "$INTEGRATION_VENV/bin/python" -m pytest -q tests/breakout_return \
+            --junitxml=reports/liquidity-sweep-repository/breakout.xml
+          "$INTEGRATION_VENV/bin/python" -m pytest -q tests/integration \
+            --junitxml=reports/liquidity-sweep-repository/integration.xml
+          "$INTEGRATION_VENV/bin/python" -m pytest -q tests/signal_bot \
+            --junitxml=reports/liquidity-sweep-repository/signal-bot.xml
+          "$INTEGRATION_VENV/bin/python" scripts/integration_smoke.py \
+            | tee liquidity-sweep-integration-smoke.txt
+
+      - name: Build wheel and source distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build dist
+          python -m build --no-isolation
+          python -m twine check dist/*
+          shasum -a 256 dist/* > liquidity-sweep-dist-checksums.sha256
+
+      - name: Clean wheel, PEP 561 and checkpoint smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$WHEEL_VENV"
+          python -m venv "$WHEEL_VENV"
+          "$WHEEL_VENV/bin/python" -m pip install --upgrade pip
+          "$WHEEL_VENV/bin/python" -m pip install dist/*.whl pytest mypy hypothesis
+          "$WHEEL_VENV/bin/python" -m pip check
+          "$WHEEL_VENV/bin/python" - <<'PY'
+          from importlib.metadata import entry_points
+          from importlib.resources import files
+          from modular_core import ModuleRegistry
+          from modular_core.checkpoints import capture_module_states, restore_module_states
+          from strategy_modules.liquidity_sweep import LiquiditySweepModule, MODULE_VERSION
+
+          selected = {
+              item.name: item
+              for item in entry_points().select(group="modular_strategy.modules")
+          }
+          assert selected["liquidity_sweep"].load() is LiquiditySweepModule
+          assert files("strategy_modules").joinpath("py.typed").is_file()
+          assert MODULE_VERSION == "0.1.2"
+
+          registry = ModuleRegistry()
+          discovered = registry.discover_entry_points()
+          assert "liquidity_sweep" in discovered
+          module = registry.load_named("liquidity_sweep")
+          assert isinstance(module, LiquiditySweepModule)
+          plan = registry.validate_and_plan((module,), base_timeframe="1m")
+          assert plan.modules == (module,)
+
+          states = capture_module_states((module,))
+          restored = LiquiditySweepModule()
+          restore_module_states((restored,), states)
+          assert restored.snapshot_state() == module.snapshot_state()
+          print("liquidity-sweep-clean-wheel=ok")
+          PY
+          TEST_ROOT="$(mktemp -d)"
+          cp tests/test_liquidity_sweep_*.py "$TEST_ROOT/"
+          (
+            cd "$TEST_ROOT"
+            "$WHEEL_VENV/bin/python" -m pytest -q . \
+              --junitxml="$GITHUB_WORKSPACE/liquidity-sweep-wheel-junit.xml"
+          )
+          cat > "$TEST_ROOT/consumer.py" <<'PY'
+          from strategy_modules.liquidity_sweep import LiquiditySweepModule
+
+          module: LiquiditySweepModule = LiquiditySweepModule()
+          reveal_type(module)
+          PY
+          (
+            cd "$TEST_ROOT"
+            "$WHEEL_VENV/bin/mypy" --strict consumer.py \
+              > "$GITHUB_WORKSPACE/liquidity-sweep-wheel-mypy.txt"
+          )
+
+      - name: Clean source-distribution suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$SDIST_VENV"
+          python -m venv "$SDIST_VENV"
+          "$SDIST_VENV/bin/python" -m pip install --upgrade pip
+          "$SDIST_VENV/bin/python" -m pip install dist/*.tar.gz pytest hypothesis
+          "$SDIST_VENV/bin/python" -m pip check
+          "$SDIST_VENV/bin/python" - <<'PY'
+          from importlib.metadata import entry_points
+          from importlib.resources import files
+          from strategy_modules.liquidity_sweep import LiquiditySweepModule
+
+          selected = {
+              item.name: item
+              for item in entry_points().select(group="modular_strategy.modules")
+          }
+          assert selected["liquidity_sweep"].load() is LiquiditySweepModule
+          assert files("strategy_modules").joinpath("py.typed").is_file()
+          print("liquidity-sweep-clean-sdist=ok")
+          PY
+          SDIST_TEST_ROOT="$(mktemp -d)"
+          cp tests/test_liquidity_sweep_*.py "$SDIST_TEST_ROOT/"
+          (
+            cd "$SDIST_TEST_ROOT"
+            "$SDIST_VENV/bin/python" -m pytest -q . \
+              --junitxml="$GITHUB_WORKSPACE/liquidity-sweep-sdist-junit.xml"
+          )
+
+      - name: Security scan and SBOM
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bandit -q -r \
+            src/strategy_modules/liquidity_sweep \
+            benchmarks/liquidity_sweep_restart_stress.py \
+            -f json -o liquidity-sweep-bandit.json
+          detect-secrets scan \
+            src/strategy_modules/liquidity_sweep \
+            tests/test_liquidity_sweep_*.py \
+            benchmarks/liquidity_sweep*.py \
+            > liquidity-sweep-secrets.json
+          python - <<'PY'
+          import json
+          with open("liquidity-sweep-secrets.json", encoding="utf-8") as handle:
+              findings = json.load(handle).get("results", {})
+          if findings:
+              raise SystemExit(f"detect-secrets findings: {sorted(findings)}")
+          PY
+          pip-audit --format json --output liquidity-sweep-pip-audit.json
+          cyclonedx-py environment "$(command -v python)" \
+            --output-format JSON \
+            --output-file liquidity-sweep-sbom.cdx.json
+
+      - name: Deterministic benchmark smoke
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python benchmarks/liquidity_sweep_deep.py \
+            --sizes '1000:5,10000:3' \
+            --memory-events 10000 \
+            --stress-events 50000 \
+            --output liquidity-sweep-benchmark.json \
+            > liquidity-sweep-benchmark.stdout.txt
+
+      - name: One-million-event segmented restart stress
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f liquidity-sweep-stress-chunk-*.json
+          python benchmarks/liquidity_sweep_restart_stress.py \
+            --events 250000 \
+            --output liquidity-sweep-stress-chunk-1.json
+          python benchmarks/liquidity_sweep_restart_stress.py \
+            --events 250000 \
+            --input liquidity-sweep-stress-chunk-1.json \
+            --output liquidity-sweep-stress-chunk-2.json
+          python benchmarks/liquidity_sweep_restart_stress.py \
+            --events 250000 \
+            --input liquidity-sweep-stress-chunk-2.json \
+            --output liquidity-sweep-stress-chunk-3.json
+          python benchmarks/liquidity_sweep_restart_stress.py \
+            --events 250000 \
+            --input liquidity-sweep-stress-chunk-3.json \
+            --output liquidity-sweep-stress-1m.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("liquidity-sweep-stress-1m.json").read_text())
+          assert result["total_events"] == 1_000_000
+          assert result["next_index"] == 1_000_000
+          assert result["buffered_bars"] <= 5
+          assert result["active_levels"] <= 128
+          print(
+              json.dumps(
+                  {
+                      key: value
+                      for key, value in result.items()
+                      if key not in {"module_state", "random_state"}
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+          )
+          PY
+
+      - name: Stage bounded Liquidity Sweep hardening evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="liquidity-sweep-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          common=(
+            liquidity-sweep-ruff.txt
+            liquidity-sweep-mypy.txt
+            liquidity-sweep-junit.xml
+            liquidity-sweep-causality-junit.xml
+            liquidity-sweep-wheel-junit.xml
+            liquidity-sweep-sdist-junit.xml
+            liquidity-sweep-coverage.json
+            liquidity-sweep-coverage.txt
+            liquidity-sweep-wheel-mypy.txt
+            liquidity-sweep-dist-checksums.sha256
+          )
+          for path in "${common[@]}"; do
+            test -f "$path"
+            cp "$path" "$stage/"
+          done
+          cp -R dist "$stage/"
+          if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+            py313=(
+              liquidity-sweep-integration-smoke.txt
+              liquidity-sweep-bandit.json
+              liquidity-sweep-secrets.json
+              liquidity-sweep-pip-audit.json
+              liquidity-sweep-sbom.cdx.json
+              liquidity-sweep-benchmark.json
+              liquidity-sweep-benchmark.stdout.txt
+              liquidity-sweep-stress-1m.json
+            )
+            for path in "${py313[@]}"; do
+              test -f "$path"
+              cp "$path" "$stage/"
+            done
+            test -d reports/liquidity-sweep-repository
+            cp -R reports/liquidity-sweep-repository "$stage/"
+          fi
+
+      - name: Publish exact Liquidity Sweep hardening evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: liquidity-sweep-release-evidence
+          asset_name: liquidity-sweep-hardening-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Liquidity Sweep hardening publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Liquidity Sweep hardening failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: liquidity-sweep-evidence-py${{ matrix.python-version }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            liquidity-sweep-ruff.txt
+            liquidity-sweep-mypy.txt
+            liquidity-sweep-junit.xml
+            liquidity-sweep-causality-junit.xml
+            liquidity-sweep-wheel-junit.xml
+            liquidity-sweep-sdist-junit.xml
+            liquidity-sweep-coverage.json
+            liquidity-sweep-coverage.txt
+            liquidity-sweep-wheel-mypy.txt
+            liquidity-sweep-integration-smoke.txt
+            liquidity-sweep-bandit.json
+            liquidity-sweep-secrets.json
+            liquidity-sweep-pip-audit.json
+            liquidity-sweep-sbom.cdx.json
+            liquidity-sweep-dist-checksums.sha256
+            liquidity-sweep-benchmark.json
+            liquidity-sweep-benchmark.stdout.txt
+            liquidity-sweep-stress-1m.json
+            reports/liquidity-sweep-repository/**
+            dist/*
+
+      - name: Cleanup temporary environments
+        if: always()
+        shell: bash
+        run: rm -rf "$VENV" "$WHEEL_VENV" "$SDIST_VENV" "$INTEGRATION_VENV" build liquidity-sweep-release-evidence

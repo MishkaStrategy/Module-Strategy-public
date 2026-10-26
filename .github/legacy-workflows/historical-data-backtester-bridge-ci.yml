@@ -1,0 +1,157 @@
+name: historical-data-backtester-bridge-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - "src/modular_backtest/config.py"
+      - "src/modular_backtest/data.py"
+      - "src/modular_backtest/registered_data.py"
+      - "tests/backtest_engine/test_data.py"
+      - "tests/backtest_engine/test_registered_config.py"
+      - "tests/backtest_engine/test_registered_data.py"
+      - "benchmarks/registered_dataset_loading.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/cli.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/__init__.py"
+      - "modules/market_data_ingestion/tests/test_dataset_reader.py"
+      - "docs/integration/HISTORICAL_DATA_BACKTESTER_BRIDGE.md"
+      - "configs/backtest.registered.example.yaml"
+      - ".github/workflows/historical-data-backtester-bridge-ci.yml"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - "src/modular_backtest/config.py"
+      - "src/modular_backtest/data.py"
+      - "src/modular_backtest/registered_data.py"
+      - "tests/backtest_engine/test_data.py"
+      - "tests/backtest_engine/test_registered_config.py"
+      - "tests/backtest_engine/test_registered_data.py"
+      - "benchmarks/registered_dataset_loading.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/cli.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/__init__.py"
+      - "modules/market_data_ingestion/tests/test_dataset_reader.py"
+      - "docs/integration/HISTORICAL_DATA_BACKTESTER_BRIDGE.md"
+      - "configs/backtest.registered.example.yaml"
+      - ".github/workflows/historical-data-backtester-bridge-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical-data-backtester-bridge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bridge:
+    name: Registered dataset bridge / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+          persist-credentials: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install exact bridge surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]" -e "modules/market_data_ingestion[dev,parquet]"
+          uv pip install setuptools wheel
+          uv pip check
+
+      - name: Compile and static validation
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            src/modular_backtest/config.py \
+            src/modular_backtest/data.py \
+            src/modular_backtest/registered_data.py \
+            benchmarks/registered_dataset_loading.py \
+            modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py
+          ruff check --output-format=concise \
+            src/modular_backtest/config.py \
+            src/modular_backtest/data.py \
+            src/modular_backtest/registered_data.py \
+            tests/backtest_engine/test_data.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            benchmarks/registered_dataset_loading.py \
+            modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py \
+            modules/market_data_ingestion/src/market_data_ingestion/cli.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py
+          ruff format --check \
+            src/modular_backtest/config.py \
+            src/modular_backtest/data.py \
+            src/modular_backtest/registered_data.py \
+            tests/backtest_engine/test_data.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            benchmarks/registered_dataset_loading.py \
+            modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py \
+            modules/market_data_ingestion/src/market_data_ingestion/cli.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py
+          mypy src/modular_backtest/config.py src/modular_backtest/data.py src/modular_backtest/registered_data.py
+          (cd modules/market_data_ingestion && mypy src/market_data_ingestion/dataset_reader.py src/market_data_ingestion/cli.py)
+
+      - name: Run bridge contracts
+        run: |
+          set -euo pipefail
+          pytest -o addopts="" -q \
+            tests/backtest_engine/test_config.py \
+            tests/backtest_engine/test_data.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py
+
+      - name: Run registered loading benchmark smoke
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/registered-loading-benchmark.json"
+          python benchmarks/registered_dataset_loading.py \
+            --rows 1000 \
+            --mode validated \
+            --output "$output" \
+            >/dev/null
+          python - "$output" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload["mode"] != "validated" or payload["rows"] != 1000:
+              raise SystemExit(f"unexpected benchmark payload: {payload!r}")
+          if payload["peak_memory_bytes"] <= 0 or payload["rows_per_second"] <= 0:
+              raise SystemExit(f"invalid benchmark measurements: {payload!r}")
+          PY
+
+      - name: Build and clean-wheel bridge smoke
+        run: |
+          set -euo pipefail
+          rm -rf dist modules/market_data_ingestion/dist
+          python -m build --no-isolation
+          (cd modules/market_data_ingestion && python -m build --no-isolation)
+          clean="$RUNNER_TEMP/historical-data-bridge-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python-version }}"
+          rm -rf "$clean"
+          uv venv --python "${{ matrix.python-version }}" --seed "$clean"
+          uv pip install --python "$clean/bin/python" \
+            dist/*.whl \
+            modules/market_data_ingestion/dist/*.whl \
+            "pyarrow>=16.0"
+          uv pip check --python "$clean/bin/python"
+          "$clean/bin/market-data" register-external-corpus --help >/dev/null
+          "$clean/bin/modular-backtest" validate-data --help >/dev/null

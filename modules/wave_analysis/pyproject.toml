@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-wave-analysis"
+version = "0.2.0"
+description = "Deterministic non-repainting wave structure feature producer"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "coverage>=7,<8", "hypothesis>=6,<7", "mypy>=1.11,<2", "ruff>=0.8,<1", "build>=1.2,<2"]
+
+[project.entry-points."modular_strategy.modules"]
+wave_analysis = "wave_analysis:WaveAnalysisModule"
+
+[tool.setuptools.package-data]
+wave_analysis = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "../../src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+packages = ["wave_analysis"]
+mypy_path = ["src", "../../src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]

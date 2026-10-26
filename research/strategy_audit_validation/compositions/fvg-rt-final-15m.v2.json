@@ -1,0 +1,144 @@
+{
+  "adapter": {
+    "feature_contract": "canonical-fvg-final-15m-feature-snapshot-v1",
+    "import_path": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+    "output_contract": "canonical-strategy-order-plan-v1"
+  },
+  "approved_at": "2026-08-03T03:40:00Z",
+  "approved_by": "mishkacher",
+  "causality": {
+    "first_eligible_5m_bar": "open timestamp equals first 5m boundary after completed 15m C close",
+    "lookahead_allowed": false,
+    "signal_available_after_completed_c": true,
+    "unfinished_htf_allowed": false
+  },
+  "checkpoint_and_restart": {
+    "identity_fields": [
+      "composition_hash",
+      "candidate_id",
+      "module_id",
+      "module_version",
+      "dataset_id",
+      "dataset_version",
+      "dataset_hash",
+      "symbol",
+      "last_processed_5m_open_utc"
+    ],
+    "open_position_restore": "restore exact side, quantity, entry, stop, target, fill index, remaining hold, fees, MFE and state sequence; reject any identity or digest mismatch",
+    "pending_order_restore": "restore exact limit, stop, target, remaining TTL, signal identity and priority; cancel if expired, crossed a data gap, or any identity/digest differs",
+    "schema_version": "canonical-strategy-state-v1"
+  },
+  "costs_and_sizing": {
+    "adverse_market_slippage": 0.00025,
+    "funding_baseline": 0.0,
+    "maker_entry_fee": 0.0002,
+    "maker_target_fee": 0.0002,
+    "market_exit_fee": 0.00055,
+    "max_notional_multiple": 3.0,
+    "risk_fraction_research": 0.005,
+    "risk_fraction_working_mode": 0.02,
+    "risk_reference": "current equity and net stop loss including entry fee, stop fee, and adverse slippage",
+    "stop_fee": 0.00055
+  },
+  "identity": {
+    "module_id": "fvg_rt_final_15m",
+    "module_version": "2.0.0",
+    "name": "FVG-RT Final 15m"
+  },
+  "intrabar": {
+    "full_target_on_fill_bar": false,
+    "gap_through_stop": "fill at the worse of configured stop and first available 5m open/market price, then apply market fee and adverse slippage",
+    "no_progress_check_priority": [
+      "stop",
+      "full_target",
+      "close_based_no_progress_exit"
+    ],
+    "stop_on_fill_bar": true,
+    "stop_target_same_bar": "stop_first"
+  },
+  "required_conditions_by_setup": {
+    "long": [
+      "bullish_fvg",
+      "fvg_size_atr_inclusive",
+      "middle_body_atr_min",
+      "middle_bullish",
+      "volume_ratio_min",
+      "close_above_ema50",
+      "ema50_rising_4",
+      "location_8h_min",
+      "location_12h_min",
+      "rsi14_min",
+      "atr_fraction_inclusive",
+      "session_allowed",
+      "impulse_efficiency_min",
+      "completed_4h_close_above_ema200",
+      "all_inputs_completed"
+    ],
+    "short_a": [
+      "bearish_fvg",
+      "fvg_size_atr_inclusive",
+      "middle_body_atr_min",
+      "middle_bearish",
+      "volume_ratio_min",
+      "completed_4h_trend_down_3",
+      "short_location_4h_max",
+      "atr_fraction_inclusive",
+      "impulse_efficiency_min",
+      "completed_1d_close_below_ema200",
+      "all_inputs_completed"
+    ],
+    "short_b": [
+      "bearish_fvg",
+      "fvg_size_atr_inclusive",
+      "middle_body_atr_min",
+      "middle_bearish",
+      "volume_ratio_min",
+      "bearish_bos_48",
+      "rsi14_max",
+      "close_strength_min",
+      "short_location_8h_min",
+      "short_location_48h_min",
+      "no_recent_bullish_fvg_12",
+      "atr_fraction_inclusive",
+      "impulse_efficiency_min",
+      "completed_1d_close_below_ema200",
+      "all_inputs_completed"
+    ]
+  },
+  "schema_version": 2,
+  "setups": {
+    "long": {
+      "max_hold_bars_5m": 288,
+      "no_progress_bars_5m": 48,
+      "no_progress_min_mfe_r": 0.15,
+      "side": "long",
+      "target_r": 4.5,
+      "ttl_bars_5m": 36
+    },
+    "short_a": {
+      "max_hold_bars_5m": 288,
+      "no_progress_bars_5m": 24,
+      "no_progress_min_mfe_r": 0.35,
+      "side": "short",
+      "target_r": 5.0,
+      "ttl_bars_5m": 48
+    },
+    "short_b": {
+      "max_hold_bars_5m": 576,
+      "no_progress_bars_5m": 60,
+      "no_progress_min_mfe_r": 0.35,
+      "side": "short",
+      "target_r": 6.0,
+      "ttl_bars_5m": 48
+    }
+  },
+  "source": "https://github.com/MishkaStrategy/Module-Strategy/issues/312#issuecomment-5162067264",
+  "source_spec": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json",
+  "status": "OWNER_APPROVED_EXECUTABLE_CONTRACT",
+  "timeframes": [
+    "5m",
+    "15m",
+    "4h",
+    "1d"
+  ]
+}

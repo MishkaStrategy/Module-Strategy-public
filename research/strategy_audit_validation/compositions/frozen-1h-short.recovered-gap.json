@@ -1,0 +1,90 @@
+{
+  "approvable": false,
+  "contract_status": "RECOVERED_PARTIAL",
+  "executable": false,
+  "identity": {
+    "direction": "short",
+    "module_id": "frozen_1h_short",
+    "name": "Frozen 1H Short",
+    "proposed_version": "1.0.0-recovered-gap",
+    "signal_timeframe": "1h"
+  },
+  "causality": {
+    "first_execution_bar": "not recovered",
+    "lookahead_allowed": false,
+    "signal_candle": "completed 1h candle only",
+    "unfinished_htf_allowed": false
+  },
+  "filters": {
+    "atr_fraction_of_close": {
+      "maximum": 0.025,
+      "minimum": null
+    },
+    "ema50_1h": [
+      "completed 1h close below EMA50",
+      "EMA50 falling"
+    ],
+    "fvg_direction": "bearish",
+    "fvg_size_atr": {
+      "maximum": 1.25,
+      "minimum": 0.08
+    },
+    "htf_regime": "last completed 4h close below completed 4h EMA200",
+    "impulse_efficiency_minimum": 0.45,
+    "middle_candle_body_minimum_atr": 0.4,
+    "middle_candle_direction": "bearish",
+    "rsi_filter": null,
+    "short_location": {
+      "lookback_completed_1h_candles": 8,
+      "minimum": 0.75
+    },
+    "volume_B_over_sma20_minimum": 0.85
+  },
+  "execution": {
+    "entry": {
+      "depth_fraction": 0.75,
+      "formula": "C.high + 0.75 * (A.low - C.high)",
+      "reference_zone": "bearish FVG [C.high, A.low]",
+      "status": "RECOVERED"
+    },
+    "limit_ttl": "4h",
+    "max_hold": "12h",
+    "no_progress": {
+      "check_after": "6h",
+      "minimum_mfe_R": 0.5,
+      "price_path_and_check_bar_priority": null,
+      "status": "PARTIAL"
+    },
+    "reject_if_stop_distance_fraction_gt": 0.04,
+    "stop": "maximum high of the last five completed 1h candles plus 0.05 ATR",
+    "target_R": 6.0
+  },
+  "control_inventory": {
+    "expected_component_trades_in_champion": 91,
+    "expected_combined_champion_trades": 395,
+    "status": "counts recovered; exact signal/trade ledger not yet repository-resident"
+  },
+  "missing_for_complete_contract": [
+    "exact three-candle FVG geometry and equality convention binding",
+    "minimum ATR fraction if any",
+    "exact short-location formula and zero-range convention",
+    "EMA50 falling lookback convention",
+    "indicator periods and gap reset details not shared with Final 15m",
+    "first eligible execution bar and fill convention",
+    "no-progress MFE path and fill-bar inclusion rule",
+    "same-bar stop/target and check-bar priority",
+    "cost and sizing overrides or inheritance declaration",
+    "runtime package and stable module version",
+    "feature identities and executable setup adapter",
+    "checkpoint and restart schema",
+    "cross-component dependency and execution ordering",
+    "exact control signal and trade ledger"
+  ],
+  "schema_version": 1,
+  "source_provenance": {
+    "base_commit_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+    "issue": 312,
+    "recovery_audit": "docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md",
+    "source_class": "project-approved retained strategy decision"
+  }
+}

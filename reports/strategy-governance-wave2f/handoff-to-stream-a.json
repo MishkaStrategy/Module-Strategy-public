@@ -1,0 +1,87 @@
+{
+  "accepted_states": [
+    "CANDIDATE with complete contracts",
+    "detached signed approval"
+  ],
+  "artifact_locations": [
+    "reports/strategy-governance-wave2f/baseline-evidence.json",
+    "reports/strategy-governance-wave2f/baseline-summary.json",
+    "reports/strategy-governance-wave2f/slo-proposal.json",
+    "reports/strategy-governance-wave2f/contract-gaps.json",
+    "research/strategy_audit_validation/compositions/canonical-strategy-v2-candidate-evidence.json"
+  ],
+  "benchmark_command": "PYTHONPATH=research/strategy_audit_validation/src python research/strategy_audit_validation/benchmarks/strategy_governance_slo.py --workload valid --candidates 1000 --database <path> --output <path>",
+  "candidate_id": "strategy-candidate-51659c6ed582f2843357bd33",
+  "canonical_composition_path": "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.v2.json",
+  "canonical_state": "CANDIDATE",
+  "composition_hash": "51659c6ed582f2843357bd33fbff35059f9a535dd27f05a585a9e7dfa78365c9",
+  "contract_registry_path": "research/strategy_audit_validation/compositions/module-contracts-v2.json",
+  "expected_strategy_reference": {
+    "combined_ledger_sha256": "0adac1fffc4d3d3e31187c6ac9deb4a026e768619a9aad8abac054a112aa4212",
+    "combined_trade_count": 438,
+    "component_ledger_sha256": {
+      "frozen_1h_short": "61fb968c0ad73a6c3d119608d91072e3496c12d72097d87aadc541a1a688ddc0",
+      "frozen_4h_short": "df8a67e24068db1b7591fba0177735b118a3c28d3a8846e591a2e5d8eadad249",
+      "fvg_rt_final_15m": "3998ce979e4547417e653f803fdc089709cfbae6143d4b51a34000e07529b879"
+    },
+    "component_trade_counts": {
+      "frozen_1h_short": 84,
+      "frozen_4h_short": 21,
+      "fvg_rt_final_15m": 333
+    },
+    "legacy_reference_artifact": {
+      "artifact_id": 8854865578,
+      "artifact_zip_sha256": "7d209fcbfd731613b40d50e7f7b5755b5930c4edd846afb886b266ce2eee7bea",
+      "source_workflow_run": 30810124133,
+      "status": "LEDGER_BYTES_ACCEPTED_LEGACY_COMMIT_COUPLED_DIGEST_SUPERSEDED"
+    },
+    "metrics": {
+      "final_equity": 15266.31855203826,
+      "max_closed_equity_drawdown": 0.1164174394297347,
+      "net_return": 0.526631855203826,
+      "profit_factor": 1.328366621740268,
+      "win_rate": 0.3515981735159817
+    },
+    "semantic_digest": "63a2c102601cec5a613ff3749754d31955d6513c654c73cd3dd7e09bbc5cefdb",
+    "semantic_digest_contract": "canonical-strategy-v2-result-v1",
+    "status": "REFERENCE_TO_REPRODUCE_NOT_A_PREAPPROVED_RESEARCH_RESULT"
+  },
+  "handoff_id": "wave2f-to-wave2a-research-platform-v2",
+  "merged_pr": 316,
+  "rejected_states": [
+    "INCOMPLETE canonical composition",
+    "unknown module",
+    "incompatible version",
+    "missing required parameter",
+    "mutable/stale/tampered evidence",
+    "self-approval or non-independent approval actor",
+    "unfinished HTF or look-ahead enabled"
+  ],
+  "remaining_gaps": [],
+  "schema_version": 3,
+  "schema_version_name": "strategy-composition-v1",
+  "start_condition_for_canonical_strategy_research": "SATISFIED: load_composition(..., require_canonical=True) succeeds for the accepted Variant 2 composition and contract registry.",
+  "status": "CANONICAL_STRATEGY_READY_FOR_RESEARCH_PLATFORM_CONSUMPTION",
+  "strategy_contract_head_sha": "5fc3a8739b3d7d6dca99fbe45703a2201797bc44",
+  "stream_a_may_read": [
+    "research/strategy_audit_validation/src/strategy_audit_validation/governance.py",
+    "research/strategy_audit_validation/src/strategy_audit_validation/canonical_runtime.py",
+    "research/strategy_audit_validation/compositions/**",
+    "research/strategy_audit_validation/benchmarks/canonical_strategy_v2.py",
+    "reports/strategy-governance-wave2f/**"
+  ],
+  "stream_a_must": [
+    "consume the exact candidate ID and composition hash without rewriting identity",
+    "run the named canonical benchmark through Research Platform",
+    "compare generated ledger hashes, metrics and the versioned semantic digest with the accepted strategy reference",
+    "treat generated_from_commit as provenance rather than strategy semantics",
+    "record any divergence without changing trading semantics",
+    "remain research/paper-only"
+  ],
+  "stream_a_must_not_modify": [
+    "research/strategy_audit_validation/** governance identities or evidence",
+    "the composition, module contracts or execution ordering",
+    "trading semantics or shared public contracts without coordinator handoff"
+  ],
+  "workload_generator_contract": "strategy-governance-synthetic-v1"
+}

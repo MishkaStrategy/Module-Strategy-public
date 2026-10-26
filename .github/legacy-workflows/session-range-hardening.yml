@@ -1,0 +1,246 @@
+name: session-range-hardening
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-v0.5.0
+    paths:
+      - modules/session_range/**
+      - .github/workflows/session-range-hardening.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  quality:
+    name: quality-py${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "RUNNER_NAME=$RUNNER_NAME"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "RUNNER_ARCH=$RUNNER_ARCH"
+          uname -a
+          df -h .
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: false
+
+      - name: Provision managed Python
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/session-range-quality-${{ matrix.python-version }}-${{ github.run_id }}"
+          rm -rf "$VENV"
+          uv python install "${{ matrix.python-version }}"
+          uv venv --python "${{ matrix.python-version }}" "$VENV"
+          echo "QUALITY_PYTHON=$VENV/bin/python" >> "$GITHUB_ENV"
+          echo "QUALITY_VENV=$VENV" >> "$GITHUB_ENV"
+          "$VENV/bin/python" --version
+
+      - name: Install core, module and quality tools
+        run: |
+          set -euo pipefail
+          uv pip install --python "$QUALITY_PYTHON" pip twine
+          uv pip install --python "$QUALITY_PYTHON" -e '.[dev]'
+          uv pip install --python "$QUALITY_PYTHON" -e 'modules/session_range[dev]'
+          "$QUALITY_PYTHON" -m pip check
+
+      - name: Static quality
+        run: |
+          set -euo pipefail
+          "$QUALITY_PYTHON" -m compileall -q modules/session_range/src modules/session_range/tests
+          "$QUALITY_PYTHON" -m ruff check modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+          "$QUALITY_PYTHON" -m ruff format --check modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+          MYPYPATH=src "$QUALITY_PYTHON" -m mypy --strict modules/session_range/src/modular_session_range
+
+      - name: Module tests and coverage
+        run: |
+          set -euo pipefail
+          mkdir -p reports/session-range
+          "$QUALITY_PYTHON" -m coverage run --source=modules/session_range/src/modular_session_range \
+            -m pytest modules/session_range/tests \
+            --junitxml=reports/session-range/tests-py${{ matrix.python-version }}.xml
+          "$QUALITY_PYTHON" -m coverage report --fail-under=96 | tee reports/session-range/coverage-py${{ matrix.python-version }}.txt
+          "$QUALITY_PYTHON" -m coverage json -o reports/session-range/coverage-py${{ matrix.python-version }}.json
+
+      - name: Root and cross-module regression suite
+        run: |
+          set -euo pipefail
+          uv pip install --python "$QUALITY_PYTHON" -e ./modules/market_regime
+          uv pip install --python "$QUALITY_PYTHON" -e ./plugins/fvg
+          "$QUALITY_PYTHON" scripts/integration_smoke.py configs/integration.example.yaml \
+            | tee reports/session-range/integration-smoke-py${{ matrix.python-version }}.json
+          "$QUALITY_PYTHON" -m pytest tests
+
+      - name: Build and validate wheel and source distribution
+        run: |
+          set -euo pipefail
+          rm -rf dist/session-range
+          "$QUALITY_PYTHON" -m build modules/session_range --outdir dist/session-range
+          "$QUALITY_PYTHON" -m twine check dist/session-range/* \
+            | tee reports/session-range/twine-check-py${{ matrix.python-version }}.txt
+          shasum -a 256 dist/session-range/* > reports/session-range/packages-py${{ matrix.python-version }}.sha256
+
+      - name: Clean installed-package smoke
+        run: |
+          set -euo pipefail
+          CLEAN_VENV="$RUNNER_TEMP/session-range-clean-${{ matrix.python-version }}-${{ github.run_id }}"
+          rm -rf "$CLEAN_VENV"
+          uv venv --python "${{ matrix.python-version }}" "$CLEAN_VENV"
+          uv pip install --python "$CLEAN_VENV/bin/python" pip
+          rm -rf dist/core
+          "$QUALITY_PYTHON" -m pip wheel . --no-deps -w dist/core
+          uv pip install --python "$CLEAN_VENV/bin/python" dist/core/*.whl dist/session-range/*.whl
+          "$CLEAN_VENV/bin/python" -m pip check
+          "$CLEAN_VENV/bin/python" - <<'PY'
+          from importlib.metadata import entry_points, version
+          from modular_session_range import SessionRangeModule
+          assert version("modular-session-range") == "0.2.0"
+          entries = {item.name: item for item in entry_points(group="modular_strategy.modules")}
+          assert entries["session_range"].load() is SessionRangeModule
+          print("clean import and entry point: PASS")
+          PY
+          rm -rf "$CLEAN_VENV"
+
+      - name: Upload quality evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: session-range-quality-py${{ matrix.python-version }}
+          path: |
+            reports/session-range/**
+            dist/session-range/**
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf "$QUALITY_VENV"
+          rm -rf "$RUNNER_TEMP/session-range-clean-${{ matrix.python-version }}-${{ github.run_id }}"
+          rm -rf .coverage .pytest_cache .mypy_cache .ruff_cache
+
+  security:
+    name: security-and-sbom
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    steps:
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "runner.name=$RUNNER_NAME runner.os=$RUNNER_OS runner.arch=$RUNNER_ARCH"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: false
+
+      - name: Scan and generate SBOM
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/session-range-security-${{ github.run_id }}"
+          rm -rf "$VENV"
+          uv python install 3.12
+          uv venv --python 3.12 "$VENV"
+          uv pip install --python "$VENV/bin/python" pip
+          uv pip install --python "$VENV/bin/python" -e . -e modules/session_range bandit detect-secrets pip-audit cyclonedx-bom
+          mkdir -p reports/session-range
+          "$VENV/bin/python" -m pip check | tee reports/session-range/pip-check.txt
+          "$VENV/bin/python" -m bandit -q -r modules/session_range/src -f json -o reports/session-range/bandit.json
+          "$VENV/bin/python" -m detect_secrets scan \
+            --exclude-files '(modules/session_range/artifacts/benchmark_results\.json|modules/session_range/artifacts/security/.*)' \
+            modules/session_range > reports/session-range/detect-secrets.json
+          "$VENV/bin/python" -m pip_audit --local --format json --output reports/session-range/pip-audit.json
+          "$VENV/bin/python" -m cyclonedx_py environment --output-file reports/session-range/sbom.json
+          shasum -a 256 reports/session-range/* > reports/session-range/security-evidence.sha256
+
+      - name: Upload security evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: session-range-security
+          path: reports/session-range/**
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/session-range-security-${{ github.run_id }}"
+
+  performance:
+    name: performance
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    steps:
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "runner.name=$RUNNER_NAME runner.os=$RUNNER_OS runner.arch=$RUNNER_ARCH"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: false
+
+      - name: Reproducible profiles
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/session-range-performance-${{ github.run_id }}"
+          rm -rf "$VENV"
+          uv python install 3.13
+          uv venv --python 3.13 "$VENV"
+          uv pip install --python "$VENV/bin/python" -e . -e modules/session_range
+          mkdir -p reports/session-range
+          "$VENV/bin/python" modules/session_range/benchmarks/session_range_benchmark.py --output reports/session-range/benchmark-standard.json
+          "$VENV/bin/python" modules/session_range/benchmarks/session_range_benchmark.py --events 250000 --runs 3 --output reports/session-range/benchmark-extended.json
+          "$VENV/bin/python" modules/session_range/benchmarks/session_range_benchmark.py --events 1000000 --runs 1 --output reports/session-range/benchmark-stress.json
+          shasum -a 256 reports/session-range/benchmark-*.json > reports/session-range/benchmark.sha256
+
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: session-range-performance
+          path: reports/session-range/**
+          if-no-files-found: error
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/session-range-performance-${{ github.run_id }}"

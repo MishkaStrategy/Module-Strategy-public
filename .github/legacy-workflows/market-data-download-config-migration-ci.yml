@@ -1,0 +1,323 @@
+name: market-data-download-config-migration-ci
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/market-data-download-config-migration-ci.yml"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_AUDIT.md"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json"
+      - "modules/market_data_ingestion/pyproject.toml"
+      - "modules/market_data_ingestion/src/market_data_application/download_config_migration.py"
+      - "modules/market_data_ingestion/src/market_data_application/migration_cli.py"
+      - "modules/market_data_ingestion/tests/test_cli_parity_audit.py"
+      - "modules/market_data_ingestion/tests/test_download_config_migration.py"
+  push:
+    branches:
+      - "interface/market-data-download-config-migration"
+    paths:
+      - ".github/workflows/market-data-download-config-migration-ci.yml"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_AUDIT.md"
+      - "docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json"
+      - "modules/market_data_ingestion/pyproject.toml"
+      - "modules/market_data_ingestion/src/market_data_application/download_config_migration.py"
+      - "modules/market_data_ingestion/src/market_data_application/migration_cli.py"
+      - "modules/market_data_ingestion/tests/test_cli_parity_audit.py"
+      - "modules/market_data_ingestion/tests/test_download_config_migration.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-download-config-migration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrate-download-config:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Verify exact migration candidate
+        working-directory: .
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install migration gates
+        run: uv pip install -e ".[dev,interface]"
+
+      - name: Compile migration slice
+        run: |
+          python -m compileall -q \
+            src/market_data_application/download_config_migration.py \
+            src/market_data_application/migration_cli.py \
+            tests/test_cli_parity_audit.py \
+            tests/test_download_config_migration.py
+
+      - name: Ruff migration lint
+        run: |
+          ruff check --output-format=concise \
+            src/market_data_application/download_config_migration.py \
+            src/market_data_application/migration_cli.py \
+            tests/test_cli_parity_audit.py \
+            tests/test_download_config_migration.py
+
+      - name: Ruff migration format
+        run: |
+          ruff format --check \
+            src/market_data_application/download_config_migration.py \
+            src/market_data_application/migration_cli.py \
+            tests/test_cli_parity_audit.py \
+            tests/test_download_config_migration.py
+
+      - name: Strict MyPy application
+        run: mypy src/market_data_application
+
+      - name: Validate parity matrix
+        run: python -m json.tool ../../docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json > /dev/null
+
+      - name: Enforce exact feature boundary
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.ref == 'interface/market-data-download-config-migration'
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import subprocess
+
+          allowed = {
+              ".github/workflows/market-data-download-config-migration-ci.yml",
+              "docs/integration/MARKET_DATA_CLI_PARITY_AUDIT.md",
+              "docs/integration/MARKET_DATA_CLI_PARITY_MATRIX.json",
+              "modules/market_data_ingestion/pyproject.toml",
+              "modules/market_data_ingestion/src/market_data_application/download_config_migration.py",
+              "modules/market_data_ingestion/src/market_data_application/migration_cli.py",
+              "modules/market_data_ingestion/tests/test_cli_parity_audit.py",
+              "modules/market_data_ingestion/tests/test_download_config_migration.py",
+          }
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{os.environ['BASE_SHA']}...HEAD"],
+                  text=True,
+              ).splitlines()
+          )
+          if changed != allowed:
+              raise SystemExit(
+                  f"download migration boundary mismatch: expected {sorted(allowed)}, got {sorted(changed)}"
+              )
+          PY
+
+      - name: Run migration and parity tests
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+          PYTHONUNBUFFERED: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          pytest -o addopts="" -vv -x -ra \
+            --timeout=90 --timeout-method=thread \
+            tests/test_download_config_migration.py \
+            tests/test_cli_parity_audit.py 2>&1 \
+            | tee reports/download-config-migration-${{ matrix.python-version }}.log
+
+      - name: Build and verify wheel
+        run: |
+          rm -rf build dist ./*.egg-info
+          python -m build --wheel
+          python -m twine check dist/*
+
+      - name: Side-by-side clean-wheel entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          venv="${RUNNER_TEMP}/mdi-migration-${{ matrix.python-version }}-${GITHUB_RUN_ID}"
+          rm -rf "$venv"
+          uv venv --python "${{ matrix.python-version }}" "$venv"
+          uv pip install --python "$venv/bin/python" "$wheel" \
+            "typer>=0.16,<1" "rich>=13.7,<15"
+
+          "$venv/bin/market-data" --help > reports/legacy-help.txt
+          "$venv/bin/market-data-v1" --help > reports/v1-help.txt
+          "$venv/bin/market-data-v1-migrate" --help > reports/migration-help.txt
+          "$venv/bin/market-data" exchanges > reports/legacy-exchanges.json
+          "$venv/bin/market-data-v1" version > reports/v1-version.json
+
+          work="${RUNNER_TEMP}/mdi-migration-smoke-${GITHUB_RUN_ID}-${{ matrix.python-version }}"
+          rm -rf "$work"
+          mkdir -p "$work"
+          cat > "$work/legacy.yaml" <<'YAML'
+          schema_version: 1
+          exchange:
+            id: fake
+            market_type: usdt_m_perpetual
+          instrument:
+            symbol: BTCUSDT
+          range:
+            mode: explicit
+            start: "2026-01-01T00:00:00Z"
+            end: "2026-01-01T01:00:00Z"
+          data:
+            base_timeframe: 5m
+            derived_timeframes: [15m]
+            required_types: [klines]
+            optional_types: []
+          download:
+            concurrency: 1
+            resume: true
+            max_records_in_memory: 10000
+          validation:
+            reject_unresolved_required_gaps: true
+          storage:
+            format: csv
+            compression: zstd
+            partition: monthly
+          YAML
+
+          "$venv/bin/market-data-v1-migrate" --config "$work/legacy.yaml" \
+            > "$work/request-a.json"
+          "$venv/bin/market-data-v1-migrate" --config "$work/legacy.yaml" \
+            > "$work/request-b.json"
+          cmp "$work/request-a.json" "$work/request-b.json"
+          "$venv/bin/market-data-v1-migrate" --config "$work/legacy.yaml" \
+            --output "$work/request-file.json" > "$work/request-stdout.json"
+          cmp "$work/request-file.json" "$work/request-stdout.json"
+          "$venv/bin/python" - "$work/request-a.json" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert payload["schema_version"] == 1
+          assert payload["exchange_id"] == "fake"
+          assert payload["market_type"] == "usdt_m_perpetual"
+          assert payload["required_data"] == ["klines"]
+          assert payload["storage_format"] == "csv"
+          PY
+          set +e
+          "$venv/bin/market-data-v1-migrate" --config "$work/legacy.yaml" \
+            --output "$work/request-file.json" > "$work/no-clobber-error.json"
+          code="$?"
+          set -e
+          test "$code" -eq 9
+          "$venv/bin/python" - "$work/no-clobber-error.json" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert payload["error"]["code"] == "MIGRATION_OUTPUT_EXISTS"
+          PY
+          cp "$work"/*.json reports/
+
+      - name: Record migration evidence identity
+        if: success()
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd()
+          files = sorted(
+              (path for path in root.glob("reports/*") if path.is_file()),
+              key=lambda path: path.as_posix(),
+          )
+          if not files:
+              raise SystemExit("Market Data migration evidence set is empty")
+
+          entries = []
+          for path in files:
+              data = path.read_bytes()
+              entries.append(
+                  {
+                      "bytes": len(data),
+                      "path": path.relative_to(root).as_posix(),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": entries,
+              "python_version": os.environ["MATRIX_PYTHON_VERSION"],
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest = root / "reports" / (
+              f"download-config-migration-evidence-{os.environ['MATRIX_PYTHON_VERSION']}.json"
+          )
+          manifest.write_text(canonical, encoding="utf-8")
+          manifest_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+          print(canonical, end="")
+          print(f"MARKET_DATA_MIGRATION_EVIDENCE_SHA256={manifest_sha}")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### Market Data migration evidence identity\n\n")
+              handle.write(f"- exact head: `{payload['exact_head']}`\n")
+              handle.write(f"- Python: `{payload['python_version']}`\n")
+              handle.write(
+                  f"- workflow run: `{payload['run_id']}` attempt `{payload['run_attempt']}`\n"
+              )
+              handle.write(f"- evidence files hashed: `{len(entries)}`\n")
+              handle.write(f"- evidence manifest SHA-256: `{manifest_sha}`\n")
+              handle.write(
+                  "- immutable GitHub Release publication: required after migration validation; "
+                  "migration, parity, wheel and clean-entrypoint validation remain blocking\n"
+              )
+          PY
+
+      - name: Publish exact Market Data migration evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/market_data_ingestion/reports
+          asset_name: market-data-download-config-migration-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Market Data migration publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success

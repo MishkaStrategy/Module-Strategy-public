@@ -1,0 +1,64 @@
+{
+  "environment": {
+    "cpu_count": 5,
+    "dataset_counts": [1, 10],
+    "job_counts": [1, 10],
+    "localhost_test_client_only": true,
+    "machine": "x86_64",
+    "no_network": true,
+    "platform": "Linux-6.12.13-x86_64-with-glibc2.41",
+    "processor": "",
+    "python": "3.13.5",
+    "samples_per_workload": 3
+  },
+  "one_writer_plus_readers": {
+    "attempts": 100,
+    "availability": 1.0,
+    "busy_error_count": 0,
+    "latency": {
+      "count": 100,
+      "p50_ms": 2.012989,
+      "p95_ms": 10.536203,
+      "p99_ms": 56.438404
+    },
+    "lock_probe": {
+      "completed_without_busy_error": true,
+      "configured_hold_ms": 50.0,
+      "estimated_lock_wait_ms": 53.394804,
+      "observed_writer_latency_ms": 56.580975
+    },
+    "reader_attempts": 80,
+    "unexpected_error_count": 0,
+    "writer_attempts": 20
+  },
+  "resources": {
+    "busy_error_count": 0,
+    "event_journal_bytes": 28672,
+    "event_journal_bytes_per_event": 325.8181818181818,
+    "lock_wait_ms": 53.394804,
+    "request_failure_count": 0,
+    "resource_warning_count": 0,
+    "sqlite_connection_count_after": 0,
+    "sqlite_fd_after": 0,
+    "sqlite_fd_before": 0,
+    "task_growth": 0,
+    "thread_growth": 0
+  },
+  "schema_version": 1,
+  "semantic_verdict": {
+    "busy_error_count": 0,
+    "concurrent_reader_availability": 1.0,
+    "credential_leakage_count": 0,
+    "cursor_violation_count": 0,
+    "fd_stable": true,
+    "orphan_job_count": 0,
+    "path_leakage_count": 0,
+    "resource_warning_zero": true,
+    "sqlite_connections_closed": true,
+    "sse_ordering_violation_count": 0,
+    "task_stable": true,
+    "thread_stable": true
+  },
+  "source_command": "python scripts/benchmark_control_plane_contention.py --attempts 100",
+  "upstream_head": "2d1268040295a894168ac8564f3d38d83746961e"
+}

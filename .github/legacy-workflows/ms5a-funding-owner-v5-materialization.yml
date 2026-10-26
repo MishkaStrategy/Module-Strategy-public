@@ -1,0 +1,178 @@
+name: ms5a-funding-owner-v6-materialization
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/ms5a-funding-owner-v5-materialization.yml"
+      - ".github/OWNER_DATA_CI_POLICY.md"
+      - "modules/market_data_ingestion/src/market_data_ingestion/funding_v5_materialization.py"
+      - "modules/market_data_ingestion/tests/test_funding_v5_materialization.py"
+      - "tests/ci_policy/test_owner_data_workflow_guards.py"
+  push:
+    branches:
+      - "integration/modular-strategy-full-rc"
+    paths:
+      - ".github/workflows/ms5a-funding-owner-v5-materialization.yml"
+      - ".github/OWNER_DATA_CI_POLICY.md"
+      - "modules/market_data_ingestion/src/market_data_ingestion/funding_v5_materialization.py"
+      - "modules/market_data_ingestion/tests/test_funding_v5_materialization.py"
+      - "tests/ci_policy/test_owner_data_workflow_guards.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ms5a-funding-owner-v6
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  contract:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Verify exact candidate
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-dependency-glob: modules/market_data_ingestion/pyproject.toml
+          cache-suffix: ms5a-funding-v6-contract
+
+      - name: Install exact Market Data surface
+        run: |
+          set -euo pipefail
+          uv pip install -e "modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Prove read-only v6 operator contract
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/ms5a-funding-v6-contract.json"
+          python -m market_data_ingestion.funding_v5_materialization \
+            --mode check \
+            --expected-sha "$EXPECTED_SHA" \
+            | tee "$evidence"
+          {
+            echo "## MS5A funding owner v6 — read-only contract"
+            echo
+            echo '```json'
+            cat "$evidence"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run synthetic materialization tests
+        run: python -m pytest -q modules/market_data_ingestion/tests/test_funding_v5_materialization.py
+
+      - name: Prove repository remained unchanged
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Remove transient evidence copy
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/ms5a-funding-v6-contract.json"
+
+  materialize:
+    # The manual diagnostic fails, so the preserved owner body cannot start.
+    needs: [owner-authority-unavailable]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 120
+    env:
+      EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact accepted integration candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Verify exact accepted integration candidate
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-dependency-glob: modules/market_data_ingestion/pyproject.toml
+          cache-suffix: ms5a-funding-v6-owner
+
+      - name: Install exact Market Data owner surface
+        run: |
+          set -euo pipefail
+          uv pip install -e "modules/market_data_ingestion[parquet]"
+          uv pip check
+
+      - name: Materialize or idempotently verify immutable funding owner v6
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/ms5a-funding-v6-owner.json"
+          python -m market_data_ingestion.funding_v5_materialization \
+            --mode materialize \
+            --expected-sha "$EXPECTED_SHA" \
+            --storage-root "$HOME/ModuleStrategyData/market_data" \
+            | tee "$evidence"
+          {
+            echo "## MS5A funding+MARK_PRICE owner v6"
+            echo
+            echo '```json'
+            cat "$evidence"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prove repository remained unchanged
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Remove transient sanitized evidence copy
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/ms5a-funding-v6-owner.json"
+
+  owner-authority-unavailable:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 2
+    steps:
+      - name: Explain owner materialization gate
+        run: |
+          echo "Funding owner materialization is disabled: no operation-specific fresh authority protocol is configured."
+          echo "Manual dispatch is not authorization; no owner registry or dataset was opened or changed."
+          exit 1

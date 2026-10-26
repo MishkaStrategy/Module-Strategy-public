@@ -1,0 +1,86 @@
+name: trading-runner-operational-events-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/trading_runner/src/modular_trading_runner/operational_events.py"
+      - "applications/trading_runner/src/modular_trading_runner/operational_events_http.py"
+      - "applications/trading_runner/src/modular_trading_runner/__init__.py"
+      - "applications/trading_runner/tests/test_operational_events.py"
+      - "applications/trading_runner/tests/test_operational_events_filters.py"
+      - "applications/trading_runner/tests/test_operational_events_http.py"
+      - "docs/control_ui/HANDOFF_OPERATIONAL_EVENTS_V1.md"
+      - "docs/trading_runner/OPERATIONAL_EVENTS_V1.md"
+      - "docs/trading_runner/OPERATIONAL_EVENTS_HTTP_V1.md"
+      - ".github/workflows/trading-runner-operational-events-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trading-runner-operational-events-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  owner-query:
+    name: Trading Runner Operational Events / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact operational-events candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            applications/trading_runner/pyproject.toml
+          cache-suffix: trading-runner-operational-events
+
+      - name: Install dependencies
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/trading_runner[dev]"
+          uv pip check
+
+      - name: Compile
+        run: python -m compileall -q applications/trading_runner/src applications/trading_runner/tests
+
+      - name: Ruff lint
+        run: ruff check applications/trading_runner/src applications/trading_runner/tests
+
+      - name: Ruff format
+        run: ruff format --check applications/trading_runner/src applications/trading_runner/tests
+
+      - name: Strict MyPy
+        run: mypy --strict applications/trading_runner/src
+
+      - name: Operational event focused tests
+        run: |
+          pytest -q --tb=no \
+            applications/trading_runner/tests/test_operational_events.py \
+            applications/trading_runner/tests/test_operational_events_filters.py \
+            applications/trading_runner/tests/test_operational_events_http.py

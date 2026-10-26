@@ -1,0 +1,163 @@
+.evidence-workspace {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.evidence-header,
+.evidence-section-heading,
+.evidence-card-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.evidence-header h1,
+.evidence-section h2,
+.evidence-section h3,
+.evidence-header p {
+  margin-top: 0;
+}
+
+.evidence-boundary-note,
+.evidence-section,
+.evidence-health {
+  border: 1px solid var(--border-color, #d7dce2);
+  border-radius: 0.9rem;
+  background: var(--panel-bg, #fff);
+}
+
+.evidence-boundary-note {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+}
+
+.evidence-health {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.evidence-health > div,
+.evidence-summary-grid > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.evidence-health span,
+.evidence-summary-grid dt,
+.evidence-card dt,
+.evidence-card small,
+.muted-copy {
+  opacity: 0.72;
+}
+
+.evidence-section {
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.evidence-integrity-badge {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.evidence-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.evidence-summary-grid > div {
+  border: 1px solid var(--border-color, #d7dce2);
+  border-radius: 0.65rem;
+  padding: 0.8rem;
+}
+
+.evidence-summary-grid dd,
+.evidence-card dd {
+  margin: 0;
+}
+
+.evidence-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.evidence-card {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  border: 1px solid var(--border-color, #d7dce2);
+  border-radius: 0.75rem;
+  padding: 0.9rem;
+}
+
+.evidence-card dl {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.evidence-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.35fr) minmax(0, 1fr);
+  gap: 0.55rem;
+}
+
+.evidence-card p,
+.evidence-reasons {
+  margin: 0;
+}
+
+.mono-wrap {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.status-error {
+  border: 1px solid currentColor;
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+}
+
+@media (max-width: 820px) {
+  .evidence-health,
+  .evidence-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .evidence-header,
+  .evidence-section-heading,
+  .evidence-card-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .evidence-health,
+  .evidence-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-card-list {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-card dl > div {
+    grid-template-columns: 1fr;
+  }
+}

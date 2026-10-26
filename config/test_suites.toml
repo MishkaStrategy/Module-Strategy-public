@@ -1,0 +1,450 @@
+schema_version = 1
+audited_base_sha = "30263f9e2bc4a972bc0027ffec40d23a0b3f2a37"
+
+[node_id_relocations]
+"tests/test_coverage_policy.py" = "tests/ci_policy/test_coverage_policy.py"
+"tests/test_runner_routing_policy.py" = "tests/ci_policy/test_runner_routing_policy.py"
+
+[node_id_parameter_migrations]
+"tests/test_edges.py::test_store_detects_additional_tampering[UPDATE audit_metadata SET value = '2'-params0-metadata]" = "tests/test_edges.py::test_store_detects_additional_tampering[UPDATE audit_metadata SET value = '99'-params0-metadata]"
+
+[environment]
+timezone = "UTC"
+pythonhashseed = "0"
+
+[groups]
+core = ["root"]
+without_optional = ["root-no-optional"]
+components = [
+  "module-template",
+  "trading-runner",
+  "control-plane",
+  "risk-supervisor",
+  "observability",
+  "system-acceptance",
+  "system-acceptance-package-runtime-owner",
+  "system-recovery",
+  "entry-model",
+  "market-data",
+  "market-regime",
+  "paper-execution",
+  "position-exit-management",
+  "position-scaling",
+  "protection-target",
+  "results-aggregator",
+  "risk-request-composer",
+  "session-range",
+  "setup-adapter",
+  "trade-plan-router",
+  "wave-analysis",
+  "fibonacci",
+  "fvg",
+  "research-runner",
+  "strategy-audit-validation",
+  "strategy-factory",
+]
+property = ["entry-model", "market-data", "position-exit-management", "position-scaling", "trade-plan-router", "wave-analysis", "fvg"]
+heavy = ["research-runner-stress"]
+all = [
+  "root",
+  "module-template",
+  "trading-runner",
+  "control-plane",
+  "risk-supervisor",
+  "observability",
+  "system-acceptance",
+  "system-acceptance-package-runtime-owner",
+  "system-recovery",
+  "entry-model",
+  "market-data",
+  "market-regime",
+  "paper-execution",
+  "position-exit-management",
+  "position-scaling",
+  "protection-target",
+  "results-aggregator",
+  "risk-request-composer",
+  "session-range",
+  "setup-adapter",
+  "trade-plan-router",
+  "wave-analysis",
+  "fibonacci",
+  "fvg",
+  "research-runner",
+  "research-runner-stress",
+  "strategy-audit-validation",
+  "strategy-factory",
+]
+
+[[suites]]
+name = "root"
+component = "Core, Backtest Engine, root integration, Breakout-Return, Risk Sizing and Signal Bot"
+working_directory = "."
+paths = ["tests"]
+pytest_args = ["--import-mode=importlib"]
+required_imports = ["pytest", "yaml", "hypothesis", "pyarrow"]
+install_hint = "python -m pip install -e '.[dev,backtest,signal-bot]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "property"]
+external_dependencies = []
+
+[[suites]]
+name = "module-template"
+component = "Module Template"
+working_directory = "module_template"
+paths = ["tests"]
+required_imports = ["pytest"]
+install_hint = "python -m pip install pytest"
+runtime_class = "fast"
+ci_frequency = "pull_request"
+categories = ["smoke", "unit"]
+external_dependencies = []
+
+[[suites]]
+name = "trading-runner"
+component = "Trading Runner"
+working_directory = "applications/trading_runner"
+paths = ["tests"]
+required_imports = ["pytest", "pytest_asyncio", "modular_trading_runner"]
+install_hint = "python -m pip install -e './applications/trading_runner[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = []
+
+[[suites]]
+name = "control-plane"
+component = "Control Plane"
+working_directory = "applications/control_plane"
+paths = ["tests"]
+required_imports = ["pytest", "fastapi", "httpx", "modular_control_plane"]
+install_hint = "python -m pip install -e './applications/control_plane[dev,interface]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = ["sqlite"]
+
+[[suites]]
+name = "risk-supervisor"
+component = "Risk Supervisor"
+working_directory = "applications/risk_supervisor"
+paths = ["tests"]
+required_imports = ["pytest", "modular_risk_supervisor"]
+install_hint = "python -m pip install -e './applications/risk_supervisor[dev]'"
+runtime_class = "fast"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "recovery"]
+external_dependencies = ["filesystem"]
+
+[[suites]]
+name = "observability"
+component = "Unified PAPER Observability"
+working_directory = "applications/observability"
+paths = ["tests"]
+required_imports = ["pytest", "pytest_asyncio", "modular_observability"]
+install_hint = "python -m pip install -e './applications/observability[dev]'"
+runtime_class = "fast"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "recovery"]
+external_dependencies = []
+
+[[suites]]
+name = "system-acceptance"
+component = "System Acceptance"
+working_directory = "applications/system_acceptance"
+paths = ["tests"]
+required_imports = ["pytest", "modular_system_acceptance"]
+install_hint = "python -m pip install -e './applications/system_acceptance[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "recovery"]
+external_dependencies = ["sqlite"]
+
+[[suites]]
+name = "system-acceptance-package-runtime-owner"
+component = "System Acceptance Package Runtime Owner"
+working_directory = "applications/system_acceptance"
+paths = ["owner_runtime_tests"]
+required_imports = [
+  "pytest",
+  "modular_system_acceptance.package_runtime_owner",
+  "strategy_factory",
+  "modular_strategy_risk_request_composer",
+  "strategy_modules.risk_sizing",
+  "modular_strategy_trade_plan_router",
+  "modular_trading_runner",
+]
+install_hint = "uv pip install -e . -e ./applications/trading_runner -e ./modules/risk_sizing -e ./modules/risk_request_composer -e ./modules/trade_plan_router -e ./research/experiment_runner -e ./modules/results_aggregator -e ./research/strategy_audit_validation -e ./research/strategy_factory -e './applications/system_acceptance[dev,package-runtime-owner]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = []
+
+[[suites]]
+name = "system-recovery"
+component = "System Recovery"
+working_directory = "applications/system_recovery"
+paths = ["tests"]
+required_imports = ["pytest", "system_recovery"]
+install_hint = "python -m pip install -e './applications/system_recovery[dev]'"
+runtime_class = "fast"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = ["filesystem", "sqlite"]
+
+[[suites]]
+name = "entry-model"
+component = "Entry Model"
+working_directory = "modules/entry_model"
+paths = ["tests"]
+required_imports = ["pytest", "hypothesis", "modular_modules.entry_model"]
+install_hint = "python -m pip install -e './modules/entry_model[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "property"]
+external_dependencies = []
+
+[[suites]]
+name = "market-data"
+component = "Historical Market Data Ingestion"
+working_directory = "modules/market_data_ingestion"
+paths = ["tests"]
+required_imports = ["pytest", "hypothesis", "httpx", "pyarrow", "market_data_ingestion", "market_data_application"]
+install_hint = "python -m pip install -e './modules/market_data_ingestion[dev,parquet,interface]'"
+runtime_class = "heavy"
+ci_frequency = "pull_request-and-nightly"
+categories = ["unit", "integration", "regression", "property", "heavy"]
+external_dependencies = ["local-filesystem", "local-http-server"]
+
+[[suites]]
+name = "market-regime"
+component = "Market Regime"
+working_directory = "modules/market_regime"
+paths = ["tests"]
+required_imports = ["pytest", "market_regime"]
+install_hint = "python -m pip install -e './modules/market_regime[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "paper-execution"
+component = "Paper Execution"
+working_directory = "modules/paper_execution"
+paths = ["tests"]
+required_imports = ["pytest", "paper_execution"]
+install_hint = "python -m pip install -e './modules/paper_execution[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = []
+
+[[suites]]
+name = "position-exit-management"
+component = "Position and Exit Management"
+working_directory = "modules/position_exit_management"
+paths = ["tests"]
+required_imports = ["pytest", "hypothesis", "modular_strategy_position_exit_management"]
+install_hint = "python -m pip install -e './modules/position_exit_management[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "property", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "position-scaling"
+component = "Position Scaling"
+working_directory = "modules/position_scaling"
+paths = ["tests"]
+required_imports = ["pytest", "hypothesis", "modular_strategy_position_scaling"]
+install_hint = "python -m pip install -e './modules/position_scaling[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "property"]
+external_dependencies = []
+
+[[suites]]
+name = "protection-target"
+component = "Protection and Target"
+working_directory = "modules/protection_target"
+paths = ["tests"]
+required_imports = ["pytest", "modular_strategy_protection_target"]
+install_hint = "python -m pip install -e './modules/protection_target[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "results-aggregator"
+component = "Results Aggregator"
+working_directory = "modules/results_aggregator"
+paths = ["tests"]
+required_imports = ["pytest", "modular_results_registry"]
+install_hint = "python -m pip install -e './modules/results_aggregator[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = ["sqlite"]
+
+[[suites]]
+name = "risk-request-composer"
+component = "Risk Request Composer"
+working_directory = "modules/risk_request_composer"
+paths = ["tests"]
+required_imports = ["pytest", "modular_strategy_risk_request_composer"]
+install_hint = "python -m pip install pytest -e './modules/risk_request_composer'"
+runtime_class = "fast"
+ci_frequency = "pull_request"
+categories = ["unit", "integration"]
+external_dependencies = []
+
+[[suites]]
+name = "session-range"
+component = "Session Range"
+working_directory = "modules/session_range"
+paths = ["tests"]
+required_imports = ["pytest", "modular_session_range"]
+install_hint = "python -m pip install -e './modules/session_range[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "setup-adapter"
+component = "Setup Adapter"
+working_directory = "modules/setup_adapter"
+paths = ["tests"]
+required_imports = ["pytest", "modular_setup_adapter"]
+install_hint = "python -m pip install -e './modules/setup_adapter[dev]'"
+runtime_class = "fast"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = []
+
+[[suites]]
+name = "trade-plan-router"
+component = "Trade Plan Router"
+working_directory = "modules/trade_plan_router"
+paths = ["tests"]
+required_imports = ["pytest", "modular_strategy_trade_plan_router"]
+install_hint = "python -m pip install pytest -e './modules/trade_plan_router'"
+runtime_class = "medium"
+ci_frequency = "pull_request-and-nightly"
+categories = ["unit", "integration", "regression", "property", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "wave-analysis"
+component = "Wave Analysis"
+working_directory = "modules/wave_analysis"
+paths = ["tests"]
+required_imports = ["pytest", "hypothesis", "wave_analysis"]
+install_hint = "python -m pip install -e './modules/wave_analysis[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request-and-nightly"
+categories = ["unit", "integration", "regression", "property", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "fibonacci"
+component = "Fibonacci"
+working_directory = "plugins/fibonacci"
+paths = ["tests"]
+required_imports = ["pytest", "modular_strategy_fibonacci"]
+install_hint = "python -m pip install -e './plugins/fibonacci[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = []
+
+[[suites]]
+name = "fvg"
+component = "Fair Value Gap"
+working_directory = "plugins/fvg"
+paths = ["tests"]
+required_imports = ["pytest", "hypothesis", "modular_strategy_fvg"]
+install_hint = "python -m pip install -e './plugins/fvg[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request-and-release"
+categories = ["unit", "integration", "regression", "property", "performance"]
+external_dependencies = []
+
+[[suites]]
+name = "research-runner"
+component = "Research Runner"
+working_directory = "research/experiment_runner"
+paths = ["tests"]
+required_imports = ["pytest", "modular_research_runner"]
+install_hint = "python -m pip install -e './research/experiment_runner[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = ["sqlite", "subprocess"]
+
+[[suites]]
+name = "research-runner-stress"
+component = "Research Runner stress tests"
+working_directory = "research/experiment_runner"
+paths = ["stress_tests"]
+required_imports = ["pytest", "modular_research_runner"]
+install_hint = "python -m pip install -e './research/experiment_runner[dev]'"
+runtime_class = "heavy"
+ci_frequency = "nightly-or-manual"
+categories = ["performance", "heavy", "nightly"]
+external_dependencies = ["sqlite", "subprocess"]
+
+[[suites]]
+name = "strategy-audit-validation"
+component = "Strategy Audit and Validation"
+working_directory = "research/strategy_audit_validation"
+paths = ["tests", "benchmarks/tests"]
+required_imports = ["pytest", "strategy_audit_validation"]
+install_hint = "python -m pip install -e './research/strategy_audit_validation[dev]'"
+runtime_class = "medium"
+ci_frequency = "pull_request-and-nightly"
+categories = ["unit", "integration", "regression", "heavy"]
+external_dependencies = ["filesystem"]
+
+[[suites]]
+name = "strategy-factory"
+component = "Strategy Factory"
+working_directory = "research/strategy_factory"
+paths = ["tests"]
+required_imports = ["pytest", "strategy_factory"]
+install_hint = "python -m pip install -e './research/strategy_factory[dev]'"
+runtime_class = "heavy"
+ci_frequency = "pull_request-and-nightly"
+categories = ["unit", "integration", "regression", "property", "heavy"]
+external_dependencies = ["sqlite", "filesystem", "subprocess"]
+
+[[profiles]]
+name = "root-no-optional"
+component = "Root tests excluding pyarrow-, Hypothesis- and matplotlib-specific cases"
+working_directory = "."
+paths = ["tests"]
+pytest_args = [
+  "--import-mode=importlib",
+  "--ignore=tests/backtest_engine/test_registered_data.py",
+  "--ignore=tests/backtest_engine/test_registered_streaming_integration.py",
+  "--ignore=tests/backtest_engine/test_registered_streaming_recovery.py",
+  "--ignore=tests/backtest_engine/test_registered_streaming_runner.py",
+  "--ignore=tests/backtest_engine/test_registered_streaming_source.py",
+  "--ignore=tests/integration/test_system_acceptance_stage1_deployment.py",
+  "--ignore=tests/integration/test_system_acceptance_stage1_host.py",
+  "--ignore=tests/integration/test_system_acceptance_stage1_owner_reconnect.py",
+  "--ignore=tests/integration/test_system_acceptance_stage1_service_manager.py",
+  "--ignore=tests/integration/test_system_acceptance_stage1_launchd.py",
+  "--ignore=tests/signal_bot/test_properties.py",
+  "-k",
+  "not chart_reference_scenarios",
+]
+required_imports = ["pytest", "yaml"]
+install_hint = "python -m pip install pytest -e ."
+runtime_class = "medium"
+ci_frequency = "pull_request"
+categories = ["unit", "integration", "regression"]
+external_dependencies = []

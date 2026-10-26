@@ -1,0 +1,317 @@
+name: fibonacci-module-ci
+
+on:
+  push:
+    branches:
+      - "integration/fibonacci-premerge"
+      - "integration/modular-strategy-full-rc"
+    paths:
+      - "plugins/fibonacci/**"
+      - ".github/workflows/fibonacci-module-ci.yml"
+  pull_request:
+    paths:
+      - "plugins/fibonacci/**"
+      - ".github/workflows/fibonacci-module-ci.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fibonacci-module-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.python-version }})
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          clean: true
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Fibonacci candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            plugins/fibonacci/pyproject.toml
+          cache-suffix: fibonacci
+
+      - name: Install Core and Fibonacci quality gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -e '.[dev]'
+          uv pip install -e './plugins/fibonacci[dev]'
+          uv pip check
+
+      - name: Compile Fibonacci source and tests
+        run: python -m compileall -q plugins/fibonacci/src plugins/fibonacci/tests
+
+      - name: Ruff lint and format
+        run: |
+          ruff check plugins/fibonacci/src plugins/fibonacci/tests
+          ruff format --check plugins/fibonacci/src plugins/fibonacci/tests
+
+      - name: Strict MyPy
+        run: >-
+          mypy --config-file plugins/fibonacci/pyproject.toml
+          plugins/fibonacci/src/modular_strategy_fibonacci
+
+      - name: Branch-aware tests and coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/fibonacci
+          coverage erase
+          coverage run --branch \
+            --source=plugins/fibonacci/src/modular_strategy_fibonacci \
+            -m pytest -q plugins/fibonacci/tests \
+            --junitxml="reports/fibonacci/pytest-${{ matrix.python-version }}.xml"
+          coverage json -o "reports/fibonacci/coverage-${{ matrix.python-version }}.json"
+          coverage report --show-missing --fail-under=90 \
+            | tee "reports/fibonacci/coverage-${{ matrix.python-version }}.txt"
+
+      - name: Validate immutable replay evidence and analytical boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("plugins/fibonacci/reports/cycle4-regime-evidence.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert report["schema_version"] == "fibonacci-cycle4-regime-evidence/v2"
+          replay = report["github_namespace_replay"]
+          assert replay["package_version"] == "0.4.0"
+          assert replay["aggregation"] == (
+              "strict complete UTC days from six 4h candles at 00/04/08/12/16/20"
+          )
+          expected = {
+              "BTCUSDT": (
+                  15032,
+                  "1fdfd3f4df53f03ffbed0c833f47ed3f5902ec9e5ea3c2274aceb96e7d45135f",
+              ),
+              "ETHUSDT": (
+                  14555,
+                  "be8a7640dd2b4ed20404f3cdfb76efdac300137659f44537b4bf24fcf584ce78",
+              ),
+              "SOLUSDT": (
+                  12803,
+                  "967979abd61fb91afd332d24af9d15e56758d8fe7fc9f798614085e0654e998c",
+              ),
+          }
+          observed = {
+              item["symbol"]: (item["rows"], item["sha256"])
+              for item in replay["datasets"]
+          }
+          assert observed == expected
+          integrity = replay["input_integrity"]
+          assert integrity["null_timestamps"] == 0
+          assert integrity["duplicate_open_times"] == 0
+          assert integrity["strictly_increasing_open_time"] is True
+          assert integrity["ohlcv_contracts_valid"] is True
+          assert replay["matches_candidate_final_scanner"] is True
+          assert replay["orders_created"] == 0
+          assert replay["trades_created"] == 0
+          assert all(item["active_setup"] is False for item in replay["scanner_4h"])
+          assert all(item["active_setup"] is False for item in replay["scanner_1d"])
+          limits = set(report["accuracy_limits"])
+          assert "no PnL or profitability result" in limits
+          assert "exact standalone walk-forward cutoff manifest was not retained" in limits
+          PY
+          ! grep -R -n -E \
+            'ExecutableTradePlan|OrderIntent|PaperExecution|position_mutation|live_execution' \
+            plugins/fibonacci/src
+
+      - name: Build and verify distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist-core dist-fibonacci
+          python -m build --wheel --outdir dist-core .
+          python -m build --wheel --outdir dist-fibonacci ./plugins/fibonacci
+          python -m twine check dist-core/*.whl dist-fibonacci/*.whl
+
+      - name: Clean wheel install and entry-point smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_wheel="$(find dist-core -maxdepth 1 -name '*.whl' -print -quit)"
+          fibonacci_wheel="$(find dist-fibonacci -maxdepth 1 -name 'modular_strategy_fibonacci-0.4.0-*.whl' -print -quit)"
+          test -n "$core_wheel"
+          test -n "$fibonacci_wheel"
+          clean="$RUNNER_TEMP/fibonacci-wheel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python-version }}"
+          rm -rf "$clean"
+          uv venv --python "${{ matrix.python-version }}" --seed "$clean"
+          uv pip install --python "$clean/bin/python" "$core_wheel" "$fibonacci_wheel"
+          uv pip check --python "$clean/bin/python"
+          CORE_WHEEL="$core_wheel" FIBONACCI_WHEEL="$fibonacci_wheel" \
+            "$clean/bin/python" - <<'PY'
+          import os
+          import zipfile
+          from importlib.metadata import entry_points, version
+
+          import modular_core
+          import modular_strategy_fibonacci as fibonacci
+
+          assert modular_core.__version__ == "0.4.2"
+          assert fibonacci.__version__ == "0.4.0"
+          assert version("modular-strategy-fibonacci") == "0.4.0"
+          matches = [
+              item
+              for item in entry_points(group="modular_strategy.modules")
+              if item.name == "fibonacci"
+          ]
+          assert len(matches) == 1
+          assert matches[0].value == "modular_strategy_fibonacci:FibonacciModule"
+          with zipfile.ZipFile(os.environ["FIBONACCI_WHEEL"]) as archive:
+              names = set(archive.namelist())
+              assert "modular_strategy_fibonacci/py.typed" in names
+              assert any(name.endswith(".dist-info/entry_points.txt") for name in names)
+          PY
+
+      - name: Record Fibonacci evidence identity
+        if: success()
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd()
+          candidates = set()
+          reports = root / "reports/fibonacci"
+          if reports.is_dir():
+              candidates.update(path for path in reports.rglob("*") if path.is_file())
+          candidates.update(root.glob("dist-fibonacci/*.whl"))
+          candidates.update(
+              {
+                  root / "plugins/fibonacci/reports/cycle4-regime-evidence.json",
+                  root / "plugins/fibonacci/reports/cycle4-regime-evidence.md",
+              }
+          )
+          files = sorted(
+              (path for path in candidates if path.is_file()),
+              key=lambda path: path.relative_to(root).as_posix(),
+          )
+          if not files:
+              raise SystemExit("Fibonacci evidence set is empty")
+
+          entries = []
+          for path in files:
+              data = path.read_bytes()
+              entries.append(
+                  {
+                      "bytes": len(data),
+                      "path": path.relative_to(root).as_posix(),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": entries,
+              "python_version": os.environ["MATRIX_PYTHON_VERSION"],
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest = root / (
+              f"fibonacci-evidence-{os.environ['MATRIX_PYTHON_VERSION']}.json"
+          )
+          manifest.write_text(canonical, encoding="utf-8")
+          manifest_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+          print(canonical, end="")
+          print(f"FIBONACCI_EVIDENCE_SHA256={manifest_sha}")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### Fibonacci evidence identity\n\n")
+              handle.write(f"- exact head: `{payload['exact_head']}`\n")
+              handle.write(f"- Python: `{payload['python_version']}`\n")
+              handle.write(
+                  f"- workflow run: `{payload['run_id']}` attempt `{payload['run_attempt']}`\n"
+              )
+              handle.write(f"- evidence files hashed: `{len(entries)}`\n")
+              handle.write(f"- evidence manifest SHA-256: `{manifest_sha}`\n")
+              handle.write("- immutable GitHub Release publication: required\n")
+          PY
+
+      - name: Stage Fibonacci release evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="reports/fibonacci-release-${{ matrix.python-version }}"
+          rm -rf "$bundle"
+          mkdir -p \
+            "$bundle/reports/fibonacci" \
+            "$bundle/dist-fibonacci" \
+            "$bundle/plugins/fibonacci/reports"
+          cp -R reports/fibonacci/. "$bundle/reports/fibonacci/"
+          cp dist-fibonacci/*.whl "$bundle/dist-fibonacci/"
+          cp plugins/fibonacci/reports/cycle4-regime-evidence.json \
+            "$bundle/plugins/fibonacci/reports/"
+          cp plugins/fibonacci/reports/cycle4-regime-evidence.md \
+            "$bundle/plugins/fibonacci/reports/"
+          cp fibonacci-evidence-${{ matrix.python-version }}.json "$bundle/"
+
+      - name: Publish exact Fibonacci evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: reports/fibonacci-release-${{ matrix.python-version }}
+          asset_name: fibonacci-module-ci-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Fibonacci publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Fibonacci failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fibonacci-quality-${{ matrix.python-version }}-${{ github.sha }}
+          path: |
+            reports/fibonacci/**
+            dist-fibonacci/*.whl
+            plugins/fibonacci/reports/cycle4-regime-evidence.json
+            plugins/fibonacci/reports/cycle4-regime-evidence.md
+          if-no-files-found: warn

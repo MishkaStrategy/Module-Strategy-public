@@ -1,0 +1,104 @@
+name: Backtest funding runtime V2 CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/backtest-funding-runtime-v2-ci.yml"
+      - "src/modular_backtest/funding.py"
+      - "src/modular_backtest/futures_execution.py"
+      - "tests/backtest_engine/test_historical_limit_cost_funding_interop.py"
+      - "tests/backtest_engine/test_registered_funding_adapter.py"
+      - "tests/backtest_engine/test_funding_runtime_v2.py"
+      - "docs/backtest/FUNDING_RUNTIME_V2.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-funding-runtime-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Funding runtime V2 / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact funding runtime candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+          cache-suffix: backtest-funding-runtime-v2
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]"
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          src/modular_backtest/funding.py
+          src/modular_backtest/futures_execution.py
+          tests/backtest_engine/test_historical_limit_cost_funding_interop.py
+          tests/backtest_engine/test_registered_funding_adapter.py
+          tests/backtest_engine/test_funding_runtime_v2.py
+
+      - name: Ruff format
+        run: >-
+          ruff format --check
+          src/modular_backtest/futures_execution.py
+          tests/backtest_engine/test_historical_limit_cost_funding_interop.py
+          tests/backtest_engine/test_funding_runtime_v2.py
+
+      - name: Ruff lint
+        run: >-
+          ruff check
+          src/modular_backtest/futures_execution.py
+          tests/backtest_engine/test_historical_limit_cost_funding_interop.py
+          tests/backtest_engine/test_funding_runtime_v2.py
+
+      - name: Strict MyPy runtime
+        run: mypy --strict src/modular_backtest/futures_execution.py
+
+      - name: Focused funding runtime and owner-boundary tests
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_historical_limit_cost_funding_interop.py
+          tests/backtest_engine/test_registered_funding_adapter.py
+          tests/backtest_engine/test_funding_runtime_v2.py
+
+      - name: Public import smoke
+        run: >-
+          python -c
+          "from modular_backtest.futures_execution import FUNDING_RUNTIME_MODEL_VERSION, FundingAwareBrokerSimulator; assert FUNDING_RUNTIME_MODEL_VERSION and FundingAwareBrokerSimulator"

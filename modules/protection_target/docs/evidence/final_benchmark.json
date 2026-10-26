@@ -1,0 +1,21 @@
+{
+  "checkpoint_bytes_median": 235551,
+  "kind": "short_traced",
+  "maximum_seconds": 1.1872723199994653,
+  "median_seconds": 1.091572172999804,
+  "minimum_seconds": 1.0767740500014042,
+  "module_version": "1.1.1",
+  "peak_mib": 0.5740737915039062,
+  "plans": 2000,
+  "plans_per_second": 1832.2196639583622,
+  "python": "3.13.5",
+  "repeat": 5,
+  "restore_ms_median": 5.266293999738991,
+  "samples_seconds": [
+    1.1872723199994653,
+    1.0767740500014042,
+    1.0840238380005758,
+    1.094852885000364,
+    1.091572172999804
+  ]
+}

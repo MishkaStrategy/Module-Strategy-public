@@ -1,0 +1,245 @@
+{
+  "baseline_0_2_0": {
+    "benchmark": {
+      "peak_memory_bytes": {
+        "maximum": 851789,
+        "median": 845571,
+        "minimum": 845221
+      },
+      "runs": 5,
+      "seconds": {
+        "all": [
+          2.7366855399995984,
+          2.7976434719998906,
+          2.772051361999729,
+          2.717329494000296,
+          2.763726451000366
+        ],
+        "maximum": 2.7976434719998906,
+        "median": 2.763726451000366,
+        "minimum": 2.717329494000296
+      },
+      "throughput_calls_per_second_median": 5427.454658029039,
+      "workload": {
+        "bars": 5000,
+        "calls": 15000,
+        "duplicate_calls_per_bar": 2
+      }
+    },
+    "functional": {
+      "active_zones": 1,
+      "deterministic_zone_id": true,
+      "feature_keys": [
+        "fvg.active_zone",
+        "fvg.zone_created"
+      ],
+      "features": 2,
+      "republished_features": 1,
+      "restore_latency_ns": 100903,
+      "state_bytes": 720,
+      "state_sha256": "e5f59b617e55def9731dba3e58b50934f2ed59e04721c204f951a73e0027fae8"
+    }
+  },
+  "ci_sized": {
+    "extended": {
+      "active_zones": 0,
+      "calls": 50000,
+      "checkpoint_bytes": 668,
+      "events": 50000,
+      "runs": 1,
+      "seconds": {
+        "all": [
+          4.553538017000392
+        ],
+        "maximum": 4.553538017000392,
+        "median": 4.553538017000392,
+        "minimum": 4.553538017000392
+      },
+      "throughput_calls_per_second": {
+        "maximum": 10980.472725456044,
+        "median": 10980.472725456044,
+        "minimum": 10980.472725456044
+      }
+    },
+    "memory": {
+      "active_zones": 0,
+      "calls": 10000,
+      "checkpoint_bytes": 668,
+      "events": 10000,
+      "peak_memory_bytes": 7737,
+      "seconds": 4.482787703998838,
+      "throughput_calls_per_second": 2230.7547580447704
+    },
+    "module_version": "0.2.1",
+    "python": "3.13.5",
+    "restart_midpoint": {
+      "active_zones_final": 5,
+      "checkpoint_bytes_at_split": 1343,
+      "digest_restarted": "7e3a301243cdeea6c5b9efdf7d3cb05c841dc017af8b0dd7bd41936620de80a9",
+      "digest_uninterrupted": "7e3a301243cdeea6c5b9efdf7d3cb05c841dc017af8b0dd7bd41936620de80a9",
+      "digests_match": true,
+      "events": 10000,
+      "restore_latency_ns": 207895,
+      "split_at": 5000
+    },
+    "restore_distribution": {
+      "checkpoint_bytes": 1005,
+      "iterations": 250,
+      "latency_ns": {
+        "maximum": 144377,
+        "median": 86746,
+        "minimum": 84853
+      }
+    },
+    "smoke_1k": {
+      "active_zones": 0,
+      "calls": 1000,
+      "checkpoint_bytes": 668,
+      "events": 1000,
+      "runs": 3,
+      "seconds": {
+        "all": [
+          0.08661876199948892,
+          0.08506444399972679,
+          0.08698915700006182
+        ],
+        "maximum": 0.08698915700006182,
+        "median": 0.08661876199948892,
+        "minimum": 0.08506444399972679
+      },
+      "throughput_calls_per_second": {
+        "maximum": 11755.793055006763,
+        "median": 11544.842906042692,
+        "minimum": 11495.68560595764
+      }
+    },
+    "standard": {
+      "active_zones": 0,
+      "calls": 10000,
+      "checkpoint_bytes": 668,
+      "events": 10000,
+      "runs": 3,
+      "seconds": {
+        "all": [
+          0.9150768159997824,
+          0.9020145289996435,
+          0.9090649800000392
+        ],
+        "maximum": 0.9150768159997824,
+        "median": 0.9090649800000392,
+        "minimum": 0.9020145289996435
+      },
+      "throughput_calls_per_second": {
+        "maximum": 11086.295928171188,
+        "median": 11000.31375094833,
+        "minimum": 10928.044318415316
+      }
+    },
+    "standard_with_two_duplicates": {
+      "active_zones": 0,
+      "calls": 30000,
+      "checkpoint_bytes": 668,
+      "events": 10000,
+      "runs": 3,
+      "seconds": {
+        "all": [
+          1.0783760550002626,
+          1.0722056119993795,
+          1.125490043001264
+        ],
+        "maximum": 1.125490043001264,
+        "median": 1.0783760550002626,
+        "minimum": 1.0722056119993795
+      },
+      "throughput_calls_per_second": {
+        "maximum": 27979.708056235544,
+        "median": 27819.60880983461,
+        "minimum": 26655.055890144653
+      }
+    },
+    "workload_note": "Rolling three-bar MarketView keeps external test-harness history bounded and measures module hot-path complexity."
+  },
+  "environment": {
+    "core_version": "0.4.0",
+    "date": "2026-07-21",
+    "module_version": "0.2.1",
+    "python": "3.13.5"
+  },
+  "extended_250k": {
+    "active_zones": 0,
+    "calls": 250000,
+    "checkpoint_bytes": 668,
+    "events": 250000,
+    "runs": 1,
+    "seconds": {
+      "all": [
+        22.686737715001073
+      ],
+      "maximum": 22.686737715001073,
+      "median": 22.686737715001073,
+      "minimum": 22.686737715001073
+    },
+    "throughput_calls_per_second": {
+      "maximum": 11019.653999644619,
+      "median": 11019.653999644619,
+      "minimum": 11019.653999644619
+    }
+  },
+  "hot_path_0_2_1": {
+    "benchmark": {
+      "peak_memory_bytes": {
+        "maximum": 851988,
+        "median": 846322,
+        "minimum": 845822
+      },
+      "runs": 5,
+      "seconds": {
+        "all": [
+          2.880440840999654,
+          2.8309450679998918,
+          2.8880473449999045,
+          2.812332122999578,
+          2.988244066000334
+        ],
+        "maximum": 2.988244066000334,
+        "median": 2.880440840999654,
+        "minimum": 2.812332122999578
+      },
+      "throughput_calls_per_second_median": 5207.536216850149,
+      "workload": {
+        "bars": 5000,
+        "calls": 15000,
+        "duplicate_calls_per_bar": 2
+      }
+    },
+    "functional": {
+      "active_zones": 1,
+      "deterministic_zone_id": true,
+      "feature_keys": [
+        "fvg.active_zone",
+        "fvg.zone_created"
+      ],
+      "features": 2,
+      "republished_features": 1,
+      "restore_latency_ns": 189393,
+      "state_bytes": 1001,
+      "state_sha256": "4f0be0b1c11a884146cdfd536eb2cd3acda8425860dd978e35e4fa6d9db64a36"
+    }
+  },
+  "hot_path_comparison": {
+    "baseline_calls_per_second": 5427.454658029039,
+    "change_percent": -4.051962752992444,
+    "final_calls_per_second": 5207.536216850149,
+    "within_5_percent_gate": true
+  },
+  "methodology": {
+    "hot_path": "5 runs; 5,000 bars; 15,000 on_bar calls; two exact duplicate calls per bar; full-history comparison harness",
+    "memory": "tracemalloc changes wall-clock throughput and is reported separately",
+    "rolling": "bounded rolling three-bar MarketView; median reported where multiple runs completed"
+  },
+  "stress_attempts": {
+    "1000000_events": "NOT COMPLETED \u2014 per-invocation execution limit reached; no result claimed",
+    "500000_events": "NOT COMPLETED \u2014 per-invocation execution limit reached; no result claimed",
+    "accepted_representative_stress": "250000 events with bounded rolling input"
+  }
+}

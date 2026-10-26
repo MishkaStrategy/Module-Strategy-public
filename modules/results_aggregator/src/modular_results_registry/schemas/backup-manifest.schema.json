@@ -1,0 +1,52 @@
+{
+  "$id": "urn:modular-results-registry:backup-manifest:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "database_filename": {
+      "type": "string"
+    },
+    "database_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "database_size": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "entity_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "manifest_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "registry_revision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_id": {
+      "const": "modular-results-registry.backup"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "verified_state_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "database_filename",
+    "database_sha256",
+    "database_size",
+    "registry_revision",
+    "entity_state_hash",
+    "verified_state_hash",
+    "manifest_hash"
+  ],
+  "type": "object"
+}

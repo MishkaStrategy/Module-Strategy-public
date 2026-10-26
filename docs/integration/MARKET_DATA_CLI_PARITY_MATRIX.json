@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "status": "audit_only",
+  "source_refs": {
+    "legacy_cli": "modules/market_data_ingestion/src/market_data_ingestion/cli.py",
+    "v1_cli": "modules/market_data_ingestion/src/market_data_application/cli.py",
+    "migration_cli": "modules/market_data_ingestion/src/market_data_application/migration_cli.py",
+    "packaging": "modules/market_data_ingestion/pyproject.toml"
+  },
+  "policy": {
+    "legacy_entry_point_removal_authorized": false,
+    "production_cli_changes_allowed": false,
+    "automatic_mutation_aliases_allowed": false,
+    "integration_merge_authorized": false
+  },
+  "entry_points": {
+    "market-data": "market_data_ingestion.cli:main",
+    "market-data-v1": "market_data_application.cli:main",
+    "market-data-v1-migrate": "market_data_application.migration_cli:main",
+    "market-data-api": "market_data_application.server:main"
+  },
+  "observed_surfaces": {
+    "legacy": {
+      "root_options": [],
+      "commands": {
+        "backfill": ["--compression", "--data-type", "--dataset-id", "--format", "--from", "--storage-root", "--to", "--version"],
+        "cancel": ["--run-id", "--storage-root"],
+        "capabilities": ["--exchange"],
+        "doctor": ["--storage-root"],
+        "download": ["--config"],
+        "exchanges": [],
+        "export": ["--dataset-id", "--storage-root", "--target", "--version"],
+        "inspect": ["--dataset-id", "--storage-root", "--version"],
+        "instruments": ["--exchange", "--market", "--symbol"],
+        "markets": ["--exchange"],
+        "register-external-corpus": ["--compression", "--output", "--spec", "--storage-root"],
+        "repair": ["--compression", "--data-type", "--dataset-id", "--format", "--storage-root", "--version"],
+        "resume": ["--run-id", "--storage-root"],
+        "status": ["--storage-root"],
+        "update": ["--compression", "--dataset-id", "--format", "--storage-root", "--to", "--version"],
+        "validate": ["--dataset-id", "--deep", "--storage-root", "--version"],
+        "verify-external-corpus": ["--output", "--spec"]
+      }
+    },
+    "v1": {
+      "root_options": ["--storage-root"],
+      "commands": {
+        "artifacts show": ["artifact_id"],
+        "capabilities": ["--exchange"],
+        "datasets backfill": ["--actor-id", "--correlation-id", "--idempotency-key", "--request", "dataset_id"],
+        "datasets export": ["--actor-id", "--correlation-id", "--idempotency-key", "--version", "dataset_id"],
+        "datasets list": ["--limit", "--offset"],
+        "datasets repair-confirm": ["--actor-id", "--request", "dataset_id"],
+        "datasets repair-confirmation-show": ["confirmation_id"],
+        "datasets repair-execute": ["--actor-id", "--correlation-id", "--idempotency-key", "--request", "dataset_id"],
+        "datasets repair-preview": ["--data-type", "--deep", "--version", "dataset_id"],
+        "datasets show": ["--version", "dataset_id"],
+        "datasets update": ["--actor-id", "--correlation-id", "--idempotency-key", "--request", "dataset_id"],
+        "datasets validate": ["--deep", "--version", "dataset_id"],
+        "doctor": [],
+        "download": ["--actor-id", "--correlation-id", "--idempotency-key", "--request"],
+        "exchanges": [],
+        "instruments": ["--exchange", "--market", "--symbol"],
+        "jobs cancel": ["job_id"],
+        "jobs events": ["--after-event-id", "--limit", "job_id"],
+        "jobs list": ["--limit", "--offset", "--operation", "--state"],
+        "jobs show": ["job_id"],
+        "markets": ["--exchange"],
+        "version": []
+      }
+    },
+    "migration": {
+      "root_options": ["--as-of", "--config", "--output"],
+      "commands": {}
+    }
+  },
+  "exit_codes": {
+    "legacy": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "v1": [0, 1, 2, 3, 4, 6, 7, 9],
+    "migration": [0, 1, 2, 7, 9]
+  },
+  "json_contracts": {
+    "legacy_error": "Top-level status/code payloads and command-specific result objects.",
+    "v1_error": "Stable error envelope: error.code, error.message, error.details and error.correlation_id.",
+    "migration_success": "Stdout is exactly one deterministic CreateDownloadRequest JSON document; an explicit --output path receives the same bytes.",
+    "success": "Legacy and v1 execution payloads are intentionally not declared byte-compatible."
+  },
+  "classifications": [
+    {
+      "legacy_command": "exchanges",
+      "classification": "equivalent",
+      "v1_paths": ["exchanges"],
+      "release_gate": false,
+      "notes": "Lists configured exchange adapters through the shared application composition."
+    },
+    {
+      "legacy_command": "markets",
+      "classification": "equivalent",
+      "v1_paths": ["markets"],
+      "release_gate": false,
+      "notes": "Lists the exact configured adapter market types through the shared read-only catalog."
+    },
+    {
+      "legacy_command": "capabilities",
+      "classification": "equivalent",
+      "v1_paths": ["capabilities"],
+      "release_gate": false,
+      "notes": "Returns the detailed typed capability contract for one configured exchange adapter."
+    },
+    {
+      "legacy_command": "instruments",
+      "classification": "equivalent",
+      "v1_paths": ["instruments"],
+      "release_gate": false,
+      "notes": "Resolves one exact exchange, market and symbol to typed public instrument metadata without raw adapter evidence."
+    },
+    {
+      "legacy_command": "download",
+      "classification": "safely_replaced",
+      "v1_paths": ["download", "jobs show", "jobs events", "jobs cancel"],
+      "migration_entry_points": ["market-data-v1-migrate"],
+      "release_gate": false,
+      "notes": "Legacy YAML can be converted without execution to strict deterministic CreateDownloadRequest JSON. Download execution remains a typed idempotent durable job. Unsafe or unrepresentable identity, destination, dynamic-time and runtime settings fail closed."
+    },
+    {
+      "legacy_command": "inspect",
+      "classification": "equivalent",
+      "v1_paths": ["datasets show"],
+      "release_gate": false,
+      "notes": "Both inspect an immutable registered dataset version; the v1 response uses typed application contracts."
+    },
+    {
+      "legacy_command": "validate",
+      "classification": "equivalent",
+      "v1_paths": ["datasets validate"],
+      "release_gate": false,
+      "notes": "Deep validation remains explicit; JSON envelopes and exit codes differ."
+    },
+    {
+      "legacy_command": "verify-external-corpus",
+      "classification": "not_yet_implemented",
+      "v1_paths": [],
+      "release_gate": true,
+      "notes": "The legacy command performs offline fail-closed verification of an external Parquet corpus and emits content-addressed lineage evidence. A typed v1 application command and Dataset Registry import remain pending; no automatic mutation alias is authorized."
+    },
+    {
+      "legacy_command": "register-external-corpus",
+      "classification": "not_yet_implemented",
+      "v1_paths": [],
+      "release_gate": true,
+      "notes": "The legacy command performs fail-closed durable registration of an accepted external corpus into LocalStorage and SQLiteDatasetRegistry with immutable dataset identity and sanitized evidence. A typed v1 application import command remains pending; no automatic mutation alias is authorized."
+    },
+    {
+      "legacy_command": "doctor",
+      "classification": "equivalent",
+      "v1_paths": ["doctor"],
+      "release_gate": false,
+      "notes": "Both expose local storage, registry and adapter diagnostics."
+    },
+    {
+      "legacy_command": "status",
+      "classification": "safely_replaced",
+      "v1_paths": ["doctor"],
+      "release_gate": false,
+      "notes": "Registry health is incorporated into the broader typed doctor response."
+    },
+    {
+      "legacy_command": "update",
+      "classification": "safely_replaced",
+      "v1_paths": ["datasets update", "jobs show", "jobs events"],
+      "release_gate": false,
+      "notes": "Direct mutable invocation is replaced by a typed actor-scoped idempotent durable job that pins the immutable parent version and hash, recovers by job identity and publishes one new Registry version. Cancellation remains unavailable until a canonical UPDATE cancellation identity is proven."
+    },
+    {
+      "legacy_command": "backfill",
+      "classification": "safely_replaced",
+      "v1_paths": ["datasets backfill", "jobs show", "jobs events"],
+      "release_gate": false,
+      "notes": "Direct backfill is replaced by one actor-scoped idempotent durable job that pins the immutable parent version, hash and stream timeframe, rejects overlap with registered stream partitions, directs replacement to repair and reconciles publication by durable job identity. Cancellation remains unavailable until a canonical BACKFILL cancellation identity is proven."
+    },
+    {
+      "legacy_command": "repair",
+      "classification": "safely_replaced",
+      "v1_paths": ["datasets repair-preview", "datasets repair-confirm", "datasets repair-confirmation-show", "datasets repair-execute"],
+      "release_gate": false,
+      "notes": "Direct repair is intentionally replaced by preview, actor-bound one-time confirmation and action-specific durable execution."
+    },
+    {
+      "legacy_command": "export",
+      "classification": "intentionally_incompatible",
+      "v1_paths": ["datasets export", "artifacts show", "jobs show"],
+      "release_gate": true,
+      "notes": "Caller-provided --target is prohibited. V1 publishes deterministic immutable artifacts only below the application-owned artifact root."
+    },
+    {
+      "legacy_command": "resume",
+      "classification": "intentionally_incompatible",
+      "v1_paths": ["jobs show", "jobs events"],
+      "release_gate": true,
+      "notes": "Manual run-ID resume is replaced by startup recovery, leases, fencing and reconciliation of the same durable job."
+    },
+    {
+      "legacy_command": "cancel",
+      "classification": "safely_replaced",
+      "v1_paths": ["jobs cancel"],
+      "release_gate": false,
+      "notes": "Cancellation moves from backend run IDs to public durable job IDs and remains limited to explicitly cancellable phases."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+$ python -m pytest -q modules/session_range/tests
+........................................................................ [ 51%]
+...................................................................      [100%]
+139 passed
+$ python -m ruff check modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+All checks passed!
+$ python -m ruff format --check modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+8 files already formatted
+$ MYPYPATH=src python -m mypy --strict modules/session_range/src/modular_session_range
+Success: no issues found in 4 source files
+$ python -m compileall -q modules/session_range/src modules/session_range/tests modules/session_range/benchmarks
+FINAL SOURCE GATES: PASS

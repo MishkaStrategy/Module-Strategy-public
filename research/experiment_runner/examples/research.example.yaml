@@ -1,0 +1,72 @@
+research_id: btc-fvg-grid-v1
+title: BTC FVG deterministic grid
+description: Phased reproducible research example; not a profitability or live-readiness claim.
+strategy_id: fvg-rt-final
+strategy_version: 1.0.0
+module_versions:
+  fvg: 0.2.1
+base_configuration:
+  risk_fraction: "0.005"
+search_method: grid
+search_space:
+  dimensions:
+    - name: ttl_bars
+      kind: integer
+      values: [24, 36, 48]
+    - name: impulse_efficiency
+      kind: decimal
+      values: ["0.40", "0.45", "0.50"]
+  constraints: []
+datasets:
+  - dataset_id: binance-btcusdt-5m-v1
+    source: binance
+    market_type: binance-usdt-m-perpetual
+    instrument: BTCUSDT
+    timeframe: 5m
+    period:
+      start: 2020-01-01T00:00:00Z
+      end: 2026-07-20T00:00:00Z
+    row_count: 0
+    timezone: UTC
+    file_format: csv
+    file_size: 0
+    sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    preprocessing_version: raw-v1
+    aggregation_version: utc-v1
+    metadata_version: v1
+    known_gaps: 0
+    known_duplicates: 0
+    quality_status: valid
+instruments: [BTCUSDT]
+market_type: binance-usdt-m-perpetual
+timeframes: [5m, 15m, 4h, 1d]
+date_range:
+  start: 2020-01-01T00:00:00Z
+  end: 2026-07-20T00:00:00Z
+split_policy:
+  mode: percentage
+  train_fraction: 0.55
+  validation_fraction: 0.15
+  test_fraction: 0.20
+  final_fraction: 0.10
+  gap_seconds: 300
+seeds: [20260723]
+parallelism: 4
+resource_limits:
+  maximum_workers: 4
+  maximum_runs_per_activation: 1000
+retry_policy:
+  max_attempts: 3
+  initial_backoff_seconds: 1
+  maximum_backoff_seconds: 60
+resume_policy:
+  lease_seconds: 900
+  heartbeat_seconds: 60
+validation_policy:
+  test_access_audit: required
+ranking_objective:
+  metric: profit_factor
+  direction: maximize
+promotion_criteria:
+  minimum_trades: 100
+schema_version: 1

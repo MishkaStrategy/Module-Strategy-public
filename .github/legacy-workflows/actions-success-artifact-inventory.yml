@@ -1,0 +1,109 @@
+name: Actions successful artifact inventory
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/actions-success-artifact-inventory.yml"
+      - "scripts/actions_artifact_success_inventory.py"
+      - "tests/test_actions_artifact_success_inventory.py"
+  push:
+    branches:
+      - "integration/modular-strategy-full-rc"
+      - "ops/actions-success-artifact-inventory-*"
+    paths:
+      - ".github/workflows/actions-success-artifact-inventory.yml"
+      - "scripts/actions_artifact_success_inventory.py"
+      - "tests/test_actions_artifact_success_inventory.py"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: actions-success-artifact-inventory-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  inventory:
+    name: Read-only successful artifact inventory
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+      MAX_RUN_LOOKUPS: "2500"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact inventory candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.12"
+          cache-suffix: actions-success-artifact-inventory
+
+      - name: Install focused validation dependencies
+        run: uv pip install pytest ruff mypy
+
+      - name: Validate read-only inventory tool
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            scripts/actions_artifact_success_inventory.py \
+            tests/test_actions_artifact_success_inventory.py
+          ruff check \
+            scripts/actions_artifact_success_inventory.py \
+            tests/test_actions_artifact_success_inventory.py
+          ruff format --check \
+            scripts/actions_artifact_success_inventory.py \
+            tests/test_actions_artifact_success_inventory.py
+          mypy --strict --follow-imports=skip scripts/actions_artifact_success_inventory.py
+          python -m pytest -q tests/test_actions_artifact_success_inventory.py
+
+      - name: Inventory unexpired successful artifacts without mutation
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/actions-success-artifact-inventory.json"
+          python scripts/actions_artifact_success_inventory.py \
+            --max-run-lookups "$MAX_RUN_LOOKUPS" \
+            > "$report"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "actions-success-artifact-inventory.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if report["default_disposition"] != "PROTECTED_UNTIL_OWNER_REVIEW":
+              raise SystemExit("unsafe successful artifact default disposition")
+          print(
+              "READ_ONLY_SUCCESS_INVENTORY "
+              f"count={report['successful_unexpired_count']} "
+              f"bytes={report['successful_unexpired_bytes']} "
+              f"mib={report['successful_unexpired_mib']} "
+              f"groups={len(report['groups'])} "
+              f"sha256={report['inventory_sha256']}"
+          )
+          print(json.dumps(report["groups"], sort_keys=True, separators=(",", ":")))
+          PY

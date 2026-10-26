@@ -1,0 +1,114 @@
+{
+  "profiling_decision": {
+    "production_optimization_performed": false,
+    "reason": "Three primary samples meet the proposed SLO and deterministic digest contract; no concrete production bottleneck was established.",
+    "slo_breach_confirmed": false
+  },
+  "proposal_id": "strategy-governance-wave2f-slo-v1",
+  "reference_environment": {
+    "credentials": "none",
+    "network": "disabled",
+    "platform": "Linux x86_64",
+    "python": "CPython 3.13.5",
+    "storage": "local SQLite WAL, synchronous FULL"
+  },
+  "sampling": {
+    "observed_variance_percent": 5.999591684356775,
+    "primary_workload": "valid-1000",
+    "sample_count": 3,
+    "variance_metric": "throughput coefficient of variation",
+    "warm_up": "one deterministic replay phase per unique candidate"
+  },
+  "schema_version": 1,
+  "slos": [
+    {
+      "category": "functional-acceptance",
+      "evidence_path": "research/strategy_audit_validation/tests/test_governance.py",
+      "percentile": "not-applicable",
+      "rationale": "Governance invariants are fail-closed acceptance gates.",
+      "threshold": "100% pass; zero unexpected failures",
+      "workload": "all focused governance tests"
+    },
+    {
+      "category": "throughput",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "sample minimum",
+      "rationale": "Below all three measured samples with substantial noise margin.",
+      "threshold": ">=150 candidates/second",
+      "workload": "valid-1000"
+    },
+    {
+      "category": "latency",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "p95/p99",
+      "rationale": "Covers observed tail latency without hiding runner noise.",
+      "threshold": "p95 <=25 ms; p99 <=40 ms",
+      "workload": "valid-1000 cold unique candidates"
+    },
+    {
+      "category": "memory",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "peak RSS delta",
+      "rationale": "Observed delta is approximately 10.1 MiB.",
+      "threshold": "<=64 MiB",
+      "workload": "valid-1000"
+    },
+    {
+      "category": "artifact-growth",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "total/requested candidates",
+      "rationale": "Observed 9,182.808 bytes per candidate.",
+      "threshold": "<=12 KiB per unique candidate",
+      "workload": "valid-1000 unique candidates"
+    },
+    {
+      "category": "duplicate-suppression",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "exact",
+      "rationale": "Identical candidates must be idempotent and storage-bounded.",
+      "threshold": "one durable candidate/evidence/approval/checkpoint; >=1999 suppressed",
+      "workload": "repeated-1000 plus warm replay"
+    },
+    {
+      "category": "large-evidence",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "cold p95 and artifact bytes",
+      "rationale": "Separates evidence serialization/storage from candidate mechanics.",
+      "threshold": "p95 <=150 ms; artifact <=1.35 MiB per candidate",
+      "workload": "large-10 with 1 MiB evidence payload"
+    },
+    {
+      "category": "restart-recovery",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "exact digest and overhead",
+      "rationale": "Observed restart overhead below 1 ms with exact recovery.",
+      "threshold": "<=50 ms restart overhead; exact final counts and digest",
+      "workload": "interrupted-1000 at midpoint"
+    },
+    {
+      "category": "determinism",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-summary.json",
+      "percentile": "exact",
+      "rationale": "All semantic identities and durable counts must match exactly.",
+      "threshold": "one unique logical digest; timing excluded only",
+      "workload": "three valid-1000 samples"
+    },
+    {
+      "category": "governance-security",
+      "evidence_path": "research/strategy_audit_validation/tests/test_governance.py",
+      "percentile": "exact",
+      "rationale": "Candidate and creator cannot become their own approval authority.",
+      "threshold": "100% rejection/detection; zero approval from invalid evidence",
+      "workload": "self-approval, stale evidence, corruption fixtures"
+    },
+    {
+      "category": "concurrent-readers",
+      "evidence_path": "reports/strategy-governance-wave2f/baseline-evidence.json",
+      "percentile": "total wall time",
+      "rationale": "Validates read concurrency without enabling parallel writers.",
+      "threshold": "4,000 successful reads, zero failures, <=1 second",
+      "workload": "8 readers x 500 operations after 100 candidates"
+    }
+  ],
+  "status": "PROPOSED_FROM_BASELINE"
+}

@@ -1,0 +1,3 @@
+secret marker scan: pass
+private keys: none
+API token prefixes: none

@@ -1,0 +1,86 @@
+{
+  "approvable": false,
+  "canonical": false,
+  "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "control_inventory": {
+    "expected_combined_champion_trades": 395,
+    "expected_component_trades": {
+      "frozen_1h_short": 91,
+      "frozen_4h_short": 21,
+      "fvg_rt_final_15m": 283
+    },
+    "status": "counts recovered; exact combined control ledger is not repository-resident"
+  },
+  "contracts": [
+    {
+      "allowed_timeframes": [
+        "5m",
+        "15m",
+        "4h",
+        "1d"
+      ],
+      "contract_status": "RECOVERED_SPEC_NOT_IMPLEMENTED",
+      "module_id": "fvg_rt_final_15m",
+      "recovered_asset": "fvg-rt-final-15m.recovered.json",
+      "required_decisions": [
+        "runtime package and module version",
+        "trusted executable setup adapter",
+        "repository-resident Final quality/regime control ledger",
+        "cross-component priority and blocking order"
+      ],
+      "source_classes": [
+        "FVG-RT v5/v6/v7 machine-readable specifications",
+        "FVG-RT v7 independent audit",
+        "project-approved Final quality and asymmetric EMA200 regime decision"
+      ]
+    },
+    {
+      "allowed_timeframes": [
+        "1h",
+        "4h"
+      ],
+      "contract_status": "RECOVERED_PARTIAL",
+      "module_id": "frozen_1h_short",
+      "recovered_asset": "frozen-1h-short.recovered-gap.json",
+      "required_decisions": [
+        "exact FVG geometry and equality convention binding",
+        "exact short-location formula and zero-range convention",
+        "EMA50 falling lookback convention",
+        "runtime package and module version",
+        "exact feature identities and execution conventions",
+        "checkpoint and restart schema",
+        "cross-component priority and blocking order",
+        "repository-resident control ledger"
+      ],
+      "source_classes": [
+        "project-approved Frozen 1H Short decision"
+      ]
+    },
+    {
+      "allowed_timeframes": [
+        "4h"
+      ],
+      "contract_status": "MISSING_AUTHORITATIVE_CONTRACT",
+      "module_id": "frozen_4h_short",
+      "recovered_asset": "frozen-4h-short.gap.json",
+      "required_decisions": [
+        "complete signal and filter specification",
+        "entry stop target TTL hold and no-progress formulas",
+        "cost and sizing overrides",
+        "runtime package and module version",
+        "checkpoint and restart schema",
+        "cross-component priority and blocking order",
+        "repository-resident control ledger"
+      ],
+      "source_classes": []
+    }
+  ],
+  "executable": false,
+  "issue": 312,
+  "original_gap_asset": "canonical-fvg-rt-final-15m-frozen-1h-4h.gap.json",
+  "recovery_audit": "../../../docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md",
+  "recovery_base_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+  "registry_id": "canonical-strategy-contract-recovery-v1",
+  "schema_version": 1,
+  "status": "PARTIAL_RECOVERY_FAIL_CLOSED"
+}

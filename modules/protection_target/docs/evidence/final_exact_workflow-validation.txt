@@ -1,0 +1,3 @@
+workflow parsed; self-hosted labels and fail-closed security gate verified
+Bandit findings: 0
+detect-secrets findings: 0

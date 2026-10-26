@@ -1,0 +1,11 @@
+Clean Python 3.13.5 environment installed only:
+- PyYAML 6.0.3
+- Modular Strategy Core 0.4.0 wheel
+- modular-session-range 0.2.0 wheel rebuilt after ED-SR-017
+
+$ python -m pip check
+No broken requirements found.
+$ python -m pytest -q --import-mode=importlib <candidate tests>
+139 passed
+$ verify public import and entry point
+clean-wheel import/entry-point PASS

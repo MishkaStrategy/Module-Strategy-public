@@ -1,0 +1,317 @@
+name: market-data-external-corpus-registration-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - ".github/workflows/market-data-external-corpus-registration-ci.yml"
+      - ".github/actions/python-runner-preflight/**"
+      - "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json"
+      - "modules/market_data_ingestion/src/market_data_ingestion/canonical.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/contracts.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/drive_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/enums.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/errors.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_registration.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/hashing.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/integrity.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/manifest_io.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/records.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/registry.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/storage.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/timeframes.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/version.py"
+      - "modules/market_data_ingestion/tests/test_external_registration.py"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to register against the verified external corpus
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-external-registration-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+  cancel-in-progress: false
+
+jobs:
+  register-verified-external-corpus:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.ref == 'integration/historical-data-lineage'
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 480
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      DRIVE_INDEX: modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json
+      EXPECTED_CORPUS_HASH: 6d32c075f5adf3623679edd49c20ee8ee8758d3ea0e75b7f06613593e065c44e
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+          clean: true
+
+      - name: Verify exact requested commit
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+
+      - name: Install exact registration surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[parquet,dev]"
+          uv pip check
+
+      - name: Run focused registration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q tests/test_external_registration.py
+
+      - name: Discover one approved local corpus root
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import glob
+          import os
+          from pathlib import Path
+
+          home = Path.home().resolve()
+          patterns = (
+              home / "Library/CloudStorage/GoogleDrive-*/My Drive/binance_usdtm_futures_history",
+              home / "Library/CloudStorage/GoogleDrive-*/Мой диск/binance_usdtm_futures_history",
+              home / "Google Drive/My Drive/binance_usdtm_futures_history",
+              home / "Google Диск/Мой диск/binance_usdtm_futures_history",
+          )
+          allowed_roots = tuple(
+              path.resolve()
+              for path in (
+                  home / "Library/CloudStorage",
+                  home / "Google Drive",
+                  home / "Google Диск",
+              )
+              if path.exists()
+          )
+          candidates: set[Path] = set()
+          for pattern in patterns:
+              for value in glob.glob(str(pattern)):
+                  candidate = Path(value)
+                  if candidate.is_symlink() or not candidate.is_dir():
+                      continue
+                  resolved = candidate.resolve(strict=True)
+                  if not any(root == resolved or root in resolved.parents for root in allowed_roots):
+                      raise SystemExit("discovered corpus root escaped approved local locations")
+                  candidates.add(resolved)
+          if len(candidates) != 1:
+              raise SystemExit(
+                  f"expected exactly one approved baseline corpus root, found {len(candidates)}"
+              )
+          root = next(iter(candidates))
+          required = {
+              "BTCUSDT",
+              "ETHUSDT",
+              "BNBUSDT",
+              "XRPUSDT",
+              "SOLUSDT",
+              "DOGEUSDT",
+              "ADAUSDT",
+              "TRXUSDT",
+              "LINKUSDT",
+              "AVAXUSDT",
+          }
+          observed = {
+              item.name
+              for item in root.iterdir()
+              if item.is_dir() and not item.is_symlink() and item.name != "XAUUSDT"
+          }
+          if observed != required:
+              raise SystemExit(
+                  f"baseline symbol folders mismatch; missing={sorted(required - observed)}, "
+                  f"extra={sorted(observed - required)}"
+              )
+          destination = Path(os.environ["RUNNER_TEMP"]) / "market-data-corpus-root.txt"
+          destination.write_text(str(root), encoding="utf-8")
+          destination.chmod(0o600)
+          print("approved local corpus root discovered")
+          PY
+
+      - name: Build private strict corpus spec
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .acceptance
+          mkdir -p .acceptance/evidence
+          corpus_root="$(cat "$RUNNER_TEMP/market-data-corpus-root.txt")"
+          python -m market_data_ingestion.drive_corpus \
+            --corpus-root "$corpus_root" \
+            --drive-index "$GITHUB_WORKSPACE/$DRIVE_INDEX" \
+            --output "$RUNNER_TEMP/external-registration-spec.json" \
+            --report "$RUNNER_TEMP/external-registration-inventory.json" \
+            > "$RUNNER_TEMP/external-registration-spec-output.json"
+
+      - name: Register all ten verified datasets in temporary storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/external-registration-storage"
+          python -m market_data_ingestion.external_registration \
+            --spec "$RUNNER_TEMP/external-registration-spec.json" \
+            --storage-root "$RUNNER_TEMP/external-registration-storage" \
+            --output .acceptance/evidence/registration.json \
+            > "$RUNNER_TEMP/external-registration-command.json"
+
+      - name: Verify sanitized registration evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(".acceptance/evidence/registration.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          if payload.get("status") != "PASS":
+              raise SystemExit("registration evidence is not PASS")
+          if payload.get("corpus_hash") != os.environ["EXPECTED_CORPUS_HASH"]:
+              raise SystemExit("registration corpus hash mismatch")
+          exact = {
+              "dataset_count": 10,
+              "raw_artifact_count": 50,
+              "total_rows": 12_968_018,
+              "reused_dataset_count": 0,
+          }
+          for key, expected in exact.items():
+              if payload.get(key) != expected:
+                  raise SystemExit(
+                      f"registration evidence {key} mismatch: "
+                      f"expected {expected}, got {payload.get(key)!r}"
+                  )
+          datasets = payload.get("datasets")
+          if not isinstance(datasets, list) or len(datasets) != 10:
+              raise SystemExit("registration evidence must contain ten datasets")
+          expected_timeframes = ["5m", "10m", "15m", "1h", "4h"]
+          dataset_ids: set[str] = set()
+          hashes: set[str] = set()
+          partition_total = 0
+          for item in datasets:
+              if not isinstance(item, dict):
+                  raise SystemExit("registration dataset evidence must be an object")
+              if item.get("version") != 1 or item.get("reused") is not False:
+                  raise SystemExit("temporary registration must create version 1 exactly once")
+              if item.get("validation_status") != "VALID":
+                  raise SystemExit("registered dataset validation status is not VALID")
+              if item.get("timeframes") != expected_timeframes:
+                  raise SystemExit("registered dataset timeframe matrix mismatch")
+              if item.get("raw_artifact_count") != 5:
+                  raise SystemExit("registered dataset raw lineage count mismatch")
+              partition_count = item.get("partition_count")
+              if not isinstance(partition_count, int) or partition_count < 5:
+                  raise SystemExit("registered dataset partition count is invalid")
+              partition_total += partition_count
+              dataset_id = item.get("dataset_id")
+              dataset_hash = item.get("dataset_hash")
+              if not isinstance(dataset_id, str) or not dataset_id:
+                  raise SystemExit("registered dataset ID is invalid")
+              if not isinstance(dataset_hash, str) or len(dataset_hash) != 64:
+                  raise SystemExit("registered dataset hash is invalid")
+              dataset_ids.add(dataset_id)
+              hashes.add(dataset_hash)
+          if len(dataset_ids) != 10 or len(hashes) != 10:
+              raise SystemExit("registered dataset identities are not unique")
+          if payload.get("partition_count") != partition_total:
+              raise SystemExit("registration partition total mismatch")
+          if payload.get("raw_market_data_uploaded") is not False:
+              raise SystemExit("registration evidence raw-upload flag is invalid")
+
+          forbidden_keys = {
+              "path",
+              "manifest_uri",
+              "storage_uri",
+              "registry_uri",
+              "evidence_path",
+          }
+
+          def walk(value: object) -> None:
+              if isinstance(value, dict):
+                  if forbidden_keys.intersection(value):
+                      raise SystemExit("registration evidence contains a local-path field")
+                  for nested in value.values():
+                      walk(nested)
+              elif isinstance(value, list):
+                  for nested in value:
+                      walk(nested)
+
+          walk(payload)
+          text = path.read_text(encoding="utf-8")
+          forbidden_text = (
+              str(Path.home()),
+              str(Path(os.environ["RUNNER_TEMP"])),
+              "/Users/",
+              "/Library/CloudStorage/",
+              "\\Users\\",
+          )
+          if any(marker and marker in text for marker in forbidden_text):
+              raise SystemExit("registration evidence leaks a local path")
+          PY
+
+      - name: Enforce closed evidence inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(find .acceptance/evidence -type l -print -quit)"
+          actual="$(find .acceptance/evidence -maxdepth 1 -type f -print \
+            | sed 's#^.acceptance/evidence/##' | LC_ALL=C sort)"
+          test "$actual" = "registration.json"
+          test -z "$(find .acceptance/evidence -type f \
+            \( -name '*.parquet' -o -name '*.csv' -o -name '*.db' -o -name '*.sqlite*' \) \
+            -print -quit)"
+
+      - name: Upload hash-only registration evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-external-registration-${{ github.run_id }}
+          path: modules/market_data_ingestion/.acceptance/evidence
+          if-no-files-found: error
+          include-hidden-files: false
+          compression-level: 9
+
+      - name: Remove temporary corpus inputs and registered bytes
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            "$RUNNER_TEMP/external-registration-storage" \
+            .acceptance
+          rm -f \
+            "$RUNNER_TEMP/market-data-corpus-root.txt" \
+            "$RUNNER_TEMP/external-registration-spec.json" \
+            "$RUNNER_TEMP/external-registration-inventory.json" \
+            "$RUNNER_TEMP/external-registration-spec-output.json" \
+            "$RUNNER_TEMP/external-registration-command.json"

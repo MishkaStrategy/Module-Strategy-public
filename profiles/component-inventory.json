@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "roles": [
+    {
+      "id": "python_distributions",
+      "capability": "python_distributions",
+      "required": true,
+      "providers": [
+        "modular-control-plane",
+        "modular-market-data-ingestion",
+        "modular-observability",
+        "modular-results-registry",
+        "modular-risk-supervisor",
+        "modular-session-range",
+        "modular-strategy-audit-validation",
+        "modular-strategy-core",
+        "modular-strategy-entry-model",
+        "modular-strategy-factory",
+        "modular-strategy-fibonacci",
+        "modular-strategy-fvg",
+        "modular-strategy-market-regime",
+        "modular-strategy-paper-execution",
+        "modular-strategy-position-exit-management",
+        "modular-strategy-position-scaling",
+        "modular-strategy-protection-target",
+        "modular-strategy-research-runner",
+        "modular-strategy-risk-request-composer",
+        "modular-strategy-risk-sizing",
+        "modular-strategy-setup-adapter",
+        "modular-strategy-trade-plan-router",
+        "modular-strategy-wave-analysis",
+        "modular-system-acceptance",
+        "modular-system-recovery",
+        "modular-trading-runner"
+      ],
+      "required_gates": [
+        "package:python-distributions",
+        "lock:python-runtime-312",
+        "lock:python-runtime-313",
+        "lock:python-build-312",
+        "lock:python-build-313",
+        "rebuild:python-runtime-312",
+        "rebuild:python-runtime-313",
+        "rebuild:python-build-312",
+        "rebuild:python-build-313"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/982"
+        }
+      ]
+    },
+    {
+      "id": "market_data_web_console",
+      "capability": "market_data_web_console",
+      "required": true,
+      "providers": [
+        "@module-strategy/market-data-console"
+      ],
+      "required_gates": [
+        "web:market-data-console-build",
+        "web:market-data-console-control-ui"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/370"
+        }
+      ]
+    },
+    {
+      "id": "operator_ui_control",
+      "capability": "operator_ui_control",
+      "required": true,
+      "providers": [
+        "@module-strategy/market-data-console",
+        "modular-control-plane"
+      ],
+      "required_gates": [
+        "control:shared-typed-plane",
+        "control:dashboard-terminal-integration"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/370"
+        }
+      ]
+    },
+    {
+      "id": "recovery_ui",
+      "capability": "recovery_ui",
+      "required": true,
+      "providers": [
+        "modular-control-plane",
+        "modular-system-recovery"
+      ],
+      "required_gates": [
+        "recovery:operator-entrypoint",
+        "recovery:owner-plan-registry"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/778"
+        }
+      ]
+    },
+    {
+      "id": "owner_native_composition",
+      "capability": "owner_native_composition",
+      "required": true,
+      "providers": [
+        "modular-system-acceptance"
+      ],
+      "required_gates": [
+        "composition:paper-owner-provisioning"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/933"
+        }
+      ]
+    },
+    {
+      "id": "topology",
+      "capability": "topology",
+      "required": true,
+      "providers": [],
+      "required_gates": [
+        "operations:single-host-topology"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/400"
+        }
+      ]
+    },
+    {
+      "id": "real_host",
+      "capability": "real_host",
+      "required": true,
+      "providers": [
+        "modular-system-acceptance"
+      ],
+      "required_gates": [
+        "operations:mac-service-reconnect"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/873"
+        }
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "capability": "lifecycle",
+      "required": true,
+      "providers": [
+        "modular-control-plane",
+        "modular-strategy-factory",
+        "modular-trading-runner"
+      ],
+      "required_gates": [
+        "lifecycle:strategy-transitions",
+        "lifecycle:restart-fencing"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/395"
+        }
+      ]
+    },
+    {
+      "id": "drift",
+      "capability": "drift",
+      "required": true,
+      "providers": [],
+      "required_gates": [
+        "monitoring:research-paper-baseline",
+        "monitoring:minimum-sample-policy"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/380"
+        }
+      ]
+    },
+    {
+      "id": "risk_supervisor",
+      "capability": "risk_supervisor",
+      "required": true,
+      "providers": [
+        "modular-risk-supervisor"
+      ],
+      "required_gates": [
+        "safety:risk-supervisor-candidate-binding"
+      ],
+      "blocked_by": []
+    },
+    {
+      "id": "portfolio",
+      "capability": "portfolio",
+      "required": true,
+      "providers": [],
+      "required_gates": [
+        "portfolio:aggregate-exposure",
+        "portfolio:deterministic-allocation"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/396"
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "capability": "security",
+      "required": true,
+      "providers": [],
+      "required_gates": [
+        "security:whole-system-threat-model",
+        "security:negative-end-to-end"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/393"
+        }
+      ]
+    },
+    {
+      "id": "runbooks",
+      "capability": "runbooks",
+      "required": true,
+      "providers": [
+        "modular-system-recovery"
+      ],
+      "required_gates": [
+        "operations:install-upgrade-rollback",
+        "operations:incident-recovery"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/400"
+        }
+      ]
+    },
+    {
+      "id": "recovery",
+      "capability": "recovery",
+      "required": true,
+      "providers": [
+        "modular-system-recovery"
+      ],
+      "required_gates": [
+        "recovery:clean-host-restore",
+        "recovery:owner-native-state"
+      ],
+      "blocked_by": []
+    },
+    {
+      "id": "ab_soak",
+      "capability": "ab_soak",
+      "required": true,
+      "providers": [
+        "modular-system-acceptance"
+      ],
+      "required_gates": [
+        "soak:deterministic-ab"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/369"
+        }
+      ]
+    },
+    {
+      "id": "soak_2h",
+      "capability": "soak_2h",
+      "required": true,
+      "providers": [
+        "modular-system-acceptance"
+      ],
+      "required_gates": [
+        "soak:paper-two-hour"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/866"
+        }
+      ]
+    },
+    {
+      "id": "soak_24h",
+      "capability": "soak_24h",
+      "required": true,
+      "providers": [
+        "modular-system-acceptance"
+      ],
+      "required_gates": [
+        "soak:paper-twenty-four-hour"
+      ],
+      "blocked_by": [
+        {
+          "type": "github_issue",
+          "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/369"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+name: full-rc-heavy-validation
+
+on:
+  pull_request:
+    branches: [main, integration/modular-strategy-full-rc]
+    types: [labeled]
+
+permissions:
+  contents: write
+
+jobs:
+  backtest-engine-heavy:
+    if: >-
+      github.event.pull_request.head.ref == 'integration/modular-strategy-full-rc' &&
+      github.event.label.name == 'backtest-heavy-validation'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/backtest-engine-heavy.yml
+    with:
+      expected_sha: ${{ github.event.pull_request.head.sha }}
+
+  historical-strategy-backtest:
+    if: >-
+      github.event.label.name == 'historical-backtest-validation' &&
+      (github.event.pull_request.head.ref == 'integration/modular-strategy-full-rc' ||
+       github.event.pull_request.base.ref == 'integration/modular-strategy-full-rc')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/heavy-backtest.yml
+    with:
+      expected_sha: ${{ github.event.pull_request.head.sha }}
+
+  signal-bot-heavy-audit:
+    if: >-
+      github.event.label.name == 'signal-bot-heavy-validation' &&
+      (github.event.pull_request.head.ref == 'integration/modular-strategy-full-rc' ||
+       github.event.pull_request.base.ref == 'integration/modular-strategy-full-rc')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/signal-bot-heavy-audit.yml
+    with:
+      expected_sha: ${{ github.event.pull_request.head.sha }}
+
+  registered-canonical-parity-dispatch:
+    if: >-
+      github.event.pull_request.head.ref == 'integration/modular-strategy-full-rc' &&
+      github.event.label.name == 'registered-parity-validation'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+      CANDIDATE_BRANCH: ${{ github.event.pull_request.head.ref }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify exact label payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$CANDIDATE_BRANCH" = "integration/modular-strategy-full-rc"
+
+      - name: Dispatch exact-head registered canonical parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected_sha = os.environ["EXPECTED_SHA"]
+          candidate_branch = os.environ["CANDIDATE_BRANCH"]
+          token = os.environ["GH_TOKEN"]
+          payload = json.dumps(
+              {
+                  "ref": candidate_branch,
+                  "inputs": {
+                      "expected_sha": expected_sha,
+                      "candidate_branch": candidate_branch,
+                  },
+              }
+          ).encode("utf-8")
+          request = urllib.request.Request(
+              "https://api.github.com/repos/"
+              f"{repository}/actions/workflows/"
+              "canonical-strategy-v2-registered-parity.yml/dispatches",
+              data=payload,
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "module-strategy-full-rc-parity-dispatch",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status != 204:
+                  raise SystemExit(
+                      f"unexpected workflow dispatch status: {response.status}"
+                  )
+          PY

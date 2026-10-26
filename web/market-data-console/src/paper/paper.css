@@ -1,0 +1,235 @@
+.paper-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.paper-header,
+.paper-panel-heading,
+.paper-order-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.paper-header h1,
+.paper-panel h2 {
+  margin: 0;
+}
+
+.paper-header p,
+.paper-panel-heading p {
+  max-width: 72rem;
+}
+
+.paper-safety-note,
+.paper-panel,
+.paper-health-grid article,
+.paper-safety-grid article,
+.paper-order-card,
+.paper-lifecycle-notice,
+.paper-lifecycle-error,
+.paper-lifecycle-receipt {
+  border: 1px solid var(--border-color, #d8d8d8);
+  border-radius: 0.8rem;
+  background: var(--surface-color, transparent);
+}
+
+.paper-safety-note,
+.paper-lifecycle-notice,
+.paper-lifecycle-error,
+.paper-lifecycle-receipt {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.paper-lifecycle-error {
+  border-width: 2px;
+}
+
+.paper-lifecycle-receipt small,
+.paper-lifecycle-notice span,
+.paper-lifecycle-error span,
+.paper-lifecycle-error small {
+  overflow-wrap: anywhere;
+}
+
+.paper-health-grid,
+.paper-summary-grid,
+.paper-safety-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.paper-health-grid article,
+.paper-safety-grid article {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+}
+
+.paper-health-grid span,
+.paper-safety-grid span,
+.paper-summary-grid dt,
+.paper-order-card dt {
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+
+.paper-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.paper-summary-grid,
+.paper-order-card dl {
+  margin: 0;
+}
+
+.paper-summary-grid > div,
+.paper-order-card dl > div {
+  min-width: 0;
+}
+
+.paper-position-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.paper-position-list .paper-order-card dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.65rem;
+}
+
+.paper-position-list .paper-order-card dl > div {
+  min-width: 0;
+}
+
+.paper-position-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+.paper-position-filters label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.paper-position-filters input,
+.paper-position-filters select {
+  min-height: 2.5rem;
+  max-width: 100%;
+}
+
+.paper-summary-grid dd,
+.paper-order-card dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.paper-mode-badge {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.paper-panel .status-warning {
+  border-inline-start: 0.25rem solid #9a6700;
+  padding-inline-start: 0.75rem;
+}
+
+.paper-safety-grid .attention {
+  border-width: 2px;
+}
+
+.paper-lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.paper-lifecycle-actions button {
+  min-height: 2.75rem;
+}
+
+.paper-order-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 0.75rem;
+}
+
+.paper-order-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem;
+}
+
+.paper-order-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.paper-order-pagination span {
+  margin-right: auto;
+}
+
+.paper-order-pagination button {
+  min-height: 2.5rem;
+}
+
+.paper-order-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.paper-scope-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paper-scope-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-color, #d8d8d8);
+  border-radius: 0.65rem;
+}
+
+@media (max-width: 720px) {
+  .paper-header,
+  .paper-panel-heading,
+  .paper-order-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .paper-lifecycle-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .paper-order-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .paper-order-pagination {
+    justify-content: space-between;
+  }
+}

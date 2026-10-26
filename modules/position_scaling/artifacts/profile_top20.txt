@@ -1,0 +1,17 @@
+533006 function calls (504006 primitive calls) in 0.175 seconds
+
+Ordered by cumulative time, top functions:
+
+ncalls   cumulative  function
+1        0.180       benchmark.py:_run_loop
+1000     0.178       benchmark.py:run
+1000     0.178       engine.py:evaluate_rule
+1000     0.086       models.py:PositionAdjustmentPlan.__post_init__
+1000     0.046       canonical.py:stable_id
+1000     0.046       canonical.py:fingerprint
+1000     0.043       canonical.py:canonical_json
+12000    0.036       canonical.py:canonical_value
+19000    0.033       canonical.py:deep_freeze
+2000     0.018       decimal_utils.py:weighted_average
+
+Conclusion: strict DTO validation/canonicalization and identity hashing dominate the full-plan path. The accepted optimization removed duplicate hashing by deriving the separately namespaced RiskRequest ID from the already-computed adjustment digest. No validation, Decimal precision or deterministic identity guarantee was removed.

@@ -1,0 +1,196 @@
+name: control-plane-foundation-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "applications/control_plane/**"
+      - "applications/observability/**"
+      - "applications/trading_runner/**"
+      - "modules/market_data_ingestion/**"
+      - "modules/paper_execution/**"
+      - "modules/results_aggregator/**"
+      - "modules/risk_sizing/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_audit_validation/**"
+      - "research/strategy_factory/**"
+      - "src/modular_backtest/**"
+      - "docs/control_ui/**"
+      - ".github/workflows/control-plane-foundation-ci.yml"
+  push:
+    branches:
+      - "control-ui/**"
+      - "integration/**"
+    paths:
+      - "applications/control_plane/**"
+      - "applications/observability/**"
+      - "applications/trading_runner/**"
+      - "modules/market_data_ingestion/**"
+      - "modules/paper_execution/**"
+      - "modules/results_aggregator/**"
+      - "modules/risk_sizing/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_audit_validation/**"
+      - "research/strategy_factory/**"
+      - "src/modular_backtest/**"
+      - "docs/control_ui/**"
+      - ".github/workflows/control-plane-foundation-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-foundation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation:
+    name: Control Plane foundation / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Control Plane candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/control_plane/pyproject.toml
+            applications/observability/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_factory/pyproject.toml
+          cache-suffix: control-plane-foundation
+
+      - name: Install component dependencies
+        run: |
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[backtest]"
+          uv pip install -e "./modules/market_data_ingestion"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation"
+          uv pip install -e "./research/strategy_factory" --no-deps
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/observability"
+          uv pip install -e "./applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          applications/control_plane/src
+          applications/control_plane/tests
+
+      - name: Ruff format
+        run: ruff format --check applications/control_plane/src applications/control_plane/tests
+
+      - name: Ruff lint
+        run: ruff check applications/control_plane/src applications/control_plane/tests
+
+      - name: Strict MyPy
+        run: mypy --strict applications/control_plane/src
+
+      - name: Component tests
+        run: pytest -q applications/control_plane/tests
+
+      - name: Verify lightweight import boundary
+        run: |
+          python - <<'PY'
+          import sys
+          import modular_control_plane
+
+          forbidden = (
+              "fastapi",
+              "market_data_application",
+              "market_data_ingestion",
+              "modular_backtest",
+              "modular_observability",
+              "modular_research_runner",
+              "modular_results_registry",
+              "modular_trading_runner",
+              "paper_execution",
+              "psutil",
+              "signal_bot",
+              "strategy_audit_validation",
+              "strategy_factory",
+              "uvicorn",
+          )
+          loaded = sorted(
+              name
+              for name in sys.modules
+              if any(name == prefix or name.startswith(prefix + ".") for prefix in forbidden)
+          )
+          if loaded:
+              raise SystemExit("heavy component imports leaked into base boundary: " + ", ".join(loaded))
+          print(modular_control_plane.ControlPlaneService.__name__)
+          print(modular_control_plane.EvidenceControlService.__name__)
+          print(modular_control_plane.PaperRuntimeControlService.__name__)
+          print(modular_control_plane.SystemResourcesControlService.__name__)
+          PY
+
+      - name: Verify paper-only typed control boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path("applications/control_plane/src")
+          forbidden = (
+              "subprocess.",
+              "os.system(",
+              "os.popen(",
+              "pty.spawn(",
+              "shell=True",
+              "shell = True",
+              "private_api_key",
+              "private_exchange_key",
+              "real_order_placement",
+          )
+          findings = []
+          for path in sorted(root.rglob("*.py")):
+              text = path.read_text(encoding="utf-8")
+              for token in forbidden:
+                  if token in text:
+                      findings.append(f"{path}: {token}")
+          if findings:
+              raise SystemExit("unsafe Control Plane source surface:\n" + "\n".join(findings))
+          print("PASS")
+          PY
+
+      - name: Build package
+        run: python -m build applications/control_plane
+
+      - name: Wheel and entrypoint smoke
+        run: |
+          wheel="$(find applications/control_plane/dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          uv pip install --reinstall "$wheel"
+          python -c "from modular_control_plane import BacktestControlService, ControlPlaneService, EvidenceControlService, PaperRuntimeControlService, ResearchControlService, StrategyControlService, SystemOverview, SystemResourcesControlService, SystemResourcesSnapshot; print(BacktestControlService.__name__, ControlPlaneService.__name__, EvidenceControlService.__name__, PaperRuntimeControlService.__name__, ResearchControlService.__name__, StrategyControlService.__name__, SystemOverview.__name__, SystemResourcesControlService.__name__, SystemResourcesSnapshot.__name__)"
+          modular-control --help >/dev/null
+          modular-control-api --check | python -c 'import json, sys; value=json.load(sys.stdin); assert value["status"] == "ok"; assert value["mode"] == "PAPER"; assert value["remote_bind_allowed"] is False; assert value["backtest_control_enabled"] is False; assert value["strategy_control_enabled"] is False; assert value["research_control_enabled"] is False; assert value["evidence_control_enabled"] is False; assert value["strategy_audit_evidence_enabled"] is False; assert value["results_registry_evidence_enabled"] is False; assert value["paper_runtime_embedded_only"] is True; assert value["system_resources_enabled"] is True'

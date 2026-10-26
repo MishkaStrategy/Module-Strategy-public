@@ -1,0 +1,177 @@
+.strategy-page {
+  min-width: 0;
+}
+
+.strategy-health-panel {
+  margin-bottom: 1rem;
+}
+
+.strategy-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.35fr);
+  gap: 1rem;
+}
+
+.strategy-layout > .control-panel {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.strategy-run-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.strategy-run-card {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid #2b3c51;
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+  background: #0b1420;
+  color: #d8e2ee;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.strategy-run-card:hover {
+  border-color: #42688e;
+  background: #102033;
+}
+
+.strategy-run-card:focus-visible {
+  outline: 2px solid #8ebfe9;
+  outline-offset: 2px;
+}
+
+.strategy-run-card.selected {
+  border-color: #4f79a3;
+  background: #10263b;
+}
+
+.strategy-run-card-heading,
+.strategy-detail-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.strategy-run-card code,
+.strategy-detail-heading code,
+.strategy-detail-grid .mono-value {
+  overflow-wrap: anywhere;
+  color: #d9ebff;
+}
+
+.strategy-run-card small {
+  color: #8799ad;
+  line-height: 1.35;
+}
+
+.strategy-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.strategy-status-success {
+  background: #123c31;
+  color: #9af0d0;
+}
+
+.strategy-status-error {
+  background: #532630;
+  color: #ffb1bd;
+}
+
+.strategy-status-warning {
+  background: #4a3818;
+  color: #ffd88a;
+}
+
+.strategy-status-active {
+  background: #173553;
+  color: #d9ebff;
+}
+
+.strategy-detail-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.strategy-detail-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.strategy-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border: 1px solid #26384d;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: #0b1420;
+}
+
+.strategy-detail-grid > div {
+  min-width: 0;
+  padding: 0.75rem;
+  border-bottom: 1px solid #223246;
+}
+
+.strategy-detail-grid > div:nth-child(odd) {
+  border-right: 1px solid #223246;
+}
+
+.strategy-detail-grid dt {
+  margin-bottom: 0.3rem;
+  color: #8fa2b8;
+  font-size: 0.75rem;
+}
+
+.strategy-detail-grid dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #e1eaf4;
+}
+
+.strategy-immutability-note {
+  margin-top: 1rem;
+}
+
+@media (max-width: 1180px) {
+  .strategy-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .strategy-run-card-heading,
+  .strategy-detail-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .strategy-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .strategy-detail-grid > div:nth-child(odd) {
+    border-right: 0;
+  }
+}

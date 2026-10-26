@@ -1,0 +1,419 @@
+name: position-exit-management-ci
+
+on:
+  push:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - modules/position_exit_management/**
+      - .github/workflows/position-exit-management-ci.yml
+  pull_request:
+    paths:
+      - modules/position_exit_management/**
+      - .github/workflows/position-exit-management-ci.yml
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run full packaging, security and performance gates
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-quality:
+    name: Position Exit fast / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "946684800"
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/position_exit_management/pyproject.toml
+          cache-suffix: position-exit-fast
+
+      - name: Install Core and module
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "modules/position_exit_management[dev]"
+          uv pip check
+
+      - name: Compileall
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            modules/position_exit_management/src \
+            modules/position_exit_management/tests \
+            modules/position_exit_management/benchmarks \
+            modules/position_exit_management/tools
+
+      - name: Ruff lint and format
+        id: ruff
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p modules/position_exit_management/ci-fast
+          status=0
+          ruff check --output-format=concise \
+            modules/position_exit_management/src \
+            modules/position_exit_management/tests \
+            modules/position_exit_management/benchmarks \
+            modules/position_exit_management/tools \
+            2>&1 | tee modules/position_exit_management/ci-fast/ruff-check.txt || status=$?
+          ruff format --check \
+            modules/position_exit_management/src \
+            modules/position_exit_management/tests \
+            modules/position_exit_management/benchmarks \
+            modules/position_exit_management/tools \
+            2>&1 | tee modules/position_exit_management/ci-fast/ruff-format.txt || status=$?
+          exit "${status}"
+
+      - name: Strict mypy
+        id: mypy
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mypy --strict \
+            modules/position_exit_management/src/modular_strategy_position_exit_management \
+            2>&1 | tee modules/position_exit_management/ci-fast/mypy.txt
+
+      - name: Module tests and branch coverage
+        id: tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd modules/position_exit_management
+          mkdir -p ci-fast
+          status=0
+          coverage erase
+          coverage run --branch -m pytest -m "not slow" --junitxml=ci-fast/junit.xml \
+            2>&1 | tee ci-fast/pytest.txt || status=$?
+          coverage report --fail-under=92 \
+            2>&1 | tee ci-fast/coverage.txt || status=$?
+          coverage json -o ci-fast/coverage.json || true
+          coverage xml -o ci-fast/coverage.xml || true
+          exit "${status}"
+
+      - name: Public import and entry-point smoke
+        id: smoke
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python - <<'PY' 2>&1 | tee modules/position_exit_management/ci-fast/smoke.txt
+          from importlib.metadata import entry_points
+          from modular_core import ModuleRegistry
+          from modular_strategy_position_exit_management import MODULE_NAME, PositionExitManagementModule
+
+          selected = tuple(
+              entry_points().select(group="modular_strategy.modules", name=MODULE_NAME)
+          )
+          assert len(selected) == 1
+          registry = ModuleRegistry()
+          registry.register(MODULE_NAME, selected[0].load())
+          module = registry.load_named(MODULE_NAME, {"max_holding_minutes": 60})
+          assert isinstance(module, PositionExitManagementModule)
+          checkpoint = module.snapshot_state()
+          module.restore_state(checkpoint)
+          PY
+
+      - name: Enforce fast-quality results
+        env:
+          RUFF_OUTCOME: ${{ steps.ruff.outcome }}
+          MYPY_OUTCOME: ${{ steps.mypy.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUFF_OUTCOME}" = success
+          test "${MYPY_OUTCOME}" = success
+          test "${TESTS_OUTCOME}" = success
+          test "${SMOKE_OUTCOME}" = success
+
+      - name: Publish exact fast evidence
+        if: success()
+        id: fast_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/position_exit_management/ci-fast
+          asset_name: position-exit-fast-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.TARGET_SHA }}
+          draft: "true"
+
+      - name: Enforce fast evidence publication gate
+        if: success()
+        run: test "${{ steps.fast_evidence_publish.outcome }}" = success
+
+      - name: Upload fast failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: position-exit-fast-py${{ matrix.python-version }}-${{ env.TARGET_SHA }}
+          if-no-files-found: warn
+          path: modules/position_exit_management/ci-fast/**
+
+      - name: Cleanup fast evidence
+        if: always()
+        shell: bash
+        run: rm -rf modules/position_exit_management/ci-fast
+
+  full-release-gates:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full)
+    name: Position Exit full release audit
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 180
+    env:
+      TARGET_SHA: ${{ github.sha }}
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "946684800"
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/position_exit_management/pyproject.toml
+          cache-suffix: position-exit-full
+
+      - name: Provision dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "modules/position_exit_management[dev]"
+          uv pip install detect-secrets pip-audit cyclonedx-bom twine build
+          uv pip check
+
+      - name: Full module suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p modules/position_exit_management/ci-evidence
+          python -m pytest -q modules/position_exit_management/tests \
+            2>&1 | tee modules/position_exit_management/ci-evidence/pytest-module.txt
+
+      - name: Security and SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p modules/position_exit_management/ci-evidence
+          bandit -q -r modules/position_exit_management/src \
+            2>&1 | tee modules/position_exit_management/ci-evidence/bandit.txt
+          detect-secrets scan modules/position_exit_management \
+            --exclude-files 'modules/position_exit_management/artifacts/.*' \
+            > modules/position_exit_management/ci-evidence/detect-secrets.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("modules/position_exit_management/ci-evidence/detect-secrets.json").read_text()
+          )
+          if report.get("results"):
+              raise SystemExit("detect-secrets found candidates")
+          PY
+          pip-audit --local --format json \
+            --output modules/position_exit_management/ci-evidence/pip-audit.json
+          cyclonedx-py environment --output-format JSON \
+            --output-file modules/position_exit_management/ci-evidence/sbom.cdx.json
+
+      - name: Build, verify and clean-install distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p core-dist module-dist modules/position_exit_management/ci-evidence
+          python -m build --wheel --outdir core-dist
+          python -m build modules/position_exit_management --outdir module-dist
+          python -m twine check core-dist/* module-dist/* \
+            2>&1 | tee modules/position_exit_management/ci-evidence/twine.txt
+          python modules/position_exit_management/tools/verify_release_artifacts.py \
+            --wheel "$(find module-dist -name '*.whl' -print -quit)" \
+            --sdist "$(find module-dist -name '*.tar.gz' -print -quit)"
+          shasum -a 256 core-dist/* module-dist/* \
+            > modules/position_exit_management/ci-evidence/distribution-checksums.sha256
+
+          CLEAN_VENV="${RUNNER_TEMP}/position-exit-clean-wheel"
+          rm -rf "${CLEAN_VENV}"
+          uv venv --seed --python 3.13 "${CLEAN_VENV}"
+          "${CLEAN_VENV}/bin/python" -m pip install core-dist/*.whl module-dist/*.whl
+          "${CLEAN_VENV}/bin/python" -m pip check
+          "${CLEAN_VENV}/bin/python" - <<'PY'
+          from importlib.metadata import entry_points
+          from modular_core import ModuleRegistry
+          from modular_strategy_position_exit_management import MODULE_NAME, PositionExitManagementModule
+
+          selected = tuple(
+              entry_points().select(group="modular_strategy.modules", name=MODULE_NAME)
+          )
+          assert len(selected) == 1
+          registry = ModuleRegistry()
+          registry.register(MODULE_NAME, selected[0].load())
+          assert isinstance(registry.load_named(MODULE_NAME, {}), PositionExitManagementModule)
+          PY
+          rm -rf "${CLEAN_VENV}"
+
+      - name: Installed-sdist tests and wheel rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf sdist-unpacked rebuilt-dist
+          mkdir -p sdist-unpacked rebuilt-dist
+          SDIST="$(find module-dist -name '*.tar.gz' -print -quit)"
+          tar -xzf "${SDIST}" -C sdist-unpacked
+          SDIST_ROOT="$(find sdist-unpacked -mindepth 1 -maxdepth 1 -type d -print -quit)"
+
+          SDIST_VENV="${RUNNER_TEMP}/position-exit-sdist"
+          rm -rf "${SDIST_VENV}"
+          uv venv --seed --python 3.13 "${SDIST_VENV}"
+          "${SDIST_VENV}/bin/python" -m pip install core-dist/*.whl
+          "${SDIST_VENV}/bin/python" -m pip install --no-deps "${SDIST}"
+          "${SDIST_VENV}/bin/python" -m pip install pytest hypothesis
+          "${SDIST_VENV}/bin/python" -m pip check
+          "${SDIST_VENV}/bin/python" -m pytest -q "${SDIST_ROOT}/tests" \
+            --ignore="${SDIST_ROOT}/tests/test_workflow_contract.py" \
+            2>&1 | tee modules/position_exit_management/ci-evidence/pytest-sdist.txt
+          rm -rf "${SDIST_VENV}"
+
+          python -m build --wheel --outdir rebuilt-dist "${SDIST_ROOT}"
+          python -m twine check rebuilt-dist/*
+          shasum -a 256 rebuilt-dist/* \
+            > modules/position_exit_management/ci-evidence/rebuilt-wheel-checksums.sha256
+
+      - name: Deterministic replay and benchmark evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p modules/position_exit_management/ci-evidence
+          PYTHONHASHSEED=1 python modules/position_exit_management/tools/replay_evidence.py \
+            > modules/position_exit_management/ci-evidence/replay-seed1.json
+          PYTHONHASHSEED=999 python modules/position_exit_management/tools/replay_evidence.py \
+            > modules/position_exit_management/ci-evidence/replay-seed999.json
+          cmp \
+            modules/position_exit_management/ci-evidence/replay-seed1.json \
+            modules/position_exit_management/ci-evidence/replay-seed999.json
+          python modules/position_exit_management/benchmarks/benchmark.py \
+            --events 50000 --runs 3 --mode noop \
+            > modules/position_exit_management/ci-evidence/benchmark-noop.json
+          python modules/position_exit_management/benchmarks/benchmark.py \
+            --events 250000 --runs 2 --mode active --restart --no-trace-memory \
+            > modules/position_exit_management/ci-evidence/benchmark-restart.json
+
+      - name: Record exact-head evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p modules/position_exit_management/ci-evidence
+          git rev-parse HEAD > modules/position_exit_management/ci-evidence/commit-sha.txt
+          python --version > modules/position_exit_management/ci-evidence/python-version.txt
+
+      - name: Publish exact full-release evidence
+        if: success()
+        id: full_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: |
+            modules/position_exit_management/ci-evidence
+            module-dist
+            core-dist
+            rebuilt-dist
+          asset_name: position-exit-full-release.tar.gz
+          commit_sha: ${{ env.TARGET_SHA }}
+          draft: "true"
+
+      - name: Enforce full-release evidence publication gate
+        if: success()
+        run: test "${{ steps.full_evidence_publish.outcome }}" = success
+
+      - name: Upload full-release failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: position-exit-full-release-${{ env.TARGET_SHA }}
+          if-no-files-found: warn
+          path: |
+            modules/position_exit_management/ci-evidence/**
+            module-dist/*
+            core-dist/*
+            rebuilt-dist/*
+
+      - name: Cleanup full-release evidence
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            modules/position_exit_management/ci-evidence \
+            core-dist module-dist rebuilt-dist sdist-unpacked \
+            "${RUNNER_TEMP}/position-exit-clean-wheel" \
+            "${RUNNER_TEMP}/position-exit-sdist"
+
+  report-push-result:
+    if: always() && github.event_name == 'push'
+    needs: [fast-quality, full-release-gates]
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 10
+    steps:
+      - name: Enforce successful aggregate result
+        if: always()
+        env:
+          FAST_RESULT: ${{ needs.fast-quality.result }}
+          FULL_RESULT: ${{ needs.full-release-gates.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${FAST_RESULT}" = success
+          test "${FULL_RESULT}" = success

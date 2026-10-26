@@ -1,0 +1,554 @@
+{
+  "audit_branch": "audit/project-wide-optimization-review",
+  "audit_timestamp_utc": "2026-08-01T05:20:00Z",
+  "audited_branch": "integration/modular-strategy-full-rc",
+  "audited_commit_sha": "30263f9e2bc4a972bc0027ffec40d23a0b3f2a37",
+  "ci": {
+    "artifact_bytes": 12156912,
+    "artifact_count": 63,
+    "conclusions": {
+      "failure": 1,
+      "skipped": 6,
+      "success": 43
+    },
+    "exact_base_sha": "30263f9e2bc4a972bc0027ffec40d23a0b3f2a37",
+    "hosted_job_seconds": 22.0,
+    "job_count": 84,
+    "run_count": 50,
+    "self_hosted_job_seconds": 5191.0,
+    "superseded_failure": {
+      "cause": "Python 3.12 runner preflight reported 0 GiB free (<1 GiB); Python 3.13 job passed and a parallel same-SHA run passed both versions.",
+      "classification": "runner infrastructure transient, not source failure",
+      "failed_run_id": 30600219244,
+      "successful_run_id": 30600221923,
+      "workflow": "core-ci"
+    },
+    "top_jobs_by_duration": [
+      {
+        "conclusion": "success",
+        "duration_seconds": 337.0,
+        "job": "quality (3.13)",
+        "job_id": 91061075329,
+        "runner_name": "archived-runner-08",
+        "workflow": "wave-analysis-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 200.0,
+        "job": "package (3.12)",
+        "job_id": 91061048984,
+        "runner_name": "archived-runner-08",
+        "workflow": "strategy-audit-validation"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 197.0,
+        "job": "quality (3.13)",
+        "job_id": 91061085301,
+        "runner_name": "archived-runner-06",
+        "workflow": "liquidity-sweep-hardening-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 190.0,
+        "job": "quality (3.12)",
+        "job_id": 91061085270,
+        "runner_name": "archived-runner-07",
+        "workflow": "liquidity-sweep-hardening-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 176.0,
+        "job": "register-and-smoke",
+        "job_id": 91061049378,
+        "runner_name": "archived-runner-02",
+        "workflow": "historical-data-persistent-registration-smoke-v2"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 155.0,
+        "job": "Fast quality (Python 3.12)",
+        "job_id": 91061049365,
+        "runner_name": "archived-runner-07",
+        "workflow": "market-regime-fast-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 140.0,
+        "job": "Paper Execution / Python 3.12",
+        "job_id": 91061681770,
+        "runner_name": "archived-runner-07",
+        "workflow": "paper-execution-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 138.0,
+        "job": "verify (3.13)",
+        "job_id": 91061049206,
+        "runner_name": "archived-runner-01",
+        "workflow": "protection-target-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 129.0,
+        "job": "quality (3.12)",
+        "job_id": 91061084472,
+        "runner_name": "archived-runner-08",
+        "workflow": "breakout-return-hardening-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 125.0,
+        "job": "package (3.13)",
+        "job_id": 91061048953,
+        "runner_name": "archived-runner-08",
+        "workflow": "strategy-audit-validation"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 124.0,
+        "job": "browser-e2e",
+        "job_id": 91061049005,
+        "runner_name": "archived-runner-03",
+        "workflow": "market-data-web-console-e2e"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 122.0,
+        "job": "Strategy Factory extended restart soak / Python 3.13",
+        "job_id": 91061049071,
+        "runner_name": "archived-runner-04",
+        "workflow": "strategy-factory-soak"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 111.0,
+        "job": "quality (3.13)",
+        "job_id": 91061084534,
+        "runner_name": "archived-runner-04",
+        "workflow": "breakout-return-hardening-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 88.0,
+        "job": "v0.6 executable acceptance / Python 3.12",
+        "job_id": 91061049251,
+        "runner_name": "archived-runner-03",
+        "workflow": "v0.6-executable-acceptance-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 88.0,
+        "job": "v0.6 executable acceptance / Python 3.13",
+        "job_id": 91061049192,
+        "runner_name": "archived-runner-05",
+        "workflow": "v0.6-executable-acceptance-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 85.0,
+        "job": "test (3.12)",
+        "job_id": 91061049310,
+        "runner_name": "archived-runner-05",
+        "workflow": "core-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 82.0,
+        "job": "test (3.13)",
+        "job_id": 91061049285,
+        "runner_name": "archived-runner-01",
+        "workflow": "core-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 81.0,
+        "job": "test (3.13)",
+        "job_id": 91061041500,
+        "runner_name": "archived-runner-04",
+        "workflow": "core-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 79.0,
+        "job": "quality-package (3.12)",
+        "job_id": 91061088885,
+        "runner_name": "archived-runner-01",
+        "workflow": "market-data-ingestion-ci"
+      },
+      {
+        "conclusion": "success",
+        "duration_seconds": 78.0,
+        "job": "quality-package (3.13)",
+        "job_id": 91061088842,
+        "runner_name": "archived-runner-02",
+        "workflow": "market-data-ingestion-ci"
+      }
+    ],
+    "top_workflows_by_wall_time": [
+      {
+        "artifact_bytes": 671476,
+        "conclusion": "success",
+        "duration_seconds": 901.0,
+        "job_count": 2,
+        "name": "wave-analysis-ci",
+        "run_id": 30600221919
+      },
+      {
+        "artifact_bytes": 1017215,
+        "conclusion": "success",
+        "duration_seconds": 830.0,
+        "job_count": 2,
+        "name": "liquidity-sweep-hardening-ci",
+        "run_id": 30600221947
+      },
+      {
+        "artifact_bytes": 980864,
+        "conclusion": "success",
+        "duration_seconds": 738.0,
+        "job_count": 2,
+        "name": "breakout-return-hardening-ci",
+        "run_id": 30600221981
+      },
+      {
+        "artifact_bytes": 2001674,
+        "conclusion": "success",
+        "duration_seconds": 725.0,
+        "job_count": 4,
+        "name": "market-data-ingestion-ci",
+        "run_id": 30600221864
+      },
+      {
+        "artifact_bytes": 393239,
+        "conclusion": "success",
+        "duration_seconds": 686.0,
+        "job_count": 2,
+        "name": "results-aggregator-fast",
+        "run_id": 30600222023
+      },
+      {
+        "artifact_bytes": 392534,
+        "conclusion": "success",
+        "duration_seconds": 641.0,
+        "job_count": 2,
+        "name": "paper-execution-ci",
+        "run_id": 30600221954
+      },
+      {
+        "artifact_bytes": 608,
+        "conclusion": "success",
+        "duration_seconds": 638.0,
+        "job_count": 2,
+        "name": "local-pretest-tooling-ci",
+        "run_id": 30600222002
+      },
+      {
+        "artifact_bytes": 0,
+        "conclusion": "success",
+        "duration_seconds": 627.0,
+        "job_count": 2,
+        "name": "market-data-external-corpus-ci",
+        "run_id": 30600222029
+      },
+      {
+        "artifact_bytes": 23300,
+        "conclusion": "success",
+        "duration_seconds": 622.0,
+        "job_count": 2,
+        "name": "backtest-engine-fast",
+        "run_id": 30600222035
+      },
+      {
+        "artifact_bytes": 50308,
+        "conclusion": "success",
+        "duration_seconds": 620.0,
+        "job_count": 2,
+        "name": "market-regime-fast-ci",
+        "run_id": 30600222005
+      },
+      {
+        "artifact_bytes": 938739,
+        "conclusion": "success",
+        "duration_seconds": 614.0,
+        "job_count": 2,
+        "name": "market-data-export-artifacts-ci",
+        "run_id": 30600221961
+      },
+      {
+        "artifact_bytes": 236398,
+        "conclusion": "success",
+        "duration_seconds": 581.0,
+        "job_count": 2,
+        "name": "protection-target-ci",
+        "run_id": 30600221974
+      },
+      {
+        "artifact_bytes": 1680,
+        "conclusion": "success",
+        "duration_seconds": 578.0,
+        "job_count": 2,
+        "name": "market-data-cli-parity-audit-ci",
+        "run_id": 30600221939
+      },
+      {
+        "artifact_bytes": 122061,
+        "conclusion": "success",
+        "duration_seconds": 574.0,
+        "job_count": 2,
+        "name": "fibonacci-module-ci",
+        "run_id": 30600221985
+      },
+      {
+        "artifact_bytes": 616006,
+        "conclusion": "success",
+        "duration_seconds": 551.0,
+        "job_count": 2,
+        "name": "core-ci",
+        "run_id": 30600221923
+      }
+    ],
+    "total_job_hours": 1.448056,
+    "total_job_seconds": 5213.0,
+    "unique_workflow_names": 45
+  },
+  "commands": [
+    {
+      "command": "python3 -m compileall -q src modules applications research plugins tests",
+      "cpu_percent": 156,
+      "filesystem_output_blocks": 2944,
+      "peak_rss_kib": 112808,
+      "status": "pass",
+      "wall_seconds": 0.72
+    },
+    {
+      "command": "PYTHONPATH=<project sources> python3 -m pytest -q tests/backtest_engine --ignore=tests/backtest_engine/test_registered_data.py",
+      "cpu_percent": 135,
+      "notes": "Registered-data test excluded because pyarrow was unavailable in the offline local environment; exact-base GitHub registered-data and Backtest workflows passed.",
+      "peak_rss_kib": 153420,
+      "status": "pass",
+      "wall_seconds": 3.29
+    },
+    {
+      "command": "PYTHONPATH=src python3 -m pytest -q tests/signal_bot --ignore=tests/signal_bot/test_property_based.py --ignore=tests/signal_bot/test_properties.py",
+      "cpu_percent": 86,
+      "notes": "Hypothesis-dependent property tests excluded because hypothesis was unavailable; authoritative CI passed.",
+      "peak_rss_kib": 197704,
+      "status": "pass",
+      "wall_seconds": 3.25
+    },
+    {
+      "bars_per_second": 2321.7,
+      "command": "python benchmarks/backtest_engine.py --bars 1000 --mode single",
+      "events": 1002,
+      "peak_rss_mib": 114.3,
+      "peak_tracemalloc_mib": 1.27,
+      "status": "pass",
+      "wall_seconds": 0.4307
+    },
+    {
+      "bars_per_second": 2329.5,
+      "command": "python benchmarks/backtest_engine.py --bars 5000 --mode single",
+      "events": 5002,
+      "peak_rss_mib": 125.6,
+      "peak_tracemalloc_mib": 5.85,
+      "status": "pass",
+      "wall_seconds": 2.1464
+    },
+    {
+      "bars_per_second": 2254.2,
+      "command": "python benchmarks/backtest_engine.py --bars 10000 --mode single",
+      "events": 10002,
+      "peak_rss_mib": 139.8,
+      "peak_tracemalloc_mib": 10.54,
+      "status": "pass",
+      "wall_seconds": 4.4362
+    },
+    {
+      "bars_per_second": 754.1,
+      "command": "python benchmarks/backtest_engine.py --bars 5000 --mode checkpoint",
+      "peak_rss_mib": 153.3,
+      "peak_tracemalloc_mib": 20.48,
+      "restart_verified": true,
+      "status": "pass",
+      "wall_seconds": 6.6305
+    },
+    {
+      "command": "python -m cProfile <5000-bar no-op BacktestEngine run>",
+      "function_calls": 4190000,
+      "hotspots": [
+        {
+          "cumulative_seconds": 5.174,
+          "name": "BacktestEngine._process_bar"
+        },
+        {
+          "cumulative_seconds": 1.802,
+          "name": "TimeframeStore.push"
+        },
+        {
+          "cumulative_seconds": 1.383,
+          "name": "BacktestEngine._append_equity"
+        },
+        {
+          "cumulative_seconds": 1.261,
+          "name": "Journal.record_equity"
+        },
+        {
+          "cumulative_seconds": 0.879,
+          "name": "Journal.emit_event"
+        },
+        {
+          "cumulative_seconds": 0.5,
+          "name": "deep_freeze"
+        }
+      ],
+      "status": "pass",
+      "wall_seconds": 5.854
+    },
+    {
+      "command": "full registered BTC backtest on audited base",
+      "peak_rss_mib": null,
+      "reason": "Known incident already exhausted a 16 GB Mac (~65.2 GB physical footprint and ~64.5 GB swap). Repetition before memory guards would risk host instability; Draft PR #287 owns remediation.",
+      "status": "not_repeated",
+      "wall_seconds": null
+    },
+    {
+      "command": "full repository pytest in one process",
+      "reason": "Duplicate test module basenames and unavailable optional pyarrow/hypothesis in offline container; repository CI intentionally runs component suites in isolated processes.",
+      "status": "not_authoritative",
+      "wall_seconds": null
+    },
+    {
+      "command": "editable install of all 21 packages",
+      "reason": "Offline build isolation could not obtain setuptools>=68; no-build-isolation environment lacked setuptools.build_meta. Exact-base GitHub clean-install/package jobs passed.",
+      "status": "blocked",
+      "wall_seconds": null
+    },
+    {
+      "command": "pip-audit against current online index",
+      "reason": "Local environment had no network. Exact-base security/SBOM workflows are the authoritative evidence; dependency vulnerability status can change and must be rechecked online.",
+      "status": "not_run",
+      "wall_seconds": null
+    }
+  ],
+  "dataset_summary": {
+    "base_5m_rows": 6693179,
+    "reported_5m_gap_events": 0,
+    "reported_gap_events_total": 0,
+    "rows_in_summary": 50,
+    "sha256": "a5f763fed5912cf0a988f50ac163d1b47f2506d46412aec120cd56a4eaf43893",
+    "source": "download_summary.csv supplied in project context",
+    "symbols": [
+      "ADAUSDT",
+      "AVAXUSDT",
+      "BNBUSDT",
+      "BTCUSDT",
+      "DOGEUSDT",
+      "ETHUSDT",
+      "LINKUSDT",
+      "SOLUSDT",
+      "TRXUSDT",
+      "XRPUSDT"
+    ],
+    "timeframes": [
+      "10m",
+      "15m",
+      "1h",
+      "4h",
+      "5m"
+    ],
+    "total_market_rows": 12968018
+  },
+  "default_branch": "main",
+  "draft_pr": 288,
+  "environment": {
+    "authoritative_ci_python_versions": [
+      "3.12",
+      "3.13"
+    ],
+    "kernel": "6.12.13",
+    "network_for_local_python": "unavailable",
+    "platform": "Linux x86_64 container",
+    "python_version": "3.13.5"
+  },
+  "historical_component_benchmarks": {
+    "entry_model": {
+      "plans_250000_seconds": 40.81,
+      "plans_50000_seconds": 8.04,
+      "plans_per_second_approx": 6220,
+      "rss_mib_approx": 67.1,
+      "tracemalloc_peak_mib": 17.1
+    },
+    "fvg": {
+      "calls_per_second_approx": 11000,
+      "max_calls": 250000,
+      "rolling_tracemalloc_kib_approx": 7.7
+    },
+    "market_data_btcusdt_5m": {
+      "partitions": 83,
+      "phase_seconds": {
+        "checksum_reread": 218.56,
+        "publish": 210.96,
+        "source_decode_spool": 226.5,
+        "validation": 444.89
+      },
+      "rows": 721597,
+      "rows_per_second": 655.263,
+      "sampled_peak_rss_mib": 297.04,
+      "source_bytes": 34020301,
+      "wall_seconds": 1101.233
+    },
+    "market_regime": {
+      "calls_per_second_approx": 11061,
+      "checkpoint_bytes": 3438,
+      "tracemalloc_peak_kib_approx": 62.9
+    },
+    "session_range": {
+      "checkpoint_bytes_approx": 1200,
+      "events_per_second_range": [
+        42000,
+        45000
+      ],
+      "max_events": 1000000
+    },
+    "wave_analysis": {
+      "bars_100000_seconds": 24.76,
+      "bars_per_second_approx": 4039,
+      "bounded_state_kib_approx": 316,
+      "million_bar_chunked_rate_approx": 4025
+    }
+  },
+  "null_measurements": {
+    "full_btc_after_fix": "Pending PR #287 scale ladder and full registered BTC validation.",
+    "multi_symbol_trading_runner_soak": "No production-like staging workload available.",
+    "paper_execution_high_volume_slo": "No production-like order/fill corpus available.",
+    "research_runner_process_serialization": "No dedicated measured benchmark found.",
+    "results_aggregator_large_registry_curve": "No dedicated measured benchmark found."
+  },
+  "repository": "MishkaStrategy/Module-Strategy",
+  "schema_version": "1.0",
+  "security_static_scan": {
+    "eval_exec_os_system_hits": 0,
+    "limitations": "Static patterns are not a substitute for online dependency and secret scanners.",
+    "obvious_literal_secret_hits": 0,
+    "pickle_load_hits": 0,
+    "subprocess_shell_true_hits": 0,
+    "unsafe_yaml_load_hits": 0
+  },
+  "source_inventory": {
+    "benchmark_related_files": 51,
+    "production_ast": {
+      "any_references": 1137,
+      "classes": 1267,
+      "functions": 4997,
+      "module_scope_mutable_literals": 127,
+      "python_files": 561,
+      "syntax_errors": 0
+    },
+    "python_files": 1135,
+    "python_loc": 257949,
+    "separately_packaged_projects": 21,
+    "test_files": 549,
+    "tracked_files": 1918,
+    "workflow_files_on_base": 59
+  }
+}

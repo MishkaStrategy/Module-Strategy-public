@@ -1,0 +1,90 @@
+{
+  "canonical_composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "contracts": [
+    {
+      "allowed_timeframes": [
+        "15m",
+        "4h",
+        "1d"
+      ],
+      "contract_complete": false,
+      "missing": [
+        "stable runtime package and approved semantic version",
+        "trusted executable setup adapter",
+        "repository-resident 283-trade control ledger",
+        "checkpoint and restart implementation binding",
+        "approved cross-component arbitration"
+      ],
+      "module_id": "fvg_rt_final_15m",
+      "module_version": "1.0.0-recovered-gap",
+      "recovery_status": "RECOVERED_SPEC_NOT_IMPLEMENTED",
+      "required_parameters": [
+        "decision_queue_id",
+        "expected_control_trades",
+        "recovery_asset",
+        "recovery_status"
+      ],
+      "source_commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+      "source_path": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json"
+    },
+    {
+      "allowed_timeframes": [
+        "1h",
+        "4h"
+      ],
+      "contract_complete": false,
+      "missing": [
+        "remaining FVG equality and short-location conventions",
+        "EMA50 falling lookback and first execution bar",
+        "intrabar and no-progress priority",
+        "stable runtime package and approved semantic version",
+        "trusted executable setup adapter",
+        "repository-resident 91-trade control ledger",
+        "checkpoint and restart implementation binding",
+        "approved cross-component arbitration"
+      ],
+      "module_id": "frozen_1h_short",
+      "module_version": "1.0.0-recovered-gap",
+      "recovery_status": "RECOVERED_PARTIAL",
+      "required_parameters": [
+        "decision_queue_id",
+        "expected_control_trades",
+        "recovery_asset",
+        "recovery_status"
+      ],
+      "source_commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+      "source_path": "research/strategy_audit_validation/compositions/frozen-1h-short.recovered-gap.json"
+    },
+    {
+      "allowed_timeframes": [
+        "4h"
+      ],
+      "contract_complete": false,
+      "missing": [
+        "complete authoritative signal and execution specification",
+        "stable runtime package and approved semantic version",
+        "trusted executable setup adapter",
+        "repository-resident 21-trade control ledger",
+        "checkpoint and restart implementation binding",
+        "approved cross-component arbitration"
+      ],
+      "module_id": "frozen_4h_short",
+      "module_version": "missing-contract",
+      "recovery_status": "MISSING_AUTHORITATIVE_CONTRACT",
+      "required_parameters": [
+        "decision_queue_id",
+        "expected_control_trades",
+        "gap_asset",
+        "recovery_status"
+      ],
+      "source_commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+      "source_path": "research/strategy_audit_validation/compositions/frozen-4h-short.gap.json"
+    }
+  ],
+  "decision_queue": "research/strategy_audit_validation/compositions/canonical-strategy-decision-queue-v1.json",
+  "inspected_commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+  "registry_id": "canonical-strategy-contract-recovery-v2",
+  "repository": "MishkaStrategy/Module-Strategy",
+  "schema_version": 1,
+  "status": "PARTIAL_RECOVERY_FAIL_CLOSED"
+}

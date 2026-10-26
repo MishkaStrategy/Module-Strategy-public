@@ -1,0 +1,367 @@
+{
+  "exchange_id": "binance",
+  "files": [
+    {
+      "byte_size": 34020301,
+      "drive_file_id": "1yfVgqpzxaev0cyOtxW8obdx57MlSJNR6",
+      "filename": "BTCUSDT_5m.parquet",
+      "symbol": "BTCUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 19862961,
+      "drive_file_id": "1I2SCZiSniyZyLSFkU5KW8HCqHwVfjORo",
+      "filename": "BTCUSDT_10m.parquet",
+      "symbol": "BTCUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 14746795,
+      "drive_file_id": "1fd-Kwzh9XWkG2dxVyzvZp9s8OxTYsFvn",
+      "filename": "BTCUSDT_15m.parquet",
+      "symbol": "BTCUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 4660189,
+      "drive_file_id": "18k4utKCm1yABDRvDz3Oo93niKcI7ru0i",
+      "filename": "BTCUSDT_1h.parquet",
+      "symbol": "BTCUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 1059387,
+      "drive_file_id": "1goH8ED_pysHoH0OMdJAqfUmIZI2zG51J",
+      "filename": "BTCUSDT_4h.parquet",
+      "symbol": "BTCUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 33604849,
+      "drive_file_id": "1BOgTcBLOiZitmqaNHpHrYP8aHKVbSwaf",
+      "filename": "ETHUSDT_5m.parquet",
+      "symbol": "ETHUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 19291973,
+      "drive_file_id": "18DVO32WlVY8GMbh7-DtpH1OTS3I4ILDw",
+      "filename": "ETHUSDT_10m.parquet",
+      "symbol": "ETHUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 14186550,
+      "drive_file_id": "1aDryUZt-QvOkQzW4DS6-zX6UAbfkp9Ww",
+      "filename": "ETHUSDT_15m.parquet",
+      "symbol": "ETHUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 4341000,
+      "drive_file_id": "1sJ7oykh_gczsZvem6wb6IIbi0A7vk51L",
+      "filename": "ETHUSDT_1h.parquet",
+      "symbol": "ETHUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 1029771,
+      "drive_file_id": "1Mg7IfB8SlDq_p96x2CuUFcH_BQi4lqC1",
+      "filename": "ETHUSDT_4h.parquet",
+      "symbol": "ETHUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 29319232,
+      "drive_file_id": "1p9TVuvAocTdtArDxNIcra89NMQgKAV9q",
+      "filename": "BNBUSDT_5m.parquet",
+      "symbol": "BNBUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 16609403,
+      "drive_file_id": "1rbj07DH7nSsWahlZ9h4SUEcNXtZvhx13",
+      "filename": "BNBUSDT_10m.parquet",
+      "symbol": "BNBUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 12210489,
+      "drive_file_id": "1Y0F4_cvLl9LsbzjYyiqf5k_7OurNHz5_",
+      "filename": "BNBUSDT_15m.parquet",
+      "symbol": "BNBUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3868656,
+      "drive_file_id": "1i9nlijObWd4uBAQDTdKUrMMxBnLjubev",
+      "filename": "BNBUSDT_1h.parquet",
+      "symbol": "BNBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 926087,
+      "drive_file_id": "1oSpmkJLkFL51JZgR80yYePzM8k5qYo2U",
+      "filename": "BNBUSDT_4h.parquet",
+      "symbol": "BNBUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 28934504,
+      "drive_file_id": "1q0nAXKjnx5isty4bfof70iV6grqBcgaK",
+      "filename": "XRPUSDT_5m.parquet",
+      "symbol": "XRPUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 16240390,
+      "drive_file_id": "1wDd0MihvmqExcgoq78wbnGW59PxcTVHL",
+      "filename": "XRPUSDT_10m.parquet",
+      "symbol": "XRPUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 11814694,
+      "drive_file_id": "18WTxohc1PECK6AQ9O0QkB_KOZkHibPCF",
+      "filename": "XRPUSDT_15m.parquet",
+      "symbol": "XRPUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3659616,
+      "drive_file_id": "1pkGm1F1BofMk7OIiNj9Mc-raDkuv83yy",
+      "filename": "XRPUSDT_1h.parquet",
+      "symbol": "XRPUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 942204,
+      "drive_file_id": "1EhwCBKAkH49wxp5z7psAdLOk2I0K5wpR",
+      "filename": "XRPUSDT_4h.parquet",
+      "symbol": "XRPUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 26514700,
+      "drive_file_id": "1M7h0V-FgWMdkWlsI-3TdIqWEnhujQgoi",
+      "filename": "SOLUSDT_5m.parquet",
+      "symbol": "SOLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 15160501,
+      "drive_file_id": "13nuX_-ceVrL8g72N31NlAQfiquJ7or_9",
+      "filename": "SOLUSDT_10m.parquet",
+      "symbol": "SOLUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 11154084,
+      "drive_file_id": "10q8OBPFkSbIqOC-K53e61prHXPCGacpb",
+      "filename": "SOLUSDT_15m.parquet",
+      "symbol": "SOLUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3439993,
+      "drive_file_id": "1hQgp2H54QW98BJ_onyAggznVGaNAnpAx",
+      "filename": "SOLUSDT_1h.parquet",
+      "symbol": "SOLUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 843007,
+      "drive_file_id": "1QgNNMAiI_JUwKzuD0c56-y_bZx0BJRql",
+      "filename": "SOLUSDT_4h.parquet",
+      "symbol": "SOLUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 26490179,
+      "drive_file_id": "1dZdFT6krFFifQJip363XcsaHDmY_OmQI",
+      "filename": "DOGEUSDT_5m.parquet",
+      "symbol": "DOGEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 14970874,
+      "drive_file_id": "1-yaUwp_6Ysih9urdDUMIj5iSG9sGp_8e",
+      "filename": "DOGEUSDT_10m.parquet",
+      "symbol": "DOGEUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 11037606,
+      "drive_file_id": "15E-PuylRpGVQzvmNgvlWf1QeFKDNNcNZ",
+      "filename": "DOGEUSDT_15m.parquet",
+      "symbol": "DOGEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3433730,
+      "drive_file_id": "1wo2W--zeWgS5Zc48RaOL5zn3NaXZeNoi",
+      "filename": "DOGEUSDT_1h.parquet",
+      "symbol": "DOGEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 950050,
+      "drive_file_id": "1tSXszA5-QYdE4muMKCbyY9DO7e8vwFeI",
+      "filename": "DOGEUSDT_4h.parquet",
+      "symbol": "DOGEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 27336556,
+      "drive_file_id": "1hWnSppzKybKjy3tXLIwWeN20AQJLbeI3",
+      "filename": "ADAUSDT_5m.parquet",
+      "symbol": "ADAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 15195998,
+      "drive_file_id": "1lQpqGpk9pzr4mXq5tuScb2nThfORoYFg",
+      "filename": "ADAUSDT_10m.parquet",
+      "symbol": "ADAUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 11099774,
+      "drive_file_id": "1LiElCqYhutmvmCUjc4QgdHdXyIgCziaL",
+      "filename": "ADAUSDT_15m.parquet",
+      "symbol": "ADAUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3438251,
+      "drive_file_id": "1rsHbw0i0rSpt7ORb5yxhROX7W8bmbb__",
+      "filename": "ADAUSDT_1h.parquet",
+      "symbol": "ADAUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 896164,
+      "drive_file_id": "1wGEK-cz98VK-bvU2YBSdUQBUFA8fGwwN",
+      "filename": "ADAUSDT_4h.parquet",
+      "symbol": "ADAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 26986530,
+      "drive_file_id": "1XsqK3wPasSLYBj4QqF4UK9E9dyMRpXmJ",
+      "filename": "TRXUSDT_5m.parquet",
+      "symbol": "TRXUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 14915112,
+      "drive_file_id": "1gTIAEedEt-H_EsRkXhUsNHQQM1EOe0xY",
+      "filename": "TRXUSDT_10m.parquet",
+      "symbol": "TRXUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 10871369,
+      "drive_file_id": "1ymqECjht6f4dHrdf4PzWivywr8AdUlUB",
+      "filename": "TRXUSDT_15m.parquet",
+      "symbol": "TRXUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3474511,
+      "drive_file_id": "1-nkPZY-m9kAVdwRdx9Y5G2FunKVxvdxf",
+      "filename": "TRXUSDT_1h.parquet",
+      "symbol": "TRXUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 967339,
+      "drive_file_id": "14XX-yOI7FlOVg7THptkeUOKrQLQNW3iu",
+      "filename": "TRXUSDT_4h.parquet",
+      "symbol": "TRXUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 29020872,
+      "drive_file_id": "1J6TFraVBwTdgft3qQAk8p0wB--OA8V3r",
+      "filename": "LINKUSDT_5m.parquet",
+      "symbol": "LINKUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 16470172,
+      "drive_file_id": "1LTe52DdDwXYU6R_NXOultSL_Fem9YbCp",
+      "filename": "LINKUSDT_10m.parquet",
+      "symbol": "LINKUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 12100812,
+      "drive_file_id": "1rlZFl1i2HKp_VZbWKJuyp3DOKoyZx7_n",
+      "filename": "LINKUSDT_15m.parquet",
+      "symbol": "LINKUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3763448,
+      "drive_file_id": "1gBcF2pGVMpovdhElfcRyQ8T8MHw2NvAz",
+      "filename": "LINKUSDT_1h.parquet",
+      "symbol": "LINKUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 960920,
+      "drive_file_id": "1Y9ck15P0huiiB0bg33KyZP2GCxBZNZOL",
+      "filename": "LINKUSDT_4h.parquet",
+      "symbol": "LINKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "byte_size": 24466441,
+      "drive_file_id": "1eCV4ozDUXNm5r8opxnqaO1UNX0PZAmQ2",
+      "filename": "AVAXUSDT_5m.parquet",
+      "symbol": "AVAXUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "byte_size": 13925979,
+      "drive_file_id": "1nHnMN0nzBp839ZDkS4Y-BWvjgWqP6Hy7",
+      "filename": "AVAXUSDT_10m.parquet",
+      "symbol": "AVAXUSDT",
+      "timeframe": "10m"
+    },
+    {
+      "byte_size": 10251952,
+      "drive_file_id": "1yNYfVkp6uwUwqohwd8Vnhrd5n7o9eR-o",
+      "filename": "AVAXUSDT_15m.parquet",
+      "symbol": "AVAXUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "byte_size": 3132700,
+      "drive_file_id": "1HeXF1GZzfuhJBhyuXblg1tzjtFAF0M8h",
+      "filename": "AVAXUSDT_1h.parquet",
+      "symbol": "AVAXUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "byte_size": 796962,
+      "drive_file_id": "14cZ7tFXFb_sSpJv8uCIaCmfSt1cEAwOH",
+      "filename": "AVAXUSDT_4h.parquet",
+      "symbol": "AVAXUSDT",
+      "timeframe": "4h"
+    }
+  ],
+  "folder_id": "1mm_1z1alqfTUF_8stXoaccCQergs6Sk_",
+  "market_type": "usdt_m_perpetual",
+  "required_timeframes": [
+    "5m",
+    "10m",
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "schema_version": 1,
+  "summary_file_id": "1nIsjXMI64hPLVu2SpoLbfE9BaRVU_WBs",
+  "summary_sha256": "a5f763fed5912cf0a988f50ac163d1b47f2506d46412aec120cd56a4eaf43893"
+}

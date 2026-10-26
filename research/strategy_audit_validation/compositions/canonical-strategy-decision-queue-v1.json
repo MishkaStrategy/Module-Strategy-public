@@ -1,0 +1,173 @@
+{
+  "all_decisions_resolved": false,
+  "canonical_transition_allowed": false,
+  "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "decisions": [
+    {
+      "blocks": [
+        "Frozen 1H contract_complete",
+        "Frozen 1H executable adapter",
+        "91-trade control reproduction"
+      ],
+      "decision_id": "STRATEGY-312-01",
+      "required_fields": [
+        "three-candle FVG geometry and equality convention",
+        "short-location formula and zero-range behavior",
+        "EMA50 falling lookback convention",
+        "first eligible execution bar",
+        "fill penetration and same-bar convention",
+        "no-progress MFE path and event priority",
+        "cost and sizing inheritance",
+        "checkpoint and restart contract"
+      ],
+      "status": "OPEN",
+      "subject": "Approve remaining Frozen 1H conventions"
+    },
+    {
+      "blocks": [
+        "Frozen 4H contract_complete",
+        "Frozen 4H executable adapter",
+        "21-trade control reproduction",
+        "canonical composition"
+      ],
+      "decision_id": "STRATEGY-312-02",
+      "required_fields": [
+        "exact FVG/setup definition",
+        "all filter names formulas thresholds units and equality conventions",
+        "completed-candle and warmup rules",
+        "entry formula and first eligible execution bar",
+        "TTL cancellation and active-order behavior",
+        "stop formula buffer and maximum distance",
+        "target R and fee treatment",
+        "maximum hold",
+        "no-progress timing MFE formula and event priority",
+        "cost and sizing inheritance or overrides",
+        "checkpoint and restart contract"
+      ],
+      "status": "OPEN",
+      "subject": "Provide complete Frozen 4H Short contract"
+    },
+    {
+      "blocks": [
+        "deterministic combined execution",
+        "composition candidate hash",
+        "395-trade control reproduction"
+      ],
+      "decision_id": "STRATEGY-312-03",
+      "required_fields": [
+        "priority for simultaneous Final 15m Frozen 1H and Frozen 4H signals",
+        "whether a passed signal blocks lower-priority signals before fill",
+        "one-order and one-position scope across timeframes",
+        "same-timestamp ordering key",
+        "cancellation and gap invalidation ordering"
+      ],
+      "status": "OPEN",
+      "subject": "Approve cross-component arbitration and blocking"
+    },
+    {
+      "blocks": [
+        "trusted Strategy Factory registration",
+        "Backtest and Research execution",
+        "checkpoint compatibility"
+      ],
+      "decision_id": "STRATEGY-312-04",
+      "required_fields": [
+        "stable module IDs",
+        "semantic versions",
+        "runtime package ownership",
+        "setup adapter identity",
+        "feature input identities",
+        "executable plan output contract",
+        "state schema versions"
+      ],
+      "status": "OPEN",
+      "subject": "Approve runtime identities and adapters"
+    },
+    {
+      "blocks": [
+        "component reproduction",
+        "combined reproduction",
+        "semantic parity proof"
+      ],
+      "decision_id": "STRATEGY-312-05",
+      "progress": {
+        "attestation_canonical_sha256": "e3cc285ba9fe4e7a50879ae52660f380d7177bb35a20f13c264f993cb6975a91",
+        "attestation_id": "btcusdt-drive-history-20260719-v1",
+        "attestation_path": "research/strategy_audit_validation/evidence/btcusdt-drive-dataset-attestation-v1.json",
+        "corpus_hash": "6d32c075f5adf3623679edd49c20ee8ee8758d3ea0e75b7f06613593e065c44e",
+        "dataset_bytes_attested": true,
+        "dataset_registration": {
+          "accepted_artifact_id": 8777966748,
+          "accepted_head_sha": "656c3439edc1e17a6dfeab46cb68246a3e4cb4f8",
+          "accepted_run_id": 30589784503,
+          "backtest_smoke_passed": true,
+          "dataset_hash": "49ee948c7c22dc3c552bf6a96d2fdce9c5bba97662a694ae98ab85fc521c04f5",
+          "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+          "dataset_version": 1,
+          "evidence_canonical_sha256": "016e397c3067777a927cdd012e6fc12bfa1056c81504d4c2653d9a6e58a3c573",
+          "evidence_id": "btcusdt-persistent-registration-acceptance-v1",
+          "evidence_path": "research/strategy_audit_validation/evidence/btcusdt-persistent-registration-acceptance-v1.json",
+          "instrument_id": "binance:usdt_m_perpetual:btcusdt",
+          "persistent_registry_instance_retained": false,
+          "registration_identity_proven": true,
+          "validation_status": "VALID"
+        },
+        "derived_timeframes_match_5m": true,
+        "market_provenance": {
+          "api_endpoint_uri_proven": false,
+          "repository_index_blob_oid": "4a79dc860d1a582cfc3a2e54847467b9b02cf327",
+          "repository_market_type": "usdt_m_perpetual",
+          "repository_market_type_declared": true
+        },
+        "raw_file_sha256": {
+          "10m": "570cb34a910ae36d7cf74d2a68fb93048f2c4f3e86abd262f298e9a8919cdef3",
+          "15m": "05d8dbe7c8f71383171dd01a635f8c0cfad8e498d2043f5825715a3600fa116f",
+          "1h": "ed51fd133eaf7d318959dcd21de68c67c02901ab911c02077a30c913d7bbc067",
+          "4h": "1fdfd3f4df53f03ffbed0c833f47ed3f5902ec9e5ea3c2274aceb96e7d45135f",
+          "5m": "2b8a20ef09e1c292abbbee4a6963a1cedb7904cfc4340c9de72d0d2cd0b87ed1"
+        },
+        "row_counts": {
+          "10m": 360798,
+          "15m": 240532,
+          "1h": 60133,
+          "4h": 15032,
+          "5m": 721597
+        },
+        "status": "DATASET_ATTESTED_AND_REGISTRATION_ACCEPTED"
+      },
+      "required_fields": [
+        "283-trade Final 15m ledger and SHA-256",
+        "91-trade Frozen 1H ledger and SHA-256",
+        "21-trade Frozen 4H ledger and SHA-256",
+        "395-trade combined ledger and SHA-256",
+        "authoritative originating API endpoint URI or equivalent immutable source lineage",
+        "expected signal counts before portfolio competition",
+        "execution-contract SHA-256 and expected fees funding slippage and final equity",
+        "combined semantic digest and exact generating commit"
+      ],
+      "status": "OPEN",
+      "subject": "Provide exact component and combined control evidence"
+    },
+    {
+      "blocks": [
+        "Final 15m stable version",
+        "governance approval",
+        "canonical composition candidate"
+      ],
+      "decision_id": "STRATEGY-312-06",
+      "required_fields": [
+        "approval that impulse_efficiency >= 0.45 supersedes v7",
+        "approval that Long uses completed 4h close above 4h EMA200",
+        "approval that Shorts use completed 1d close below 1d EMA200",
+        "stable Final 15m version identifier"
+      ],
+      "status": "OPEN",
+      "subject": "Version and approve Final 15m quality/regime supersession"
+    }
+  ],
+  "issue": 312,
+  "pr": 316,
+  "recovery_base_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+  "schema_version": 1,
+  "status": "OWNER_DECISIONS_REQUIRED"
+}

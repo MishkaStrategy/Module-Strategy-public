@@ -1,0 +1,123 @@
+{
+  "environment": {
+    "baseline_version": "0.1.0",
+    "candidate_version": "0.2.0",
+    "code_commit": "eb17a942358bfa3176d6907f39b083b288a2b3eb",
+    "core_version": "0.4.0",
+    "python": "3.13.5"
+  },
+  "extended": {
+    "checkpoint_size_bytes": 1466,
+    "events": 250000,
+    "maximum_seconds": 5.986392865001108,
+    "median_seconds": 5.6850154740004655,
+    "minimum_seconds": 5.524195101999794,
+    "peak_memory_bytes": 0,
+    "restore_median_seconds": 0.0001449209994461853,
+    "runs": 3,
+    "throughput_events_per_second": 43975.2540944411
+  },
+  "interleaved_baseline_comparison": {
+    "baseline_10000": {
+      "checkpoint": 1027,
+      "maximum": 0.2627487400004611,
+      "median": 0.24707176799984154,
+      "minimum": 0.2354163680001875,
+      "restore_median": 5.6704999224166386e-05,
+      "runs": 5,
+      "throughput": 40474.06986623584
+    },
+    "baseline_50000": {
+      "checkpoint": 1040,
+      "maximum": 1.258077869999397,
+      "median": 1.222997652000231,
+      "minimum": 1.2134081800004424,
+      "restore_median": 7.368700062215794e-05,
+      "runs": 5,
+      "throughput": 40883.15289749269
+    },
+    "candidate_10000": {
+      "checkpoint": 1143,
+      "maximum": 0.26200697900003433,
+      "median": 0.23715679900033138,
+      "minimum": 0.2325117489999684,
+      "restore_median": 0.00014371199995366624,
+      "runs": 5,
+      "throughput": 42166.1957074485
+    },
+    "candidate_50000": {
+      "checkpoint": 1156,
+      "maximum": 1.188433975999942,
+      "median": 1.1718786499995986,
+      "minimum": 1.1343932649997441,
+      "restore_median": 0.00011094000001321547,
+      "runs": 5,
+      "throughput": 42666.53377465075
+    },
+    "change_10000_percent": 4.180765232666328,
+    "change_50000_percent": 4.362141250772833
+  },
+  "memory_comparison": {
+    "baseline": {
+      "elapsed_median_seconds": 1.1853506110001035,
+      "peak_maximum_bytes": 65932,
+      "peak_median_bytes": 62927,
+      "peak_minimum_bytes": 61527,
+      "runs": 5
+    },
+    "candidate": {
+      "elapsed_median_seconds": 1.1695131520009454,
+      "peak_maximum_bytes": 69906,
+      "peak_median_bytes": 63276,
+      "peak_minimum_bytes": 61111,
+      "runs": 5
+    }
+  },
+  "method": "completed 5m BTCUSDT candles; UTC 00:00-04:00 session; short/standard five runs; extended three runs; stress one isolated run",
+  "standard": [
+    {
+      "checkpoint_size_bytes": 1144,
+      "events": 1000,
+      "maximum_seconds": 0.024550422000174876,
+      "median_seconds": 0.023142381998695782,
+      "minimum_seconds": 0.02289281399862375,
+      "peak_memory_bytes": 0,
+      "restore_median_seconds": 7.609400017827284e-05,
+      "runs": 5,
+      "throughput_events_per_second": 43210.76369996642
+    },
+    {
+      "checkpoint_size_bytes": 1145,
+      "events": 10000,
+      "maximum_seconds": 0.2237716409999848,
+      "median_seconds": 0.22196468000038294,
+      "minimum_seconds": 0.21749148200069612,
+      "peak_memory_bytes": 14054,
+      "restore_median_seconds": 7.466100032615941e-05,
+      "runs": 5,
+      "throughput_events_per_second": 45052.212811438054
+    },
+    {
+      "checkpoint_size_bytes": 1158,
+      "events": 50000,
+      "maximum_seconds": 1.1270083310009795,
+      "median_seconds": 1.1030755470001168,
+      "minimum_seconds": 1.0901050510001369,
+      "peak_memory_bytes": 0,
+      "restore_median_seconds": 8.421299935434945e-05,
+      "runs": 5,
+      "throughput_events_per_second": 45327.81107874084
+    }
+  ],
+  "stress": {
+    "checkpoint_size_bytes": 1157,
+    "events": 1000000,
+    "maximum_seconds": 23.69570456099973,
+    "median_seconds": 23.69570456099973,
+    "minimum_seconds": 23.69570456099973,
+    "peak_memory_bytes": 0,
+    "restore_median_seconds": 0.00010875799853238277,
+    "runs": 1,
+    "throughput_events_per_second": 42201.741561459174
+  }
+}

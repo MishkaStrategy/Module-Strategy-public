@@ -1,0 +1,68 @@
+{
+  "$id": "urn:modular-results-registry:audit-log-event:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor": {
+      "type": "string"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "entity_id": {
+      "type": "string"
+    },
+    "entity_type": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "new_state": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "payload_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "previous_state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason_code": {
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "sequence": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "timestamp_utc": {
+      "format": "date-time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sequence",
+    "event_id",
+    "timestamp_utc",
+    "actor",
+    "operation",
+    "entity_type",
+    "entity_id",
+    "new_state",
+    "reason_code",
+    "correlation_id",
+    "payload_hash",
+    "revision"
+  ],
+  "type": "object"
+}

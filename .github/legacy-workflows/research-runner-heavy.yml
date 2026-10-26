@@ -1,0 +1,320 @@
+name: research-runner-heavy
+
+on:
+  workflow_call:
+    inputs:
+      scale:
+        description: Stress scale multiplier
+        required: false
+        type: string
+        default: "5"
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Stress scale multiplier
+        required: false
+        default: "5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-runner-heavy-${{ github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.event.label.name || github.event.action || 'dispatch' }}
+  cancel-in-progress: true
+
+jobs:
+  stress:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 360
+    env:
+      RESEARCH_RUNNER_STRESS_SCALE: ${{ inputs.scale || '5' }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      EVIDENCE_DIR: reports/research-runner-heavy
+    defaults:
+      run:
+        working-directory: research-runner-heavy-${{ github.run_id }}
+
+    steps:
+      - name: Checkout Release evidence publisher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          sparse-checkout: .github/actions/publish-release-evidence
+          persist-credentials: false
+          show-progress: false
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: research-runner-heavy-${{ github.run_id }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: "3.12"
+          activate-environment: true
+          enable-cache: false
+          working-directory: research-runner-heavy-${{ github.run_id }}
+
+      - name: Prepare exact Research Runner Heavy evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          rm -rf "$EVIDENCE_DIR"
+          mkdir -p "$EVIDENCE_DIR"
+          printf '%s\n' "$EXPECTED_HEAD" > "$EVIDENCE_DIR/commit-sha.txt"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$EVIDENCE_DIR/workflow-run-id.txt"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          payload = {
+              "head": os.environ["EXPECTED_HEAD"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "scale": int(os.environ["RESEARCH_RUNNER_STRESS_SCALE"]),
+          }
+          (evidence / "research-runner-stress-environment.json").write_text(
+              json.dumps(payload, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Install Research Runner stress environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./research/experiment_runner[dev]"
+          uv pip check
+
+      - name: Run deterministic high-volume and recovery checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q research/experiment_runner/stress_tests \
+            --junitxml="$EVIDENCE_DIR/research-runner-stress.xml" \
+            2>&1 | tee "$EVIDENCE_DIR/research-runner-stress.log"
+
+      - name: Sanitize and verify Research Runner Heavy evidence privacy
+        id: evidence_privacy
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/sanitize_ci_evidence.py "$EVIDENCE_DIR"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          expected_files = {
+              "commit-sha.txt",
+              "privacy-status.json",
+              "research-runner-stress-environment.json",
+              "research-runner-stress.log",
+              "research-runner-stress.xml",
+              "workflow-run-id.txt",
+          }
+          actual_files = {
+              path.relative_to(evidence).as_posix()
+              for path in evidence.rglob("*")
+              if path.is_file()
+          }
+          if actual_files != expected_files:
+              raise SystemExit(
+                  "Research Runner Heavy evidence scope mismatch: "
+                  f"missing={sorted(expected_files - actual_files)}, "
+                  f"extra={sorted(actual_files - expected_files)}"
+              )
+
+          privacy = json.loads(
+              (evidence / "privacy-status.json").read_text(encoding="utf-8")
+          )
+          if privacy.get("status") != "PASS":
+              raise SystemExit("Research Runner Heavy privacy status is not PASS")
+          if privacy.get("credential_findings") != 0:
+              raise SystemExit("Research Runner Heavy evidence contains credentials")
+
+          expected_head = os.environ["EXPECTED_HEAD"]
+          expected_run = os.environ["GITHUB_RUN_ID"]
+          if (evidence / "commit-sha.txt").read_text(
+              encoding="utf-8"
+          ).strip() != expected_head:
+              raise SystemExit("Research Runner Heavy evidence SHA mismatch")
+          if (evidence / "workflow-run-id.txt").read_text(
+              encoding="utf-8"
+          ).strip() != expected_run:
+              raise SystemExit("Research Runner Heavy evidence run mismatch")
+
+          environment = json.loads(
+              (evidence / "research-runner-stress-environment.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          expected_environment = {
+              "head": expected_head,
+              "run_id": expected_run,
+              "scale": int(os.environ["RESEARCH_RUNNER_STRESS_SCALE"]),
+          }
+          if environment != expected_environment:
+              raise SystemExit(
+                  f"Research Runner Heavy environment mismatch: {environment!r}"
+              )
+
+          root = ET.parse(evidence / "research-runner-stress.xml").getroot()
+          suites = [root] if root.tag == "testsuite" else root.findall(".//testsuite")
+          if not suites:
+              raise SystemExit("Research Runner Heavy JUnit contains no suites")
+          hostnames = {suite.attrib.get("hostname") for suite in suites}
+          if hostnames != {"redacted-runner"}:
+              raise SystemExit(
+                  f"unsafe Research Runner Heavy hostnames: {sorted(hostnames)!r}"
+              )
+          for suite in suites:
+              if int(suite.attrib.get("failures", "0")) != 0:
+                  raise SystemExit("Research Runner Heavy JUnit reports failures")
+              if int(suite.attrib.get("errors", "0")) != 0:
+                  raise SystemExit("Research Runner Heavy JUnit reports errors")
+              if int(suite.attrib.get("tests", "0")) <= 0:
+                  raise SystemExit("Research Runner Heavy JUnit reports no tests")
+
+          dynamic_markers = {
+              value.encode("utf-8")
+              for value in (
+                  os.environ.get("RUNNER_NAME"),
+                  os.environ.get("HOSTNAME"),
+                  os.environ.get("GITHUB_WORKSPACE"),
+                  os.environ.get("RUNNER_TEMP"),
+                  os.environ.get("HOME"),
+              )
+              if value and len(value) >= 4
+          }
+          forbidden = dynamic_markers | {
+              b"/Users/",
+              b"/home/",
+              b"/tmp/",
+              b"/private/var/",
+              b"/var/folders/",
+              b"file://",
+              b"GitHubActionsRunners",
+              b"_work/Module-Strategy",
+          }
+          hits: list[str] = []
+          for path in sorted(evidence.rglob("*")):
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              for marker in forbidden:
+                  if marker in data:
+                      hits.append(
+                          f"{path}: {marker.decode('utf-8', errors='replace')}"
+                      )
+          if hits:
+              raise SystemExit(
+                  "private Research Runner Heavy evidence markers found:\n"
+                  + "\n".join(hits)
+              )
+          PY
+
+      - name: Record closed Research Runner Heavy evidence inventory
+        id: evidence_inventory
+        if: always() && steps.evidence_privacy.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import os
+          import stat
+          from pathlib import Path, PurePosixPath
+
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          inventory = evidence / "SHA256SUMS.txt"
+          inventory.unlink(missing_ok=True)
+
+          files = []
+          for path in sorted(evidence.rglob("*")):
+              if path.is_symlink():
+                  raise SystemExit(
+                      f"Research Runner Heavy evidence contains symlink: {path}"
+                  )
+              if path.exists() and not (path.is_file() or path.is_dir()):
+                  raise SystemExit(
+                      f"Research Runner Heavy evidence contains special entry: {path}"
+                  )
+              if path.is_file():
+                  files.append(path)
+
+          rows = [
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+              f"{path.relative_to(evidence).as_posix()}"
+              for path in files
+          ]
+          inventory.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+          recorded: dict[str, str] = {}
+          for line in inventory.read_text(encoding="utf-8").splitlines():
+              digest, separator, relative = line.partition("  ")
+              if separator != "  " or len(digest) != 64:
+                  raise SystemExit(f"invalid Heavy checksum line: {line!r}")
+              if relative in recorded:
+                  raise SystemExit(f"duplicate Heavy checksum path: {relative}")
+              pure = PurePosixPath(relative)
+              if pure.is_absolute() or ".." in pure.parts or "\\" in relative:
+                  raise SystemExit(f"unsafe Heavy checksum path: {relative}")
+              recorded[relative] = digest
+
+          expected = {
+              path.relative_to(evidence).as_posix()
+              for path in files
+          }
+          if set(recorded) != expected:
+              raise SystemExit("Research Runner Heavy checksum inventory is not closed")
+
+          for relative, digest in recorded.items():
+              path = evidence / relative
+              mode = path.lstat().st_mode
+              if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+                  raise SystemExit(f"unsafe Heavy evidence entry: {relative}")
+              actual = hashlib.sha256(path.read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f"Heavy checksum mismatch: {relative}")
+          PY
+
+      - name: Publish exact Research Runner Heavy evidence
+        id: evidence_publish
+        if: >-
+          ${{ success()
+              && steps.evidence_privacy.outcome == 'success'
+              && steps.evidence_inventory.outcome == 'success' }}
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ github.workspace }}/research-runner-heavy-${{ github.run_id }}/reports/research-runner-heavy
+          asset_name: research-runner-heavy.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Research Runner Heavy evidence publication gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.evidence_privacy.outcome }}" = success
+          test "${{ steps.evidence_inventory.outcome }}" = success
+          test "${{ steps.evidence_publish.outcome }}" = success

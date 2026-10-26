@@ -1,0 +1,155 @@
+{
+  "$id": "urn:modular-results-registry:experiment-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "branch": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "commit_sha": {
+      "pattern": "^[0-9a-f]{7,64}$",
+      "type": "string"
+    },
+    "completed_at": {
+      "oneOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dependency_lock_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "diff_hash": {
+      "oneOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "experiment_id": {
+      "minLength": 3,
+      "type": "string"
+    },
+    "module_versions": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "parent_experiment_id": {
+      "oneOf": [
+        {
+          "minLength": 3,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "patch_artifact_id": {
+      "oneOf": [
+        {
+          "minLength": 3,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "research_id": {
+      "minLength": 3,
+      "type": "string"
+    },
+    "search_method": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "split_policy": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "CREATED",
+        "INCOMPLETE",
+        "RUNNING",
+        "COMPLETED",
+        "COMPLETED_WITH_FAILURES",
+        "FAILED",
+        "CANCELED",
+        "CONTAMINATED",
+        "INVALID",
+        "ARCHIVED",
+        "SUPERSEDED"
+      ]
+    },
+    "strategy_id": {
+      "minLength": 3,
+      "type": "string"
+    },
+    "strategy_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "title": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "working_tree_status": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "experiment_id",
+    "research_id",
+    "title",
+    "description",
+    "strategy_id",
+    "strategy_version",
+    "commit_sha",
+    "branch",
+    "working_tree_status",
+    "diff_hash",
+    "patch_artifact_id",
+    "module_versions",
+    "dependency_lock_hash",
+    "started_at",
+    "status",
+    "search_method",
+    "split_policy",
+    "parent_experiment_id",
+    "completed_at",
+    "tags"
+  ],
+  "type": "object"
+}

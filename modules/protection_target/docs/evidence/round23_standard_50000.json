@@ -1,0 +1,67 @@
+{
+  "aggregate_events_per_second": 8327.414673317791,
+  "events": 50000,
+  "final_processed_state": 4096,
+  "final_state_digest": "002f54edd05361940ef8e192c079749f6e2a84d855fe46fc3851a5d071c6736f",
+  "kind": "restart_stress",
+  "max_processed_plans": 4096,
+  "maximum_checkpoint_bytes": 488087,
+  "maximum_rss_delta_mib": 3.33203125,
+  "median_restore_ms": 10.123368999302329,
+  "module_version": "1.1.1",
+  "python": "3.13.5",
+  "segment_events": 10000,
+  "segments": [
+    {
+      "checkpoint_bytes": 483991,
+      "events": 10000,
+      "events_per_second": 8348.084746912185,
+      "processed_state": 4096,
+      "restore_ms": 10.565044000031776,
+      "rss_delta_mib": 3.33203125,
+      "seconds": 1.1978795500008346,
+      "start": 0
+    },
+    {
+      "checkpoint_bytes": 488087,
+      "events": 10000,
+      "events_per_second": 8153.917681516817,
+      "processed_state": 4096,
+      "restore_ms": 9.259166999981971,
+      "rss_delta_mib": 1.93359375,
+      "seconds": 1.226404336000087,
+      "start": 10000
+    },
+    {
+      "checkpoint_bytes": 488087,
+      "events": 10000,
+      "events_per_second": 8482.149076374846,
+      "processed_state": 4096,
+      "restore_ms": 8.088272999884794,
+      "rss_delta_mib": 0.0,
+      "seconds": 1.1789465040001232,
+      "start": 20000
+    },
+    {
+      "checkpoint_bytes": 488087,
+      "events": 10000,
+      "events_per_second": 8986.635993385164,
+      "processed_state": 4096,
+      "restore_ms": 10.280215999955544,
+      "rss_delta_mib": 0.0,
+      "seconds": 1.1127634419999595,
+      "start": 30000
+    },
+    {
+      "checkpoint_bytes": 488087,
+      "events": 10000,
+      "events_per_second": 8375.525910577942,
+      "processed_state": 4096,
+      "restore_ms": 10.123368999302329,
+      "rss_delta_mib": 0.0,
+      "seconds": 1.1939548760001344,
+      "start": 40000
+    }
+  ],
+  "total_seconds": 6.004264464000698
+}

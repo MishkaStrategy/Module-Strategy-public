@@ -1,0 +1,20 @@
+modules:
+  - class: strategy_modules.breakout_return:BreakoutReturnModule
+    enabled: true
+    parameters:
+      reference_mode: rolling
+      reference_feature_key: range.current
+      # Feature-mode hardening options are disabled by default:
+      # reference_feature_source_module: session_range
+      # reference_feature_timeframe: 5m
+      # reference_feature_schema_version: "1"
+      # max_reference_age_seconds: 86400
+      lookback_bars: 20
+      direction: both
+      breakout_confirmation: body
+      return_confirmation: body
+      breakout_buffer_bps: 0
+      min_return_depth: 0.02
+      max_return_depth: 0.20
+      max_return_bars: 36
+      range_change_policy: invalidate

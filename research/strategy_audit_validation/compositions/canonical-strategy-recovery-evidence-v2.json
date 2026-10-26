@@ -1,0 +1,73 @@
+{
+  "assets": [
+    {
+      "git_blob_oid": "b75ed48121e7a7ec950ce947aa1d6ce0ce6cfd93",
+      "path": "docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md",
+      "role": "human-readable provenance and blocker audit"
+    },
+    {
+      "git_blob_oid": "91ab88ab7599f69d0160e18f8f8e6e0497edafc3",
+      "path": "docs/strategy-contracts/CANONICAL_STRATEGY_OWNER_HANDOFF.md",
+      "role": "owner decision and control-evidence input contract"
+    },
+    {
+      "git_blob_oid": "aa713522d13a59f0647a7101bba66af0daccf535",
+      "path": "research/strategy_audit_validation/compositions/recovered-contracts-v1.json",
+      "role": "recovery inventory and champion control counts"
+    },
+    {
+      "git_blob_oid": "96bf2de7005a89d65f61340b637291edee41ed24",
+      "path": "research/strategy_audit_validation/compositions/module-contracts-recovery-v2.json",
+      "role": "loader-compatible incomplete module contract registry"
+    },
+    {
+      "git_blob_oid": "be7223ea5db95f7748e04f2e9666acdeb4a37c9d",
+      "path": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json",
+      "role": "recovered Final 15m specification"
+    },
+    {
+      "git_blob_oid": "844957eab5f11b24f6d600710aef54bce8f403ef",
+      "path": "research/strategy_audit_validation/compositions/frozen-1h-short.recovered-gap.json",
+      "role": "partial Frozen 1H specification"
+    },
+    {
+      "git_blob_oid": "d7b1063f8d2395553464398c278cf5c7fa8b2c76",
+      "path": "research/strategy_audit_validation/compositions/frozen-4h-short.gap.json",
+      "role": "Frozen 4H authoritative gap"
+    },
+    {
+      "git_blob_oid": "99910a1085e12de91aab1f9cb056836ec917c8bc",
+      "path": "research/strategy_audit_validation/compositions/canonical-strategy-decision-queue-v1.json",
+      "role": "machine-readable owner decision queue with accepted dataset registration"
+    },
+    {
+      "git_blob_oid": "dd468e26bb1d634c05f54db6c56db6fe6834d954",
+      "path": "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.recovered-gap-v2.json",
+      "role": "deterministic loader-compatible recovered-gap composition"
+    },
+    {
+      "git_blob_oid": "dd8b233297d46c27129969e5fa4de8126ee7d366",
+      "path": "research/strategy_audit_validation/src/strategy_audit_validation/recovery_contracts.py",
+      "role": "fail-closed control evidence validator"
+    },
+    {
+      "git_blob_oid": "8b6ea62db21d4f523431ae1f62bc83825f5b9eb7",
+      "path": "research/strategy_audit_validation/src/strategy_audit_validation/__init__.py",
+      "role": "public recovery and registration validation API export"
+    }
+  ],
+  "canonical": false,
+  "composition_hash": "b4bb0191a60cb46ffe305e8b04ae6536890c380a8a2a55ff412fec47d884966d",
+  "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "evidence_id": "canonical-strategy-recovery-evidence-v2",
+  "executable": false,
+  "identity_algorithm": "git_blob_oid_sha1",
+  "identity_limitation": "Strategy contract bytes and recovered-gap identity are frozen. Frozen 4H authority, arbitration, runtime bindings, endpoint URI lineage, and exact component/combined trade ledgers remain required.",
+  "issue": 312,
+  "pr": 316,
+  "recovered_candidate_id": "strategy-candidate-b4bb0191a60cb46ffe305e8b",
+  "recovery_base_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+  "schema_version": 2,
+  "source_head_before_manifest": "71694dd6c097b0fff5ae59fa8eca64d5c9486380",
+  "status": "PARTIAL_RECOVERY_FAIL_CLOSED"
+}

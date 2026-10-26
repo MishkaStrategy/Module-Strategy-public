@@ -1,0 +1,65 @@
+engine:
+  initial_cash: 10000
+  one_active_order: true
+  one_position: true
+  allow_scale_in: false
+  close_open_position_at_end: true
+  strict_data_validation: true
+  strict_module_errors: true
+  strict_feature_contracts: true
+  strict_setup_transitions: true
+  deterministic_order_ids: true
+
+data:
+  expected_interval_seconds: 300
+  gap_policy: allow
+  timestamp_semantics: open
+
+fees:
+  maker_rate: 0.0002
+  taker_rate: 0.0005
+
+execution:
+  slippage_bps: 0
+  stop_slippage_bps: 2
+  intrabar_priority: stop
+  limit_fill_policy: at_limit
+  allow_exit_on_entry_bar: false
+  allow_reentry_on_exit_bar: false
+  target_liquidity: maker
+  max_fill_fraction_per_bar: 1.0
+  max_fill_quantity_per_bar: null
+
+risk:
+  default_risk_fraction: 0.005
+  max_risk_fraction: 0.05
+  max_notional_multiple: 3.0
+  min_notional: 0
+  min_quantity: 0
+  quantity_step: 0
+  min_stop_distance_pct: 0
+  max_stop_distance_pct: null
+
+instrument:
+  symbol: BTCUSDT
+  market_type: linear_futures
+  tick_size: 0.1
+  quantity_step: 0.001
+  min_quantity: 0.001
+  min_notional: 5
+  contract_size: 1
+
+sessions:
+  - name: new_york
+    timezone: America/New_York
+    start: "00:00"
+    end: "22:00"
+
+modules:
+  - class: strategy_modules.market_regime:MarketRegimeModule
+    enabled: true
+    parameters:
+      period: 100
+
+  - class: strategy_modules.fvg:FvgModule
+    enabled: true

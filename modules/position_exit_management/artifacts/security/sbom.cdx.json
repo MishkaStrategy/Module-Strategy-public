@@ -1,0 +1,28 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:88f5ce57-04e4-4cfa-bc3a-a8b539a5d58c",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "library",
+      "name": "modular-strategy-position-exit-management",
+      "version": "0.2.1",
+      "purl": "pkg:pypi/modular-strategy-position-exit-management@0.2.1"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "modular-strategy-core",
+      "version": ">=0.4,<0.5",
+      "scope": "required"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:pypi/modular-strategy-position-exit-management@0.2.1",
+      "dependsOn": ["modular-strategy-core>=0.4,<0.5"]
+    }
+  ]
+}

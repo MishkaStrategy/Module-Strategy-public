@@ -1,0 +1,136 @@
+name: Decision Router Core 0.4.2 compatibility
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "modules/trade_plan_router/**"
+      - ".github/workflows/decision-router-core-v042-compatibility.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decision-router-core-v042-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  router-core-v042:
+    if: github.event.pull_request.head.ref == 'modules/trade-plan-router-v0.5'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: router-core-compat
+
+    steps:
+      - name: Remove prior isolated compatibility checkout on Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        working-directory: .
+        run: rm -rf router-core-compat
+
+      - name: Remove prior isolated compatibility checkout on Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        working-directory: .
+        run: if (Test-Path router-core-compat) { Remove-Item -Recurse -Force router-core-compat }
+
+      - name: Check out exact Router head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: router-core-compat
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out validated Core 0.4.2 candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mishkacher/Module-Strategy
+          ref: 04f6de01e5337883256299dd20effdbedd5ac73e
+          path: router-core-compat/.contract-deps/core
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out pinned Entry Model contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mishkacher/Module-Strategy
+          ref: 08ee5bc55680d907de2c5ac7959b590eb8f80a22
+          path: router-core-compat/.contract-deps/entry
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out pinned Protection contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mishkacher/Module-Strategy
+          ref: d03e290e57287f53847f4b93238fbd3722b2e39b
+          path: router-core-compat/.contract-deps/protection
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out pinned Scaling contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mishkacher/Module-Strategy
+          ref: eaedbdb730b8435197c355c8c69906fe6e2436e7
+          path: router-core-compat/.contract-deps/scaling
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out pinned Risk Sizing contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: mishkacher/Module-Strategy
+          ref: 11419b106fb8eb37ee0a3e0b5570c7c110d75fab
+          path: router-core-compat/.contract-deps/risk
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: '0.11.31'
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: '3.12'
+          activate-environment: true
+          enable-cache: false
+
+      - name: Install Core 0.4.2 and Router contracts
+        timeout-minutes: 10
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+          PIP_DEFAULT_TIMEOUT: '60'
+          PIP_RETRIES: '2'
+        run: |
+          uv pip install -e '.contract-deps/core[dev]'
+          uv pip install -e '.contract-deps/entry/modules/entry_model'
+          uv pip install -e '.contract-deps/protection/modules/protection_target'
+          uv pip install -e '.contract-deps/scaling/modules/position_scaling'
+          uv pip install -e '.contract-deps/risk/modules/risk_sizing'
+          uv pip install -e 'modules/trade_plan_router'
+          uv pip install pip setuptools coverage pytest ruff mypy build wheel
+          uv pip check
+
+      - name: Compile compatibility driver
+        run: python -m compileall -q modules/trade_plan_router/scripts/run_core_v042_compatibility.py
+
+      - name: Run Router against validated Core 0.4.2
+        env:
+          ROUTER_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+          PIP_DEFAULT_TIMEOUT: '60'
+          PIP_RETRIES: '2'
+        run: python modules/trade_plan_router/scripts/run_core_v042_compatibility.py
+
+      - name: Upload Router Core 0.4.2 compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: decision-router-core-v042-${{ github.run_id }}
+          path: |
+            router-core-compat/reports/trade_plan_router/core_v042_compatibility/*.txt
+            router-core-compat/reports/trade_plan_router/core_v042_compatibility/*.sha256
+          if-no-files-found: warn

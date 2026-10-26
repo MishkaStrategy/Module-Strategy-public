@@ -1,0 +1,352 @@
+name: market-data-ingestion-binance-acceptance
+
+on:
+  create:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact full-RC commit SHA to validate with public Binance data
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-ingestion-binance-acceptance-${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  public-binance-smoke:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'create' &&
+          github.event.ref_type == 'branch' &&
+          startsWith(github.event.ref, 'acceptance/binance-public-'))
+      }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact requested commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C ../.. rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install component
+        run: |
+          uv pip install -e ".[parquet]"
+          uv pip check
+
+      - name: Generate closed public-data request
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .acceptance
+          printf '%s\n' "$EXPECTED_SHA" > .acceptance/head-sha.txt
+          python - <<'PY'
+          from datetime import UTC, datetime, timedelta
+          from pathlib import Path
+          from textwrap import dedent
+
+          now = datetime.now(UTC)
+          end = now.replace(minute=(now.minute // 5) * 5, second=0, microsecond=0)
+          end -= timedelta(minutes=10)
+          start = end - timedelta(hours=1)
+          text = dedent(
+              f"""
+              schema_version: 1
+              request_id: github-binance-public-smoke
+              exchange:
+                id: binance
+                market_type: usdt_m_perpetual
+              instrument:
+                symbol: BTCUSDT
+              range:
+                mode: explicit
+                start: "{start.isoformat().replace('+00:00', 'Z')}"
+                end: "{end.isoformat().replace('+00:00', 'Z')}"
+              data:
+                base_timeframe: 5m
+                derived_timeframes: [15m, 1h]
+                required_types: [klines]
+                optional_types: [funding_rate, mark_price, index_price, premium_index, open_interest]
+              download:
+                concurrency: 2
+                retries: 6
+                timeout_seconds: 30
+                resume: true
+                max_records_in_memory: 10000
+              validation:
+                deep: true
+                repair_gaps: false
+                reject_unresolved_required_gaps: true
+                allow_partial_optional_data: true
+              storage:
+                root: ./data
+                format: parquet
+                compression: zstd
+                partition: monthly
+              """
+          ).strip() + "\n"
+          Path(".acceptance/binance.yaml").write_text(text, encoding="utf-8")
+          PY
+
+      - name: Public Binance download
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          market-data download --config .acceptance/binance.yaml 2>&1 \
+            | tee .acceptance/download.log
+          status=${PIPESTATUS[0]}
+          printf '%s\n' "$status" > .acceptance/download-exit-code.txt
+          exit 0
+
+      - name: Deep integrity validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          exit_code = int(
+              Path(".acceptance/download-exit-code.txt").read_text(encoding="utf-8").strip()
+          )
+          if exit_code != 0:
+              raise SystemExit(f"market-data download failed with exit code {exit_code}")
+          lines = Path(".acceptance/download.log").read_text(encoding="utf-8").splitlines()
+          payload = None
+          for index in range(len(lines)):
+              candidate = "\n".join(lines[index:])
+              try:
+                  payload = json.loads(candidate)
+                  break
+              except json.JSONDecodeError:
+                  continue
+          if not isinstance(payload, dict):
+              raise SystemExit("download did not produce a JSON object")
+          Path(".acceptance/download.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          dataset = payload.get("dataset")
+          if not isinstance(dataset, dict):
+              raise SystemExit("download did not register a dataset")
+          dataset_id = dataset["dataset_id"]
+          command = [
+              "market-data",
+              "validate",
+              "--storage-root",
+              ".acceptance/data",
+              "--dataset-id",
+              dataset_id,
+              "--deep",
+          ]
+          result = subprocess.run(command, check=True, text=True, capture_output=True)
+          Path(".acceptance/deep-validation.json").write_text(
+              result.stdout,
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Prepare public acceptance evidence
+        if: always()
+        id: evidence_staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf acceptance-evidence acceptance-evidence.tar.gz
+          mkdir -p acceptance-evidence
+          for name in \
+            binance.yaml \
+            deep-validation.json \
+            download-exit-code.txt \
+            download.json \
+            download.log \
+            head-sha.txt; do
+            if [ -f ".acceptance/$name" ]; then
+              cp ".acceptance/$name" "acceptance-evidence/$name"
+            fi
+          done
+          find acceptance-evidence -maxdepth 1 -type f -print | sort \
+            > acceptance-evidence/files.txt
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path("acceptance-evidence")
+          allowed = {
+              "binance.yaml",
+              "deep-validation.json",
+              "download-exit-code.txt",
+              "download.json",
+              "download.log",
+              "files.txt",
+              "head-sha.txt",
+          }
+          private_path_replacements = tuple(
+              (value, replacement)
+              for value, replacement in (
+                  (os.environ.get("GITHUB_WORKSPACE"), "<redacted-workspace>"),
+                  (os.environ.get("RUNNER_TEMP"), "<redacted-runner-temp>"),
+                  (os.environ.get("HOME"), "<redacted-home>"),
+              )
+              if value
+          )
+          for path in sorted(root.rglob("*")):
+              if not path.is_file():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              sanitized = text
+              for value, replacement in sorted(
+                  private_path_replacements,
+                  key=lambda item: len(item[0]),
+                  reverse=True,
+              ):
+                  sanitized = sanitized.replace(value, replacement)
+              if sanitized != text:
+                  path.write_text(sanitized, encoding="utf-8")
+          actual = {
+              path.relative_to(root).as_posix()
+              for path in root.rglob("*")
+              if path.is_file()
+          }
+          unexpected = actual - allowed
+          if unexpected:
+              raise SystemExit(
+                  f"unexpected public acceptance diagnostic evidence: {sorted(unexpected)!r}"
+              )
+          if any(path.is_symlink() for path in root.rglob("*")):
+              raise SystemExit("symlink is forbidden in public acceptance staging")
+          forbidden_paths = tuple(
+              value
+              for value in (
+                  os.environ.get("HOME"),
+                  os.environ.get("GITHUB_WORKSPACE"),
+                  os.environ.get("RUNNER_TEMP"),
+              )
+              if value
+          )
+          credential = re.compile(
+              r"(?i)(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*[^\s,}\]]+"
+          )
+          for path in sorted(root.rglob("*")):
+              if not path.is_file():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              if any(value in text for value in forbidden_paths):
+                  raise SystemExit(f"private runner path leaked in {path.relative_to(root)}")
+              if credential.search(text):
+                  raise SystemExit(f"credential-like value leaked in {path.relative_to(root)}")
+          PY
+          tar -czf acceptance-evidence.tar.gz acceptance-evidence
+
+      - name: Validate bounded public acceptance evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path("acceptance-evidence")
+          expected = {
+              "binance.yaml",
+              "deep-validation.json",
+              "download-exit-code.txt",
+              "download.json",
+              "download.log",
+              "files.txt",
+              "head-sha.txt",
+          }
+          actual = {
+              path.relative_to(root).as_posix()
+              for path in root.rglob("*")
+              if path.is_file()
+          }
+          if actual != expected:
+              raise SystemExit(
+                  f"public acceptance evidence inventory mismatch: expected={sorted(expected)!r} actual={sorted(actual)!r}"
+              )
+          if any(path.is_symlink() for path in root.rglob("*")):
+              raise SystemExit("symlink is forbidden in public acceptance evidence")
+          if (root / "head-sha.txt").read_text(encoding="utf-8").strip() != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("public acceptance evidence head SHA mismatch")
+
+          forbidden_paths = tuple(
+              value
+              for value in (
+                  os.environ.get("HOME"),
+                  os.environ.get("GITHUB_WORKSPACE"),
+                  os.environ.get("RUNNER_TEMP"),
+              )
+              if value
+          )
+          credential = re.compile(
+              r"(?i)(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*[^\s,}\]]+"
+          )
+          for path in sorted(root.rglob("*")):
+              if not path.is_file():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              leaked_path = next((value for value in forbidden_paths if value in text), None)
+              if leaked_path is not None:
+                  raise SystemExit(f"private runner path leaked in {path.relative_to(root)}")
+              if credential.search(text):
+                  raise SystemExit(f"credential-like value leaked in {path.relative_to(root)}")
+          PY
+
+      - name: Publish exact public acceptance evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/market_data_ingestion/acceptance-evidence
+          asset_name: market-data-binance-public-acceptance.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+
+      - name: Enforce public acceptance publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload public acceptance failure diagnostics
+        if: ${{ (failure() || cancelled()) && steps.evidence_staging.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-ingestion-binance-public-${{ github.run_id }}
+          path: modules/market_data_ingestion/acceptance-evidence.tar.gz
+          if-no-files-found: warn
+
+      - name: Cleanup public acceptance staging
+        if: always()
+        shell: bash
+        run: rm -rf .acceptance acceptance-evidence acceptance-evidence.tar.gz

@@ -1,0 +1,125 @@
+name: paper-execution-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - "modules/paper_execution/**"
+      - "scripts/paper_execution_component_gate.py"
+      - "scripts/paper_execution_gate.py"
+      - "scripts/normalize_sdist.py"
+      - ".github/workflows/paper-execution-ci.yml"
+  push:
+    branches:
+      - "execution/paper-venue-reconciliation"
+      - "integration/**"
+    paths:
+      - "modules/paper_execution/**"
+      - "scripts/paper_execution_component_gate.py"
+      - "scripts/paper_execution_gate.py"
+      - "scripts/normalize_sdist.py"
+      - ".github/workflows/paper-execution-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: paper-execution-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  component:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'paper-component-gate'
+    name: Paper Execution / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+    env:
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "946684800"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - name: Verify exact Paper Execution candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Check out exact Decision Router contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: f779e599b361a7b860506980de6b5ae8d0cd1f01
+          path: .contract-sources/trade-plan-router
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/paper_execution/pyproject.toml
+            .contract-sources/trade-plan-router/pyproject.toml
+            .contract-sources/trade-plan-router/modules/trade_plan_router/pyproject.toml
+          cache-suffix: paper-execution
+      - name: Install component dependencies
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/paper_execution[dev]"
+          uv pip install -e ./.contract-sources/trade-plan-router/modules/trade_plan_router
+          uv pip install bandit build twine
+          uv pip check
+      - name: Run permanent component gate
+        run: python scripts/paper_execution_component_gate.py
+      - name: Stage bounded Paper Execution component evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="paper-execution-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage/dist"
+          test -d dist/paper_execution-component
+          test -d reports/paper_execution
+          cp -R dist/paper_execution-component "$stage/dist/"
+          cp -R reports/paper_execution "$stage/"
+      - name: Publish exact Paper Execution component evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: paper-execution-release-evidence
+          asset_name: paper-execution-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+      - name: Enforce Paper Execution publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+      - name: Upload Paper Execution failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: paper-execution-py${{ matrix.python-version }}
+          path: |
+            dist/paper_execution-component/*
+            reports/paper_execution/*
+          if-no-files-found: warn
+      - name: Cleanup Paper Execution evidence staging
+        if: always()
+        run: rm -rf paper-execution-release-evidence

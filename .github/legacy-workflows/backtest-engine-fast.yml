@@ -1,0 +1,166 @@
+name: backtest-engine-fast
+
+# The matrix is the permanent exact-tree gate for frozen Core 0.4.2 integration.
+on:
+  pull_request:
+    paths:
+      - "src/modular_backtest/**"
+      - "tests/backtest_engine/**"
+      - "configs/backtest.example.yaml"
+      - "docs/BACKTEST_ENGINE_V0_1.md"
+      - "docs/BACKTEST_MEMORY_SCALABILITY.md"
+      - "benchmarks/backtest_engine.py"
+      - "benchmarks/backtest_memory_scalability.py"
+      - "scripts/run_backtest_heavy_audit.sh"
+      - "pyproject.toml"
+      - ".github/workflows/backtest-engine-fast.yml"
+      - ".github/workflows/backtest-engine-heavy.yml"
+      - ".github/workflows/backtest-engine-heavy-trigger.yml"
+
+concurrency:
+  group: backtest-engine-fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          show-progress: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+      - run: uv pip install --upgrade pip
+      - run: >-
+          uv pip install -e '.[dev,backtest]'
+          -e 'modules/market_data_ingestion[parquet]'
+      - run: >-
+          python -m compileall -q
+          src/modular_backtest tests/backtest_engine
+          benchmarks/backtest_engine.py benchmarks/backtest_memory_scalability.py
+      - name: Heavy harness shell syntax
+        id: shell
+        continue-on-error: true
+        run: bash -n scripts/run_backtest_heavy_audit.sh > shell-${{ matrix.python-version }}.log 2>&1
+      - name: Ruff check
+        id: ruff_check
+        continue-on-error: true
+        run: >-
+          ruff check --output-format=concise
+          src/modular_backtest tests/backtest_engine
+          benchmarks/backtest_engine.py benchmarks/backtest_memory_scalability.py
+          > ruff-check-${{ matrix.python-version }}.log 2>&1
+      - name: Ruff format
+        id: ruff_format
+        continue-on-error: true
+        run: >-
+          ruff format --check
+          src/modular_backtest tests/backtest_engine
+          benchmarks/backtest_engine.py benchmarks/backtest_memory_scalability.py
+          > ruff-format-${{ matrix.python-version }}.log 2>&1
+      - name: Strict MyPy
+        id: mypy
+        continue-on-error: true
+        run: mypy --strict --disable-error-code import-untyped src/modular_backtest > mypy-${{ matrix.python-version }}.log 2>&1
+      - name: Test suite
+        id: tests
+        continue-on-error: true
+        run: >-
+          coverage run --branch --source=src/modular_backtest
+          -m pytest -m "not slow" tests/backtest_engine
+          > tests-${{ matrix.python-version }}.log 2>&1
+      - name: Coverage diagnostics and threshold
+        id: coverage
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          coverage report --fail-under=90 > coverage-${{ matrix.python-version }}.log 2>&1
+          threshold_status=$?
+          coverage json -o coverage-${{ matrix.python-version }}.json >> coverage-${{ matrix.python-version }}.log 2>&1
+          json_status=$?
+          test "$threshold_status" = "0" && test "$json_status" = "0"
+      - name: Memory scalability smoke
+        id: scalability
+        if: always()
+        continue-on-error: true
+        run: |
+          python benchmarks/backtest_memory_scalability.py \
+            --bars 10000 \
+            --mode research_fast \
+            --checkpoint disabled \
+            --max-memory-mb 1024 \
+            --output scalability-${{ matrix.python-version }}.json \
+            > scalability-${{ matrix.python-version }}.log 2>&1
+          python - <<'PY'
+          import json
+          import os
+
+          version = os.environ["MATRIX_PYTHON_VERSION"]
+          path = f"scalability-{version}.json"
+          with open(path, encoding="utf-8") as handle:
+              payload = json.load(handle)
+          assert payload["bars"] == 10_000
+          assert payload["equity_points"] == 10_000
+          assert payload["events"] < 100
+          assert payload["peak_rss_bytes"] < 1024 * 1024 * 1024
+          assert payload["bars_per_second"] > 0
+          PY
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+      - name: CLI smoke
+        id: cli
+        if: always()
+        continue-on-error: true
+        run: python -m modular_backtest --help > cli-${{ matrix.python-version }}.log 2>&1
+      - name: Wheel build
+        id: wheel
+        if: always()
+        continue-on-error: true
+        run: python -m pip wheel --quiet . --no-deps -w dist > wheel-${{ matrix.python-version }}.log 2>&1
+      - name: Enforce quality gates
+        if: >-
+          always() &&
+          (steps.shell.outcome != 'success' ||
+           steps.ruff_check.outcome != 'success' ||
+           steps.ruff_format.outcome != 'success' ||
+           steps.mypy.outcome != 'success' ||
+           steps.tests.outcome != 'success' ||
+           steps.coverage.outcome != 'success' ||
+           steps.scalability.outcome != 'success' ||
+           steps.cli.outcome != 'success' ||
+           steps.wheel.outcome != 'success')
+        run: |
+          cat -- ./*-${{ matrix.python-version }}.log
+          exit 1
+      - name: Upload quality diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: backtest-engine-fast-diagnostics-${{ matrix.python-version }}
+          path: |
+            shell-${{ matrix.python-version }}.log
+            ruff-check-${{ matrix.python-version }}.log
+            ruff-format-${{ matrix.python-version }}.log
+            mypy-${{ matrix.python-version }}.log
+            tests-${{ matrix.python-version }}.log
+            coverage-${{ matrix.python-version }}.log
+            coverage-${{ matrix.python-version }}.json
+            scalability-${{ matrix.python-version }}.log
+            scalability-${{ matrix.python-version }}.json
+            cli-${{ matrix.python-version }}.log
+            wheel-${{ matrix.python-version }}.log
+          if-no-files-found: error

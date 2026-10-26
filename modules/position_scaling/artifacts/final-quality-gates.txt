@@ -1,0 +1,13 @@
+Local final gates before GitHub publication:
+- git diff --check: PASS
+- ruff format --check: PASS (24 files formatted)
+- ruff check: PASS
+- mypy --strict src/modular_strategy_position_scaling: PASS, 9 files
+- python -m compileall -q src tests benchmarks examples: PASS
+- pytest: 228 passed
+- branch coverage: 90%, gate 90%
+- wheel and sdist: PASS
+- clean-wheel pip check/import/entry points/checkpoint smoke: PASS
+- Bandit: PASS
+- detect-secrets: zero findings
+- pip-audit: NOT COMPLETED locally because PyPI DNS failed; mandatory in self-hosted CI.

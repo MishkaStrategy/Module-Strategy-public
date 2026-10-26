@@ -1,0 +1,175 @@
+{
+  "$id": "urn:modular-results-registry:run-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "backtest_engine_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "bars_processed": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "base_timeframe": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "configuration_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "dataset_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "duration_seconds": {
+      "minimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ended_at": {
+      "format": "date-time",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "experiment_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "machine_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "metric_schema_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "module_names": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "producer_config_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "producer_data_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "producer_module_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "result_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "scenario_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "split_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "stage_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "CREATED",
+        "RUNNING",
+        "COMPLETED",
+        "FAILED",
+        "CANCELED",
+        "INVALID"
+      ]
+    },
+    "symbol": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "worker_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "experiment_id",
+    "stage_id",
+    "split_id",
+    "scenario_id",
+    "configuration_id",
+    "dataset_ids",
+    "seed",
+    "status",
+    "started_at",
+    "ended_at",
+    "duration_seconds",
+    "worker_id",
+    "machine_id",
+    "backtest_engine_version",
+    "metric_schema_version",
+    "result_hash",
+    "producer_data_hash",
+    "producer_config_hash",
+    "producer_module_hash",
+    "symbol",
+    "base_timeframe",
+    "bars_processed",
+    "module_names",
+    "artifact_ids",
+    "warnings",
+    "errors"
+  ],
+  "type": "object"
+}

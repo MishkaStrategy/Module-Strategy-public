@@ -1,0 +1,107 @@
+{
+  "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "composition_version": "2.0.0",
+  "created_by": "strategy-contract-authority-312",
+  "dependency_order": [
+    "fvg_rt_final_15m",
+    "frozen_1h_short",
+    "frozen_4h_short"
+  ],
+  "execution_order": [
+    "fvg_rt_final_15m",
+    "frozen_1h_short",
+    "frozen_4h_short"
+  ],
+  "lookahead_allowed": false,
+  "modules": [
+    {
+      "contract_complete": true,
+      "dependencies": [],
+      "module_id": "fvg_rt_final_15m",
+      "module_version": "2.0.0",
+      "parameters": {
+        "adapter": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+        "contract_path": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.v2.json",
+        "feature_contract": "canonical-fvg-final-15m-feature-snapshot-v1",
+        "output_contract": "canonical-strategy-order-plan-v1",
+        "priority": 1,
+        "state_schema": "canonical-strategy-state-v1"
+      },
+      "role": "primary_and_highest_priority",
+      "source_provenance": {
+        "commit_sha": "2d1479e5df7da05bfb76bf96ee09fda19e940ae9",
+        "path": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.v2.json"
+      },
+      "timeframes": [
+        "5m",
+        "15m",
+        "4h",
+        "1d"
+      ]
+    },
+    {
+      "contract_complete": true,
+      "dependencies": [],
+      "module_id": "frozen_1h_short",
+      "module_version": "1.0.0",
+      "parameters": {
+        "adapter": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+        "contract_path": "research/strategy_audit_validation/compositions/frozen-1h-short.v1.json",
+        "feature_contract": "canonical-frozen-1h-feature-snapshot-v1",
+        "output_contract": "canonical-strategy-order-plan-v1",
+        "priority": 2,
+        "state_schema": "canonical-strategy-state-v1"
+      },
+      "role": "secondary_short",
+      "source_provenance": {
+        "commit_sha": "2d1479e5df7da05bfb76bf96ee09fda19e940ae9",
+        "path": "research/strategy_audit_validation/compositions/frozen-1h-short.v1.json"
+      },
+      "timeframes": [
+        "5m",
+        "1h",
+        "4h"
+      ]
+    },
+    {
+      "contract_complete": true,
+      "dependencies": [],
+      "module_id": "frozen_4h_short",
+      "module_version": "1.0.0",
+      "parameters": {
+        "adapter": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+        "contract_path": "research/strategy_audit_validation/compositions/frozen-4h-short.v1.json",
+        "feature_contract": "canonical-frozen-4h-feature-snapshot-v1",
+        "output_contract": "canonical-strategy-order-plan-v1",
+        "priority": 3,
+        "state_schema": "canonical-strategy-state-v1"
+      },
+      "role": "tertiary_short_forward_observation",
+      "source_provenance": {
+        "commit_sha": "2d1479e5df7da05bfb76bf96ee09fda19e940ae9",
+        "path": "research/strategy_audit_validation/compositions/frozen-4h-short.v1.json"
+      },
+      "timeframes": [
+        "5m",
+        "4h"
+      ]
+    }
+  ],
+  "schema_version": "strategy-composition-v1",
+  "source_provenance": {
+    "commit_sha": "2d1479e5df7da05bfb76bf96ee09fda19e940ae9",
+    "paths": [
+      "docs/strategy-contracts/CANONICAL_STRATEGY_V2_DECISION.md",
+      "research/strategy_audit_validation/compositions/canonical-strategy-owner-decision-v2.json",
+      "research/strategy_audit_validation/compositions/fvg-rt-final-15m.v2.json",
+      "research/strategy_audit_validation/compositions/frozen-1h-short.v1.json",
+      "research/strategy_audit_validation/compositions/frozen-4h-short.v1.json",
+      "research/strategy_audit_validation/evidence/binance-usdtm-kline-endpoint-v1.json",
+      "research/strategy_audit_validation/src/strategy_audit_validation/canonical_runtime.py"
+    ],
+    "repository": "MishkaStrategy/Module-Strategy"
+  },
+  "state": "CANDIDATE",
+  "timezone": "UTC",
+  "unfinished_htf_allowed": false
+}

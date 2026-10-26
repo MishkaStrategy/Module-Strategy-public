@@ -1,0 +1,15 @@
+modules:
+  - class: modular_strategy_fvg:FvgModule
+    enabled: true
+    parameters:
+      timeframes: [15m, 4h]
+      direction_filter: both
+      min_gap_absolute: "0"
+      min_gap_fraction: "0"
+      invalidation_level: full_fill
+      invalidation_basis: wick
+      require_consecutive_bars: true
+      order_violation_policy: raise
+      publish_lifecycle_events: true
+      max_active_zones_per_timeframe: 4096
+      max_state_bytes: 8388608

@@ -1,0 +1,37 @@
+{
+  "aggregate_events_per_second": 8026.112410937439,
+  "events": 1000,
+  "final_processed_state": 1000,
+  "final_state_digest": "8a6dfa642a3d584b28c8ff0c2fdef694edbcd6e565c064a6565e5d5ff13520a5",
+  "kind": "restart_stress",
+  "max_processed_plans": 4096,
+  "maximum_checkpoint_bytes": 117551,
+  "maximum_rss_delta_mib": 0.2421875,
+  "median_restore_ms": 1.6587889999755134,
+  "module_version": "1.1.1",
+  "python": "3.13.5",
+  "segment_events": 500,
+  "segments": [
+    {
+      "checkpoint_bytes": 59049,
+      "events": 500,
+      "events_per_second": 8521.502161463543,
+      "processed_state": 500,
+      "restore_ms": 1.2765629999194061,
+      "rss_delta_mib": 0.12890625,
+      "seconds": 0.058675101000517316,
+      "start": 0
+    },
+    {
+      "checkpoint_bytes": 117551,
+      "events": 500,
+      "events_per_second": 8364.781286184683,
+      "processed_state": 1000,
+      "restore_ms": 2.0410150000316207,
+      "rss_delta_mib": 0.2421875,
+      "seconds": 0.059774426000331005,
+      "start": 500
+    }
+  ],
+  "total_seconds": 0.12459332100024767
+}

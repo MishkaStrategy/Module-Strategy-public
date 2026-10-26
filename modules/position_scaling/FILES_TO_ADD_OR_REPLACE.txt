@@ -1,0 +1,28 @@
+ADD:
+.github/workflows/position-scaling-hardening-ci.yml
+modules/position_scaling/**
+
+REPLACE:
+None in integration/modular-strategy-v0.5.0.
+
+DELETE:
+None.
+
+LEAVE UNCHANGED:
+modular_core/**
+all other modules/**
+plugins/**
+repository-wide workflows unrelated to Position Scaling
+main and integration branch history
+
+DO NOT COPY:
+.venv*
+.git
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+build
+dist
+local release archives
+secrets or API keys

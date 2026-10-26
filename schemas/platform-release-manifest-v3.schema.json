@@ -1,0 +1,2492 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:modular-strategy:platform-release-manifest:3",
+  "title": "Full operational PAPER release envelope v3",
+  "description": "Candidate-scoped release envelope with immutable web-console build, Linux deployment, and Darwin acceptance bindings. Owner selections remain explicit and fail closed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate",
+    "support_profile",
+    "evidence",
+    "release_decision",
+    "lock_reconstructions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 3
+    },
+    "candidate": {
+      "$ref": "#/$defs/candidate"
+    },
+    "support_profile": {
+      "$ref": "#/$defs/profile"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      },
+      "uniqueItems": true
+    },
+    "release_decision": {
+      "$ref": "#/$defs/releaseDecision"
+    },
+    "lock_reconstructions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/lockReconstruction"
+      }
+    },
+    "build_contexts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/buildContext"
+      }
+    },
+    "hook_attestations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/hookAttestation"
+      }
+    },
+    "build_attestations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/buildAttestation"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "release_decision": {
+            "properties": {
+              "decision": {
+                "const": "accepted"
+              },
+              "owner_approval": {
+                "properties": {
+                  "decision": {
+                    "const": "accepted"
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            },
+            "required": [
+              "decision",
+              "owner_approval"
+            ]
+          }
+        },
+        "required": [
+          "release_decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "candidate": {
+            "properties": {
+              "migrations": {
+                "minItems": 1
+              },
+              "rollback": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "migrations",
+              "rollback"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "gateIdentity": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._:-][a-z0-9]+)*$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[^\\u0000]+$"
+    },
+    "identity": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "clean"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "commit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "clean": {
+          "const": true
+        }
+      }
+    },
+    "pythonRuntimeResolutionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "contract_type", "source_commit", "selection_sha256", "source_descriptors", "resolver_input", "python_runtime_id", "observed_runtime", "target_environment", "resolver", "resolver_version", "resolver_index_policy", "lock_sha256", "outcome", "run_id", "attempt"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "contract_type": {"const": "python_runtime_resolution_v1"},
+        "source_commit": {"$ref": "#/$defs/gitSha"},
+        "selection_sha256": {"$ref": "#/$defs/sha256"},
+        "source_descriptors": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["component_id", "descriptor"], "properties": {"component_id": {"type": "string", "minLength": 1}, "descriptor": {"$ref": "#/$defs/fileReference"}}}},
+        "resolver_input": {"$ref": "#/$defs/fileReference"},
+        "python_runtime_id": {"type": "string", "minLength": 1},
+        "observed_runtime": {"type": "object", "additionalProperties": false, "required": ["implementation", "version"], "properties": {"implementation": {"const": "cpython"}, "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}}},
+        "target_environment": {"type": "string", "minLength": 1},
+        "resolver": {"type": "string", "minLength": 1},
+        "resolver_version": {"type": "string", "minLength": 1},
+        "resolver_index_policy": {"$ref": "#/$defs/fileReference"},
+        "lock_sha256": {"$ref": "#/$defs/sha256"},
+        "outcome": {"const": "resolved"},
+        "run_id": {"type": "string", "minLength": 1},
+        "attempt": {"type": "integer", "minimum": 1}
+      }
+    },
+    "fileReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "origin": {
+          "enum": [
+            "source",
+            "bundle"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "version",
+        "descriptor",
+        "source_files"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "python_distribution",
+            "web_console",
+            "operator_ui",
+            "recovery_ui",
+            "service",
+            "runbook"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor": {
+          "$ref": "#/$defs/fileReference"
+        },
+        "source_files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fileReference"
+          }
+        }
+      }
+    },
+    "lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ecosystem",
+        "format",
+        "resolver",
+        "version",
+        "purpose",
+        "covered_components",
+        "target_environment",
+        "file"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ecosystem": {
+          "enum": [
+            "python",
+            "node",
+            "rust",
+            "java",
+            "dotnet",
+            "other"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolver": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "enum": [
+            "bootstrap",
+            "build",
+            "runtime",
+            "test"
+          ]
+        },
+        "covered_components": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "target_environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file": {
+          "$ref": "#/$defs/fileReference"
+        },
+        "python_runtime_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "python_runtime_resolution_receipt": {
+          "$ref": "#/$defs/fileReference"
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"ecosystem": {"const": "python"}, "purpose": {"const": "runtime"}}, "required": ["ecosystem", "purpose"]},
+          "then": {"required": ["python_runtime_resolution_receipt"]},
+          "else": {"not": {"required": ["python_runtime_resolution_receipt"]}}
+        },
+        {
+          "if": {
+            "properties": {
+              "ecosystem": {
+                "const": "python"
+              }
+            },
+            "required": [
+              "ecosystem"
+            ]
+          },
+          "then": {
+            "required": [
+              "python_runtime_id"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "python_runtime_id"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "buildContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "context_sha256",
+        "source_commit",
+        "component_id",
+        "component_version",
+        "descriptor",
+        "backend",
+        "backend_path",
+        "python_runtime_id",
+        "target",
+        "config_settings",
+        "frontend",
+        "toolchain",
+        "environment",
+        "resolver_policy",
+        "bootstrap_lock_id",
+        "bootstrap_lock_sha256",
+        "bootstrap_reconstruction_receipt_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "context_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "component_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "component_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "descriptor": {
+          "$ref": "#/$defs/fileReference"
+        },
+        "backend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entrypoint",
+            "distribution",
+            "version",
+            "artifact_sha256"
+          ],
+          "properties": {
+            "entrypoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "distribution": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "artifact_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "backend_path": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "directory",
+              "files"
+            ],
+            "properties": {
+              "directory": {
+                "type": "string",
+                "minLength": 1
+              },
+              "files": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/fileReference"
+                }
+              }
+            }
+          }
+        },
+        "python_runtime_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "environment",
+            "os",
+            "architecture",
+            "abi"
+          ],
+          "properties": {
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1
+            },
+            "architecture": {
+              "type": "string",
+              "minLength": 1
+            },
+            "abi": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "config_settings": {
+          "type": "object"
+        },
+        "frontend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "toolchain": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version",
+              "artifact_sha256"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              },
+              "artifact_sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "identity",
+            "isolation"
+          ],
+          "properties": {
+            "identity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "isolation": {
+              "enum": [
+                "isolated",
+                "non_isolated"
+              ]
+            }
+          }
+        },
+        "resolver_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bootstrap_lock_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bootstrap_lock_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bootstrap_reconstruction_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "hookAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attestation_sha256",
+        "context_sha256",
+        "operation",
+        "status",
+        "run_identity"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "attestation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "context_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "operation": {
+          "enum": [
+            "wheel",
+            "sdist"
+          ]
+        },
+        "status": {
+          "enum": [
+            "returned",
+            "optional_hook_absent",
+            "failed",
+            "unavailable"
+          ]
+        },
+        "returned_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "final_lock_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "final_lock_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reconstruction_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "run_identity": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "returned",
+                  "optional_hook_absent"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "returned_requirements",
+              "final_lock_id",
+              "final_lock_sha256",
+              "reconstruction_receipt_sha256"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "optional_hook_absent"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "returned_requirements": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "failed",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "final_lock_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "final_lock_sha256"
+                  ]
+                },
+                {
+                  "required": [
+                    "reconstruction_receipt_sha256"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "buildAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "attestation_sha256",
+        "context_sha256",
+        "hook_attestation_sha256",
+        "operation",
+        "python_runtime_id",
+        "target_environment",
+        "final_lock_id",
+        "final_lock_sha256",
+        "reconstruction_receipt_sha256",
+        "outcome",
+        "run_identity"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "attestation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "context_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "hook_attestation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "operation": {
+          "enum": [
+            "wheel",
+            "sdist"
+          ]
+        },
+        "python_runtime_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "final_lock_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "final_lock_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reconstruction_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "unavailable"
+          ]
+        },
+        "run_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact": {
+          "$ref": "#/$defs/fileReference"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "passed"
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          },
+          "then": {
+            "required": [
+              "artifact"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "failed",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "artifact"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "lockRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "ecosystem",
+        "purpose",
+        "target_environment"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ecosystem": {
+          "enum": [
+            "python",
+            "node",
+            "rust",
+            "java",
+            "dotnet",
+            "other"
+          ]
+        },
+        "purpose": {
+          "enum": [
+            "bootstrap",
+            "build",
+            "runtime",
+            "test"
+          ]
+        },
+        "target_environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "python_runtime_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ecosystem": {
+                "const": "python"
+              }
+            },
+            "required": [
+              "ecosystem"
+            ]
+          },
+          "then": {
+            "required": [
+              "python_runtime_id"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "python_runtime_id"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "reference": {
+      "$ref": "#/$defs/fileReference"
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "source",
+        "components",
+        "locks",
+        "artifacts",
+        "compatibility",
+        "compatibility_coverage",
+        "migrations",
+        "rollback",
+        "composition",
+        "web_console"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "locks": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/lock"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "component",
+              "kind",
+              "file"
+            ],
+            "properties": {
+              "component": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "distribution",
+                  "web_assets",
+                  "image",
+                  "other"
+                ]
+              },
+              "file": {
+                "$ref": "#/$defs/fileReference"
+              }
+            }
+          }
+        },
+        "compatibility": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "from",
+              "to",
+              "contract",
+              "evidence_required"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "contract": {
+                "$ref": "#/$defs/reference"
+              },
+              "evidence_required": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "compatibility_coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityCoverage"
+          }
+        },
+        "migrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "from",
+              "to",
+              "implementation",
+              "evidence_required"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "initialization",
+                  "config_conversion",
+                  "database_upgrade",
+                  "backup_restore",
+                  "other"
+                ]
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "implementation": {
+                "$ref": "#/$defs/reference"
+              },
+              "evidence_required": {
+                "type": "boolean"
+              }
+            }
+          },
+          "uniqueItems": true
+        },
+        "rollback": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "from_candidate",
+              "to_candidate",
+              "procedure",
+              "evidence_required"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "from_candidate": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/identity"
+                  },
+                  {
+                    "const": "self"
+                  }
+                ]
+              },
+              "to_candidate": {
+                "$ref": "#/$defs/identity"
+              },
+              "procedure": {
+                "$ref": "#/$defs/reference"
+              },
+              "evidence_required": {
+                "type": "boolean"
+              }
+            }
+          },
+          "uniqueItems": true
+        },
+        "composition": {
+          "$ref": "#/$defs/reference"
+        },
+        "web_console": {
+          "$ref": "#/$defs/webConsoleCandidate"
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "components",
+        "required_gates"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "required",
+            "supported",
+            "blocked"
+          ]
+        },
+        "components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_gates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/gateIdentity"
+          }
+        }
+      }
+    },
+    "inventoryDependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "url"
+      ],
+      "properties": {
+        "type": {
+          "const": "github_issue"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/MishkaStrategy/Module-Strategy/issues/[1-9][0-9]*$"
+        }
+      }
+    },
+    "inventoryRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "capability",
+        "required",
+        "providers",
+        "required_gates",
+        "blocked_by"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capability": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "providers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required_gates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/gateIdentity"
+          }
+        },
+        "blocked_by": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/inventoryDependency"
+          }
+        }
+      }
+    },
+    "compatibilityCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "status",
+        "inventory_status",
+        "owner",
+        "formats"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "unknown-blocking",
+            "confirmed"
+          ]
+        },
+        "inventory_status": {
+          "enum": [
+            "unknown",
+            "enumerated",
+            "none"
+          ]
+        },
+        "owner": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "formats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityFormat"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unknown-blocking"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "inventory_status": {
+                "const": "unknown"
+              },
+              "owner": {
+                "type": "null"
+              },
+              "formats": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "confirmed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "inventory_status": {
+                "enum": [
+                  "enumerated",
+                  "none"
+                ]
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "inventory_status": {
+                "const": "none"
+              }
+            },
+            "required": [
+              "inventory_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "formats": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "inventory_status": {
+                "const": "enumerated"
+              }
+            },
+            "required": [
+              "inventory_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "formats": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "compatibilityFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format_id",
+        "format_kind",
+        "producers",
+        "consumers",
+        "relations"
+      ],
+      "properties": {
+        "format_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9+.-]*:[^\\s]+$"
+        },
+        "format_kind": {
+          "enum": [
+            "json_schema",
+            "sqlite",
+            "configuration",
+            "module_state",
+            "wire",
+            "recovery_package",
+            "other"
+          ]
+        },
+        "producers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "consumers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityRelation"
+          }
+        }
+      }
+    },
+    "compatibilityRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "predecessor",
+        "target",
+        "disposition",
+        "migration_id",
+        "rollback_id"
+      ],
+      "properties": {
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "environment_id",
+            "runtime_id",
+            "runtime_status"
+          ],
+          "properties": {
+            "environment_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            },
+            "runtime_status": {
+              "enum": [
+                "declared",
+                "unknown-blocking"
+              ]
+            }
+          }
+        },
+        "predecessor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "release_id",
+            "candidate_id",
+            "source_commit",
+            "format_id"
+          ],
+          "properties": {
+            "release_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "candidate_id": {
+              "$ref": "#/$defs/identity"
+            },
+            "source_commit": {
+              "$ref": "#/$defs/gitSha"
+            },
+            "format_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9+.-]*:[^\\s]+$"
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_commit",
+            "component_id",
+            "component_version",
+            "descriptor_sha256",
+            "format_id"
+          ],
+          "properties": {
+            "source_commit": {
+              "$ref": "#/$defs/gitSha"
+            },
+            "component_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "component_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "descriptor_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "format_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9+.-]*:[^\\s]+$"
+            }
+          }
+        },
+        "disposition": {
+          "enum": [
+            "migrate",
+            "unchanged-compatible",
+            "reject",
+            "unknown-blocking"
+          ]
+        },
+        "migration_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rollback_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "componentInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "roles"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/inventoryRole"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "name",
+        "target_environments",
+        "acceptance_requirements",
+        "lock_requirements",
+        "no_lock_components",
+        "topology",
+        "host_profile",
+        "build_tools",
+        "component_inventory",
+        "capabilities",
+        "acceptance_policy",
+        "python_runtimes",
+        "python_dependency_selection",
+        "web_console"
+      ],
+      "properties": {
+        "profile_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_environments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_requirements": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "gate",
+              "component_id",
+              "environment"
+            ],
+            "properties": {
+              "gate": {
+                "type": "string",
+                "minLength": 1
+              },
+              "component_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "environment": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "lock_requirements": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/lockRequirement"
+          }
+        },
+        "no_lock_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "component_id",
+              "rationale"
+            ],
+            "properties": {
+              "component_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "topology": {
+          "$ref": "#/$defs/reference"
+        },
+        "host_profile": {
+          "$ref": "#/$defs/reference"
+        },
+        "build_tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version",
+              "purpose",
+              "runtime_required"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "purpose": {
+                "const": "build"
+              },
+              "runtime_required": {
+                "const": false
+              }
+            }
+          },
+          "uniqueItems": true
+        },
+        "component_inventory": {
+          "$ref": "#/$defs/fileReference"
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "python_distributions",
+            "market_data_web_console",
+            "operator_ui_control",
+            "recovery_ui",
+            "owner_native_composition",
+            "topology",
+            "real_host",
+            "lifecycle",
+            "drift",
+            "risk_supervisor",
+            "portfolio",
+            "security",
+            "runbooks",
+            "recovery",
+            "ab_soak",
+            "soak_2h",
+            "soak_24h"
+          ],
+          "properties": {
+            "python_distributions": {
+              "$ref": "#/$defs/capability"
+            },
+            "market_data_web_console": {
+              "$ref": "#/$defs/capability"
+            },
+            "operator_ui_control": {
+              "$ref": "#/$defs/capability"
+            },
+            "recovery_ui": {
+              "$ref": "#/$defs/capability"
+            },
+            "owner_native_composition": {
+              "$ref": "#/$defs/capability"
+            },
+            "topology": {
+              "$ref": "#/$defs/capability"
+            },
+            "real_host": {
+              "$ref": "#/$defs/capability"
+            },
+            "lifecycle": {
+              "$ref": "#/$defs/capability"
+            },
+            "drift": {
+              "$ref": "#/$defs/capability"
+            },
+            "risk_supervisor": {
+              "$ref": "#/$defs/capability"
+            },
+            "portfolio": {
+              "$ref": "#/$defs/capability"
+            },
+            "security": {
+              "$ref": "#/$defs/capability"
+            },
+            "runbooks": {
+              "$ref": "#/$defs/capability"
+            },
+            "recovery": {
+              "$ref": "#/$defs/capability"
+            },
+            "ab_soak": {
+              "$ref": "#/$defs/capability"
+            },
+            "soak_2h": {
+              "$ref": "#/$defs/capability"
+            },
+            "soak_24h": {
+              "$ref": "#/$defs/capability"
+            }
+          }
+        },
+        "acceptance_policy": {
+          "$ref": "#/$defs/reference"
+        },
+        "python_runtimes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/pythonRuntime"
+          }
+        },
+        "python_dependency_selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "providers"],
+          "properties": {
+            "schema_version": {"const": 1},
+            "providers": {
+              "type": "array",
+              "minItems": 26,
+              "maxItems": 26,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["component_id", "extras"],
+                "properties": {
+                  "component_id": {"type": "string", "minLength": 1},
+                  "extras": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+                }
+              }
+            }
+          }
+        },
+        "web_console": {
+          "$ref": "#/$defs/webConsoleProfile"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "profile_id",
+        "source_commit",
+        "component_id",
+        "artifact_sha256",
+        "gate",
+        "environment",
+        "run_id",
+        "attempt",
+        "outcome",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "component_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "gate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compatibility_subject_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "blocked",
+            "canceled"
+          ]
+        },
+        "evidence_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "releaseDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "candidate_id",
+        "profile_id",
+        "evidence_refs",
+        "owner_approval"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "accepted"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_refs": {
+                "minItems": 1
+              },
+              "owner_approval": {
+                "properties": {
+                  "decision": {
+                    "const": "accepted"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "rejected"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "owner_approval": {
+                "properties": {
+                  "decision": {
+                    "const": "rejected"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "owner_approval": {
+                "properties": {
+                  "decision": {
+                    "const": "pending"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "decision": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "pending"
+          ]
+        },
+        "candidate_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "owner_approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "owner",
+            "approved_at",
+            "decision",
+            "approval_sha256"
+          ],
+          "properties": {
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "approved_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "decision": {
+              "enum": [
+                "accepted",
+                "rejected",
+                "pending"
+              ]
+            },
+            "approval_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "pythonRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "implementation",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^cpython-[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "implementation": {
+          "const": "cpython"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "pythonLockReconstructionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract_type",
+        "candidate_id",
+        "profile_id",
+        "source_commit",
+        "lock_id",
+        "lock_sha256",
+        "environment",
+        "python_runtime_id",
+        "observed_runtime",
+        "run_id",
+        "attempt",
+        "outcome",
+        "resolved_distributions"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "contract_type": {
+          "const": "python_lock_reconstruction_v1"
+        },
+        "candidate_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/identity"
+        },
+        "source_commit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "lock_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lock_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "python_runtime_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "implementation",
+            "version"
+          ],
+          "properties": {
+            "implementation": {
+              "const": "cpython"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "blocked",
+            "canceled"
+          ]
+        },
+        "resolved_distributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "lockReconstruction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lock_id",
+        "python_runtime_id",
+        "environment",
+        "receipt"
+      ],
+      "properties": {
+        "lock_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "python_runtime_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receipt": {
+          "$ref": "#/$defs/fileReference"
+        }
+      }
+    },
+    "pendingBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "value"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "bound"
+          ]
+        },
+        "value": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "bound"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "linuxDeploymentContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "environment_id",
+        "runtime_id"
+      ],
+      "properties": {
+        "os": {
+          "const": "linux"
+        },
+        "environment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "darwinAcceptanceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "environment_id"
+      ],
+      "properties": {
+        "os": {
+          "const": "darwin"
+        },
+        "environment_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "linuxServingRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment_id",
+        "runtime_id",
+        "mode"
+      ],
+      "properties": {
+        "environment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "enum": [
+            "static_asset",
+            "container",
+            "managed_service"
+          ]
+        }
+      }
+    },
+    "linuxDeploymentContextBinding": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/pendingBinding"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/linuxDeploymentContext"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "darwinAcceptanceContextBinding": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/pendingBinding"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/darwinAcceptanceContext"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "linuxServingRuntimeBinding": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/pendingBinding"
+        },
+        {
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/linuxServingRuntime"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "webConsoleMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "size",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[^\\u0000]+$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "webConsoleCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "npm_lock_id",
+        "source_inputs",
+        "artifact_sha256",
+        "artifact_members",
+        "member_manifest_sha256"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "npm_lock_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_inputs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fileReference"
+          }
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifact_members": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/webConsoleMember"
+          }
+        },
+        "member_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "webConsoleProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toolchain",
+        "linux_build",
+        "linux_serving",
+        "linux_deployment",
+        "darwin_acceptance"
+      ],
+      "properties": {
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_version",
+            "npm_version",
+            "provisioning_material",
+            "registry_policy",
+            "install_script_policy"
+          ],
+          "properties": {
+            "node_version": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "npm_version": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "provisioning_material": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "registry_policy": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "install_script_policy": {
+              "$ref": "#/$defs/pendingBinding"
+            }
+          }
+        },
+        "linux_build": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "architecture",
+            "image",
+            "recipe",
+            "reconstruction_receipt"
+          ],
+          "properties": {
+            "architecture": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "image": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "recipe": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "reconstruction_receipt": {
+              "$ref": "#/$defs/pendingBinding"
+            }
+          }
+        },
+        "linux_serving": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runtime",
+            "configuration"
+          ],
+          "properties": {
+            "runtime": {
+              "$ref": "#/$defs/linuxServingRuntimeBinding"
+            },
+            "configuration": {
+              "$ref": "#/$defs/pendingBinding"
+            }
+          }
+        },
+        "linux_deployment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context",
+            "evidence"
+          ],
+          "properties": {
+            "context": {
+              "$ref": "#/$defs/linuxDeploymentContextBinding"
+            },
+            "evidence": {
+              "$ref": "#/$defs/pendingBinding"
+            }
+          }
+        },
+        "darwin_acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context",
+            "browser_contexts",
+            "artifact_use",
+            "evidence"
+          ],
+          "properties": {
+            "context": {
+              "$ref": "#/$defs/darwinAcceptanceContextBinding"
+            },
+            "browser_contexts": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "artifact_use": {
+              "$ref": "#/$defs/pendingBinding"
+            },
+            "evidence": {
+              "$ref": "#/$defs/pendingBinding"
+            }
+          }
+        }
+      }
+    }
+  }
+}

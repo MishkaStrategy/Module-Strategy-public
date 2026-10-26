@@ -1,0 +1,260 @@
+name: strategy-factory-soak
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "research/strategy_factory/**"
+      - "research/strategy_audit_validation/**"
+      - ".github/actions/python-runner-preflight/**"
+      - "scripts/runner_preflight.sh"
+      - "tests/test_runner_preflight_capacity.py"
+      - ".github/workflows/strategy-factory-soak.yml"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - "research/strategy_factory/**"
+      - "research/strategy_audit_validation/**"
+      - ".github/actions/python-runner-preflight/**"
+      - "scripts/runner_preflight.sh"
+      - "tests/test_runner_preflight_capacity.py"
+      - ".github/workflows/strategy-factory-soak.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: strategy-factory-soak-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extended-restart-soak:
+    name: Strategy Factory extended restart soak / Python 3.13
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 90
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Strategy Factory soak candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            modules/risk_request_composer/pyproject.toml
+            research/strategy_factory/pyproject.toml
+          cache-suffix: strategy-factory-soak
+
+      - name: Install exact local soak surface
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          uv_install() {
+            local attempt
+            for attempt in 1 2 3; do
+              if uv pip install "$@"; then
+                return 0
+              fi
+              if [[ "$attempt" == 3 ]]; then
+                echo "uv pip install failed after ${attempt} attempts: $*" >&2
+                return 1
+              fi
+              echo "uv pip install attempt ${attempt} failed; retrying: $*" >&2
+              sleep $((attempt * 5))
+            done
+          }
+
+          uv_install --upgrade pip setuptools wheel
+          uv_install -e ".[dev]"
+          uv_install -e "./modules/risk_sizing" --no-deps
+          uv_install -e "./research/experiment_runner" --no-deps
+          uv_install -e "./modules/results_aggregator" --no-deps
+          uv_install -e "./research/strategy_audit_validation[dev]" --no-deps
+          uv_install -e "./modules/risk_request_composer" --no-deps
+          uv_install -e "./research/strategy_factory[dev]" --no-deps
+          uv pip check
+
+      - name: Execute 100 cold-process restart cycles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import statistics
+          import subprocess
+          import sys
+          import time
+          from pathlib import Path
+
+          nodes = (
+              "research/strategy_factory/tests/test_coordinator.py::test_blocked_stage_resumes_without_double_budget_or_batch",
+              "research/strategy_factory/tests/test_application.py::test_application_resumes_blocked_run_with_new_assembly",
+              "research/strategy_factory/tests/test_promotion.py::test_coarse_stage_cold_restores_without_repreparing_completed_experiment",
+              "research/strategy_factory/tests/test_acceptance_scenarios.py::test_acceptance_14_crash_after_batch_submit_resumes_without_duplicate",
+              "research/strategy_factory/tests/test_independent_auditor_e2e.py::test_factory_envelope_is_approved_and_replayed_after_auditor_restart",
+          )
+          iterations = 100
+          historical_target_seconds = 1800.0
+          per_iteration_timeout_seconds = 120.0
+          runaway_seconds = 4500.0
+          empty_spawn_retry_limit = 3
+          empty_spawn_max_seconds = 0.25
+          log_path = Path("strategy-factory-extended-soak.log")
+          iteration_seconds: list[float] = []
+          transient_spawn_retries = 0
+          started = time.perf_counter()
+
+          with log_path.open("w", encoding="utf-8") as log:
+              for iteration in range(1, iterations + 1):
+                  environment = dict(os.environ)
+                  environment["PYTHONHASHSEED"] = str(iteration)
+                  command = [sys.executable, "-m", "pytest", "-q", *nodes]
+                  iteration_started = time.perf_counter()
+                  completed: subprocess.CompletedProcess[str] | None = None
+
+                  for attempt in range(1, empty_spawn_retry_limit + 1):
+                      attempt_started = time.perf_counter()
+                      try:
+                          candidate = subprocess.run(
+                              command,
+                              env=environment,
+                              text=True,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT,
+                              check=False,
+                              timeout=per_iteration_timeout_seconds,
+                          )
+                      except subprocess.TimeoutExpired as exc:
+                          duration = time.perf_counter() - iteration_started
+                          output = exc.stdout or ""
+                          if isinstance(output, bytes):
+                              output = output.decode("utf-8", errors="replace")
+                          log.write(
+                              f"iteration={iteration} hash_seed={iteration} "
+                              f"attempt={attempt} duration_seconds={duration:.6f} "
+                              "status=TIMEOUT\n"
+                          )
+                          log.write(output)
+                          log.flush()
+                          raise SystemExit(
+                              "extended soak timed out at iteration "
+                              f"{iteration} after {duration:.3f}s; see {log_path}"
+                          ) from exc
+
+                      attempt_duration = time.perf_counter() - attempt_started
+                      output = candidate.stdout or ""
+                      empty_spawn_failure = (
+                          candidate.returncode != 0
+                          and not output.strip()
+                          and attempt_duration <= empty_spawn_max_seconds
+                      )
+                      if empty_spawn_failure and attempt < empty_spawn_retry_limit:
+                          transient_spawn_retries += 1
+                          log.write(
+                              f"iteration={iteration} hash_seed={iteration} "
+                              f"attempt={attempt} duration_seconds={attempt_duration:.6f} "
+                              f"returncode={candidate.returncode} "
+                              "status=TRANSIENT_EMPTY_PROCESS_RETRY\n"
+                          )
+                          log.flush()
+                          time.sleep(0.25 * attempt)
+                          continue
+
+                      completed = candidate
+                      break
+
+                  if completed is None:
+                      raise AssertionError("soak subprocess did not produce a result")
+
+                  duration = time.perf_counter() - iteration_started
+                  iteration_seconds.append(duration)
+                  log.write(
+                      f"iteration={iteration} hash_seed={iteration} "
+                      f"duration_seconds={duration:.6f} "
+                      f"status={'PASS' if completed.returncode == 0 else 'FAIL'}\n"
+                  )
+                  log.write(completed.stdout or "")
+                  log.flush()
+                  if completed.returncode != 0:
+                      raise SystemExit(
+                          f"extended soak failed at iteration {iteration}; see {log_path}"
+                      )
+
+          elapsed = time.perf_counter() - started
+          ordered = sorted(iteration_seconds)
+          p95_index = round(0.95 * (len(ordered) - 1))
+          report = {
+              "iterations": iterations,
+              "checks_per_iteration": len(nodes),
+              "total_checks": iterations * len(nodes),
+              "elapsed_seconds": elapsed,
+              "historical_target_seconds": historical_target_seconds,
+              "historical_target_met": elapsed <= historical_target_seconds,
+              "per_iteration_timeout_seconds": per_iteration_timeout_seconds,
+              "runaway_seconds": runaway_seconds,
+              "empty_spawn_retry_limit": empty_spawn_retry_limit,
+              "empty_spawn_max_seconds": empty_spawn_max_seconds,
+              "transient_spawn_retries": transient_spawn_retries,
+              "iteration_p50_seconds": statistics.median(ordered),
+              "iteration_p95_seconds": ordered[p95_index],
+              "iteration_max_seconds": max(ordered),
+              "includes_independent_auditor_restart": True,
+              "status": "PASS" if elapsed <= runaway_seconds else "FAIL",
+          }
+          Path("strategy-factory-extended-soak.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if elapsed > runaway_seconds:
+              raise SystemExit("extended restart soak exceeded runaway bound")
+          PY
+
+      - name: Publish exact Strategy Factory extended soak evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: |
+            strategy-factory-extended-soak.log
+            strategy-factory-extended-soak.json
+          asset_name: strategy-factory-extended-soak.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Strategy Factory extended soak publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload extended soak failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: strategy-factory-extended-soak-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            strategy-factory-extended-soak.log
+            strategy-factory-extended-soak.json

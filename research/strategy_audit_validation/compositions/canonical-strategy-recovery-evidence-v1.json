@@ -1,0 +1,46 @@
+{
+  "assets": [
+    {
+      "git_blob_oid": "b75ed48121e7a7ec950ce947aa1d6ce0ce6cfd93",
+      "path": "docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md",
+      "role": "human-readable provenance and blocker audit"
+    },
+    {
+      "git_blob_oid": "aa713522d13a59f0647a7101bba66af0daccf535",
+      "path": "research/strategy_audit_validation/compositions/recovered-contracts-v1.json",
+      "role": "fail-closed recovery registry"
+    },
+    {
+      "git_blob_oid": "be7223ea5db95f7748e04f2e9666acdeb4a37c9d",
+      "path": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json",
+      "role": "recovered Final 15m specification"
+    },
+    {
+      "git_blob_oid": "844957eab5f11b24f6d600710aef54bce8f403ef",
+      "path": "research/strategy_audit_validation/compositions/frozen-1h-short.recovered-gap.json",
+      "role": "partial Frozen 1H specification"
+    },
+    {
+      "git_blob_oid": "d7b1063f8d2395553464398c278cf5c7fa8b2c76",
+      "path": "research/strategy_audit_validation/compositions/frozen-4h-short.gap.json",
+      "role": "Frozen 4H authoritative gap"
+    },
+    {
+      "git_blob_oid": "eeae27c2ab5c76084585c09fc45fddb4dd28695b",
+      "path": "research/strategy_audit_validation/compositions/canonical-strategy-decision-queue-v1.json",
+      "role": "owner decision queue"
+    }
+  ],
+  "canonical": false,
+  "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+  "evidence_id": "canonical-strategy-recovery-evidence-v1",
+  "executable": false,
+  "identity_algorithm": "git_blob_oid_sha1",
+  "identity_limitation": "These OIDs attest repository file bytes. Exact SHA-256 signal and trade ledgers remain required by STRATEGY-312-05.",
+  "issue": 312,
+  "pr": 316,
+  "recovery_base_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+  "schema_version": 1,
+  "source_head_before_manifest": "0cec22962e2bbe24bd35e9c22caa5be56532d650",
+  "status": "PARTIAL_RECOVERY_FAIL_CLOSED"
+}

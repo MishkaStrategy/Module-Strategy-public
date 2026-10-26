@@ -1,0 +1,119 @@
+{
+  "extended": {
+    "active_zones": 0,
+    "calls": 50000,
+    "checkpoint_bytes": 668,
+    "events": 50000,
+    "runs": 1,
+    "seconds": {
+      "all": [
+        4.489826549001009
+      ],
+      "maximum": 4.489826549001009,
+      "median": 4.489826549001009,
+      "minimum": 4.489826549001009
+    },
+    "throughput_calls_per_second": {
+      "maximum": 11136.287661518918,
+      "median": 11136.287661518918,
+      "minimum": 11136.287661518918
+    }
+  },
+  "memory": {
+    "active_zones": 0,
+    "calls": 10000,
+    "checkpoint_bytes": 668,
+    "events": 10000,
+    "peak_memory_bytes": 7637,
+    "seconds": 4.46483654199983,
+    "throughput_calls_per_second": 2239.723650783626
+  },
+  "module_version": "0.2.1",
+  "python": "3.13.5",
+  "restart_midpoint": {
+    "active_zones_final": 5,
+    "checkpoint_bytes_at_split": 1343,
+    "digest_restarted": "7e3a301243cdeea6c5b9efdf7d3cb05c841dc017af8b0dd7bd41936620de80a9",
+    "digest_uninterrupted": "7e3a301243cdeea6c5b9efdf7d3cb05c841dc017af8b0dd7bd41936620de80a9",
+    "digests_match": true,
+    "events": 10000,
+    "restore_latency_ns": 216961,
+    "split_at": 5000
+  },
+  "restore_distribution": {
+    "checkpoint_bytes": 1005,
+    "iterations": 250,
+    "latency_ns": {
+      "maximum": 134298,
+      "median": 88298,
+      "minimum": 85477
+    }
+  },
+  "smoke_1k": {
+    "active_zones": 0,
+    "calls": 1000,
+    "checkpoint_bytes": 668,
+    "events": 1000,
+    "runs": 3,
+    "seconds": {
+      "all": [
+        0.09844894399975601,
+        0.0859885750014655,
+        0.09085605099971872
+      ],
+      "maximum": 0.09844894399975601,
+      "median": 0.09085605099971872,
+      "minimum": 0.0859885750014655
+    },
+    "throughput_calls_per_second": {
+      "maximum": 11629.451935713052,
+      "median": 11006.42157563172,
+      "minimum": 10157.549277547134
+    }
+  },
+  "standard": {
+    "active_zones": 0,
+    "calls": 10000,
+    "checkpoint_bytes": 668,
+    "events": 10000,
+    "runs": 3,
+    "seconds": {
+      "all": [
+        0.9261974710007053,
+        0.9016989720003039,
+        0.8874817100004293
+      ],
+      "maximum": 0.9261974710007053,
+      "median": 0.9016989720003039,
+      "minimum": 0.8874817100004293
+    },
+    "throughput_calls_per_second": {
+      "maximum": 11267.837846478169,
+      "median": 11090.175668955548,
+      "minimum": 10796.833626845852
+    }
+  },
+  "standard_with_two_duplicates": {
+    "active_zones": 0,
+    "calls": 30000,
+    "checkpoint_bytes": 668,
+    "events": 10000,
+    "runs": 3,
+    "seconds": {
+      "all": [
+        1.1183077540008526,
+        1.09537185499903,
+        1.1021720449989516
+      ],
+      "maximum": 1.1183077540008526,
+      "median": 1.1021720449989516,
+      "minimum": 1.09537185499903
+    },
+    "throughput_calls_per_second": {
+      "maximum": 27387.95949803418,
+      "median": 27218.98104395175,
+      "minimum": 26826.246972420733
+    }
+  },
+  "workload_note": "Rolling three-bar MarketView keeps external test-harness history bounded and measures module hot-path complexity."
+}

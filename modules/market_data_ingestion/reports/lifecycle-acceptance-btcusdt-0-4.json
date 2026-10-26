@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "component": "market_data_ingestion",
+  "component_version": "0.4.0",
+  "repository": "MishkaStrategy/Module-Strategy",
+  "pull_request": 221,
+  "recorded_date": "2026-07-28",
+  "instrument": {
+    "exchange": "binance",
+    "market_type": "usdt_m_perpetual",
+    "symbol": "BTCUSDT",
+    "data_type": "klines",
+    "timeframe": "5m"
+  },
+  "update_and_repair": {
+    "workflow_run_id": 30369425360,
+    "head_sha": "daf8d788952e5c0b62fb5f70ce614a8e1079318a",
+    "artifact": {
+      "id": 8692797790,
+      "name": "market-data-ingestion-lifecycle-30369425360",
+      "digest": "sha256:073bc3f2bccb2120a9b4a4420e5d1d313a2178446af58493f3c2a5d47008edf8"
+    },
+    "version_1": {
+      "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+      "version": 1,
+      "start": "2019-09-08T17:55:00Z",
+      "end": "2026-07-19T07:00:00Z",
+      "kline_rows": 721597,
+      "validation_status": "VALID",
+      "elapsed_seconds": 269,
+      "deep_integrity": {
+        "status": "ok",
+        "issues": 0,
+        "partitions_checked": 251,
+        "raw_artifacts_checked": 96,
+        "rows_checked": 1022264
+      }
+    },
+    "append_only_version_2": {
+      "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+      "version": 2,
+      "start": "2019-09-08T17:55:00Z",
+      "end": "2026-07-27T19:20:00Z",
+      "kline_rows": 724049,
+      "validation_status": "VALID",
+      "elapsed_seconds": 8,
+      "parent_manifest_unchanged": true,
+      "deep_integrity": {
+        "status": "ok",
+        "issues": 0,
+        "partitions_checked": 254,
+        "raw_artifacts_checked": 101,
+        "rows_checked": 1025737
+      }
+    },
+    "repair_version_3": {
+      "source_version": 2,
+      "new_version": 3,
+      "status": "REPAIRED",
+      "damaged_partition": {
+        "data_type": "klines",
+        "timeframe": "5m",
+        "start": "2026-07-19T07:00:00Z",
+        "end": "2026-07-27T19:20:00Z",
+        "row_count": 2452,
+        "checksum_sha256": "33b1e8b2bdaa1623baf6864939b893b1086f97010907a687f4b44c0d2c87b7d7"
+      },
+      "repaired_ranges": [
+        [
+          "2026-07-19T07:00:00Z",
+          "2026-07-27T19:20:00Z"
+        ]
+      ],
+      "unresolved_gaps": [],
+      "quarantined_files": 1,
+      "elapsed_seconds": 9,
+      "parent_manifests_unchanged": true,
+      "deep_integrity": {
+        "status": "ok",
+        "issues": 0,
+        "partitions_checked": 254,
+        "raw_artifacts_checked": 101,
+        "rows_checked": 1025737
+      }
+    }
+  },
+  "restart_resume": {
+    "workflow_run_id": 30372890842,
+    "head_sha": "cb92ab6797e70a498e9cea5dc0e9968fd8622b76",
+    "artifact": {
+      "id": 8693882716,
+      "name": "market-data-ingestion-resume-30372890842",
+      "digest": "sha256:35cf6f15addd2ad7786f80af6f42c2eb7369739f15b6bbe54ab865afbce79d6a"
+    },
+    "interruption": {
+      "exit_code": 143,
+      "checkpoint_state": "DOWNLOADING",
+      "completed_chunks": 4,
+      "pending_chunks": 90,
+      "immutable_raw_hashes_recorded": true
+    },
+    "resume": {
+      "exit_code": 0,
+      "verification_exit_code": 0,
+      "elapsed_seconds": 383,
+      "restored_chunk_events": 4,
+      "final_state": "COMPLETED_WITH_WARNINGS",
+      "warnings": [
+        "resuming from checkpoint state DOWNLOADING"
+      ],
+      "confirmed_raw_artifacts_unchanged": true,
+      "terminal_checkpoint_state": "COMPLETED_WITH_WARNINGS",
+      "terminal_completed_chunks": 94,
+      "terminal_pending_chunks": 0,
+      "dataset": {
+        "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+        "version": 1,
+        "start": "2019-09-08T17:55:00Z",
+        "end": "2026-07-19T07:00:00Z",
+        "kline_rows": 721597,
+        "validation_status": "VALID"
+      },
+      "deep_integrity": {
+        "status": "ok",
+        "issues": 0,
+        "partitions_checked": 85,
+        "raw_artifacts_checked": 96,
+        "rows_checked": 721599
+      },
+      "storage": {
+        "raw_files": 192,
+        "raw_bytes": 38489574,
+        "normalized_files": 85,
+        "normalized_bytes": 47507399,
+        "manifest_files": 1,
+        "manifest_bytes": 437872,
+        "checkpoint_files": 1,
+        "checkpoint_bytes": 6407
+      }
+    }
+  },
+  "conclusion": {
+    "status": "passed",
+    "append_only_update_verified": true,
+    "immutable_parent_versions_verified": true,
+    "tamper_quarantine_repair_verified": true,
+    "restart_resume_from_immutable_raw_verified": true,
+    "deep_integrity_verified": true,
+    "private_credentials_used": false,
+    "live_trading_used": false
+  }
+}

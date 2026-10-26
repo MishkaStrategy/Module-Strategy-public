@@ -1,0 +1,279 @@
+{
+  "approvable": false,
+  "contract_status": "RECOVERED_SPEC_NOT_IMPLEMENTED",
+  "executable": false,
+  "identity": {
+    "module_id": "fvg_rt_final_15m",
+    "name": "FVG-RT Final 15m",
+    "proposed_version": "1.0.0-recovered",
+    "status": "research_contract_recovery"
+  },
+  "market": {
+    "base_timeframe": "5m",
+    "context_timeframes": [
+      "15m",
+      "4h",
+      "1d"
+    ],
+    "instrument": "BTCUSDT",
+    "market_type": "Binance USDT-M perpetual futures preferred",
+    "timezone": "UTC"
+  },
+  "causality": {
+    "data_gap_rule": "Orders and positions cannot cross a detected data gap; indicator state is reset according to the frozen cache contract.",
+    "first_execution_bar": "The first 5m bar after completed candle C.",
+    "fvg_available": "Only after completed 15m candle C closes.",
+    "lookahead_allowed": false,
+    "unfinished_htf_allowed": false
+  },
+  "indicators": {
+    "atr_15m": {
+      "method": "simple moving average of true range",
+      "period": 14
+    },
+    "ema50_15m": {
+      "alpha": "2/(50+1)",
+      "method": "recursive EMA"
+    },
+    "ema200_1d": {
+      "completed_bars_only": true,
+      "method": "recursive EMA",
+      "period": 200,
+      "warmup_required": true
+    },
+    "ema200_4h": {
+      "completed_bars_only": true,
+      "method": "recursive EMA",
+      "period": 200,
+      "warmup_required": true
+    },
+    "rsi14_15m": {
+      "adjust": false,
+      "alpha": "1/14",
+      "method": "Wilder EWM"
+    },
+    "volume_sma20_15m": {
+      "completed_bars_only": true,
+      "period": 20
+    }
+  },
+  "fvg_definition": {
+    "candles": "Three completed 15m candles A, B, C.",
+    "bullish": "C.low > A.high",
+    "bullish_zone": [
+      "A.high",
+      "C.low"
+    ],
+    "bearish": "C.high < A.low",
+    "bearish_zone": [
+      "C.high",
+      "A.low"
+    ],
+    "displacement_body_source": "B",
+    "volume_source": "B",
+    "context_source": "completed C unless explicitly stated otherwise"
+  },
+  "quality_filter": {
+    "formula": "abs(C.close - A.open) / ((A.high-A.low) + (B.high-B.low) + (C.high-C.low))",
+    "name": "impulse_efficiency",
+    "required_for": [
+      "long",
+      "short_A",
+      "short_B"
+    ],
+    "minimum": 0.45,
+    "zero_denominator": "reject fail-closed"
+  },
+  "portfolio": {
+    "max_active_limit_or_position": 1,
+    "passed_signal_blocks_new_signals_until": [
+      "fill",
+      "expiry",
+      "cancellation",
+      "gap invalidation",
+      "position exit"
+    ],
+    "simultaneous_short_priority": [
+      "short_A",
+      "short_B"
+    ],
+    "long_confirmation": "Long requires the full combined Long filter and uses the Long execution geometry."
+  },
+  "long": {
+    "filters": {
+      "atr_fraction_of_close": {
+        "maximum": 0.012,
+        "minimum": 0.002
+      },
+      "ema50_regime": [
+        "C.close > EMA50_15m",
+        "EMA50_15m at C > EMA50_15m four completed 15m candles earlier"
+      ],
+      "ema200_regime": "last completed 4h close > completed 4h EMA200",
+      "fvg_direction": "bullish",
+      "fvg_size_atr": {
+        "maximum": 0.5,
+        "minimum": 0.1
+      },
+      "impulse_efficiency_minimum": 0.45,
+      "middle_candle_body_minimum_atr": 0.75,
+      "middle_candle_direction": "bullish",
+      "range_location_minimum": {
+        "12h": 0.25,
+        "8h": 0.25
+      },
+      "rsi14_minimum": 60,
+      "signal_hours_utc": "06:00:00 through 23:59:59",
+      "volume_B_over_sma20_minimum": 1.0
+    },
+    "execution": {
+      "entry": "C.low",
+      "limit_ttl_5m_bars": 36,
+      "max_hold_5m_bars": 288,
+      "max_hold_last_index": "fill + 287",
+      "no_progress": {
+        "check_bar": "fill + 48",
+        "exit": "reduce-only market at check-bar close",
+        "mfe_direction": "high",
+        "mfe_excludes_fill_bar": true,
+        "minimum_mfe_R": 0.15
+      },
+      "reject_if_stop_distance_fraction_gt": 0.05,
+      "stop": "minimum low of the last 16 completed 15m candles including C minus 0.20 ATR(14)",
+      "target_R": 4.5
+    }
+  },
+  "short_A": {
+    "filters": {
+      "atr_fraction_of_close": {
+        "maximum": 0.005,
+        "minimum": 0.002
+      },
+      "ema200_regime": "last completed 1d close < completed 1d EMA200",
+      "fvg_direction": "bearish",
+      "fvg_size_atr": {
+        "maximum": 1.5,
+        "minimum": 0.15
+      },
+      "htf_trend": "last completed 4h close < completed 4h close three completed 4h candles earlier",
+      "impulse_efficiency_minimum": 0.45,
+      "middle_candle_body_minimum_atr": 0.25,
+      "middle_candle_direction": "bearish",
+      "rsi_filter": null,
+      "session_filter": null,
+      "short_location": {
+        "formula": "(range_high - C.close) / (range_high - range_low)",
+        "timeframe": "4h",
+        "maximum": 0.6
+      },
+      "volume_B_over_sma20_minimum": 0.7
+    },
+    "execution": {
+      "entry": "C.high + 0.25 * (A.low - C.high)",
+      "limit_ttl_5m_bars": 48,
+      "max_hold_5m_bars": 288,
+      "no_progress": {
+        "check_bar": "fill + 24",
+        "exit": "reduce-only market at check-bar close",
+        "mfe_direction": "low",
+        "mfe_excludes_fill_bar": true,
+        "minimum_mfe_R": 0.35
+      },
+      "reject_if_stop_distance_fraction_gt": 0.015,
+      "stop": "maximum high of the last 8 completed 15m candles including C",
+      "target_R": 5.0
+    }
+  },
+  "short_B": {
+    "filters": {
+      "atr_fraction_of_close": {
+        "maximum": 0.02,
+        "minimum": 0.0
+      },
+      "bearish_bos": "C.close < minimum low of the previous 48 completed 15m candles, excluding C",
+      "close_strength_minimum": 0.5,
+      "close_strength_formula": "(B.high - B.close) / (B.high - B.low)",
+      "ema200_regime": "last completed 1d close < completed 1d EMA200",
+      "fvg_direction": "bearish",
+      "fvg_size_atr": {
+        "maximum": 2.0,
+        "minimum": 0.2
+      },
+      "impulse_efficiency_minimum": 0.45,
+      "middle_candle_body_minimum_atr": 0.5,
+      "middle_candle_direction": "bearish",
+      "no_bullish_fvg_in_previous_completed_15m_bars": 12,
+      "rsi14_maximum": 40,
+      "short_location_minimum": {
+        "48h": 0.6,
+        "8h": 0.5
+      },
+      "volume_B_over_sma20_minimum": 0.7
+    },
+    "execution": {
+      "entry": "C.high",
+      "limit_ttl_5m_bars": 48,
+      "max_hold_5m_bars": 576,
+      "no_progress": {
+        "check_bar": "fill + 60",
+        "exit": "reduce-only market at check-bar close",
+        "mfe_direction": "low",
+        "mfe_excludes_fill_bar": true,
+        "minimum_mfe_R": 0.35
+      },
+      "reject_if_stop_distance_fraction_gt": 0.03,
+      "stop": "maximum high of the last 16 completed 15m candles including C",
+      "target_R": 6.0
+    }
+  },
+  "intrabar": {
+    "full_target_on_fill_bar": false,
+    "gap_through_stop": "use the worse of stop fill and available open/market price; never assume guaranteed stop price",
+    "no_progress_check_priority": [
+      "stop",
+      "full_target",
+      "close-based no-progress exit"
+    ],
+    "stop_on_fill_bar": true,
+    "stop_target_same_bar": "stop first"
+  },
+  "costs_and_sizing": {
+    "adverse_market_slippage": 0.00025,
+    "equity_update": "after position close",
+    "funding_baseline": 0.0,
+    "maker_entry_fee": 0.0002,
+    "maker_target_fee": 0.0002,
+    "market_exit_fee": 0.00055,
+    "max_notional_multiple": 3.0,
+    "risk_fraction_research": 0.005,
+    "risk_fraction_working_mode": 0.02,
+    "risk_reference": "current equity and net stop loss including entry fee, stop fee, and adverse slippage",
+    "stop_fee": 0.00055
+  },
+  "reproducibility_controls": {
+    "v7_audit_json_sha256": "52a329448abe89e0e6935a29120de4349a8371f0aa43c225c41cbe4dc0034525",
+    "v7_robustness_json_sha256": "cfb584d1293264309c1ea77009c2358d99bfa91690d1b9169c578aa192005888",
+    "v7_trade_ledger_sha256": "4240cc827fdceb7d2c47ba6cb8af25f1d0f0179f987739df3a05b13c88001e0c",
+    "warning": "These controls validate the earlier v7 package, not the newer Final quality/regime composition on official futures data."
+  },
+  "missing_for_executable_contract": [
+    "runtime package and stable module version",
+    "trusted setup adapter and analytical-feature binding",
+    "repository-resident control signal/trade ledger for Final quality and regime additions",
+    "exact cross-component dependency and execution ordering",
+    "checkpoint and restart implementation contract in the repository runtime"
+  ],
+  "schema_version": 1,
+  "source_provenance": {
+    "base_commit_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+    "issue": 312,
+    "recovered_documents": [
+      "FVG_RT_V7_TRANSFER_PROMPT.md",
+      "strategy_spec_v5.json",
+      "strategy_spec_v6_checkpoint.json",
+      "strategy_spec_v7_checkpoint.json",
+      "FVG_RT_V7_FINAL_AUDIT.md"
+    ],
+    "recovery_audit": "docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md"
+  }
+}

@@ -1,0 +1,30 @@
+schema_version: 1
+request_id: binance-usdtm-btcusdt-full-v1
+exchange:
+  id: binance
+  market_type: usdt_m_perpetual
+instrument:
+  symbol: BTCUSDT
+range:
+  mode: full_available_history
+  end: latest_closed
+data:
+  base_timeframe: 5m
+  derived_timeframes: [10m, 15m, 1h, 4h]
+  required_types: [klines]
+  optional_types: [funding_rate, mark_price, index_price, open_interest]
+download:
+  concurrency: 4
+  retries: 8
+  timeout_seconds: 30
+  resume: true
+validation:
+  deep: true
+  repair_gaps: true
+  reject_unresolved_required_gaps: true
+  allow_partial_optional_data: true
+storage:
+  root: ../../data
+  format: parquet
+  compression: zstd
+  partition: monthly

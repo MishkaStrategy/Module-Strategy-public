@@ -1,0 +1,18 @@
+modules:
+  - class: strategy_modules.liquidity_sweep:LiquiditySweepModule
+    enabled: true
+    parameters:
+      timeframe: 15m
+      pivot_left_bars: 2
+      pivot_right_bars: 2
+      min_level_age_bars: 1
+      max_level_age_bars: 500
+      max_active_levels: 128
+      min_penetration_bps: 1.0
+      max_penetration_bps: 100.0
+      close_reclaim_bps: 0.0
+      invalidation_close_bps: 0.0
+      min_wick_to_body_ratio: 1.0
+      min_wick_fraction: 0.35
+      require_directional_close: false
+      emit_signals: false

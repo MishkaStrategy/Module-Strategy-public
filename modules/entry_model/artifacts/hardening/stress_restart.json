@@ -1,0 +1,38 @@
+{
+  "repeat_50k": {
+    "checkpoint_bytes": 3110382,
+    "digest": "39a9293cdd14ba19007d349738ed02164891cbfb3a38b0d344537c4067446211",
+    "events": 50000,
+    "plans": 50000,
+    "processed_state": 10000,
+    "restart_at": null,
+    "seconds": 9.76770426500002,
+    "seen_feature_state": 10000,
+    "throughput_per_second": 5118.910098369967,
+    "with_feature": true
+  },
+  "restart_50k": {
+    "checkpoint_bytes": 3110382,
+    "digest": "39a9293cdd14ba19007d349738ed02164891cbfb3a38b0d344537c4067446211",
+    "events": 50000,
+    "plans": 50000,
+    "processed_state": 10000,
+    "restart_at": 25000,
+    "seconds": 9.583158183000023,
+    "seen_feature_state": 10000,
+    "throughput_per_second": 5217.486662037693,
+    "with_feature": true
+  },
+  "stress_empty": {
+    "checkpoint_bytes": 372,
+    "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "events": 1000000,
+    "plans": 0,
+    "processed_state": 0,
+    "restart_at": null,
+    "seconds": 10.843332750999934,
+    "seen_feature_state": 0,
+    "throughput_per_second": 92222.56874001985,
+    "with_feature": false
+  }
+}

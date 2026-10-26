@@ -1,0 +1,11 @@
+{
+  "console_script": "results-registry",
+  "import_namespace": "modular_results_registry",
+  "imports_checked": 395,
+  "package_name": "modular-results-registry",
+  "python_files": 40,
+  "report_hash": "9c1e5f39aa726b0bf4de1416647b86f9f96fefce7da4f12f42e1bb6e950e1649",
+  "schema_version": "integration-boundary-audit.v1",
+  "status": "PASS",
+  "violations": []
+}

@@ -1,0 +1,19 @@
+enabled: false
+state:
+  database: data/signal_bot.sqlite3
+charts:
+  theme: dark
+instruments:
+  BTCUSDT:
+    enabled: false
+    market: binance_usdt_m_perpetual
+    tick_size: "0.10"
+    step_size: "0.001"
+    min_notional: "5"
+    strategy:
+      # Registered through modular_strategy.signal_strategies entry points.
+      id: btc_fvg_strategy
+      version: "1.0.0"
+      parameters: {}
+    notifications:
+      chart_enabled: true

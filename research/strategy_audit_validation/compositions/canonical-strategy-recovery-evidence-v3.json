@@ -1,0 +1,58 @@
+{
+  "assets": [
+    [
+      "c4704607ce0afe195de9e58025d5d2c49ba1fda9",
+      "research/strategy_audit_validation/compositions/canonical-strategy-recovery-evidence-v2.json"
+    ],
+    [
+      "91bb7baa36cf65dd3eb96d2f5d3a5a85432a217d",
+      "research/strategy_audit_validation/evidence/btcusdt-drive-download-config.json"
+    ],
+    [
+      "fcd1f70fbd387d80f47e7691a402cb50d7d7ad3f",
+      "research/strategy_audit_validation/evidence/btcusdt-drive-download-summary.csv"
+    ],
+    [
+      "497639c50dcfc89f5fd5b4c3cb2e11374d8ad8bd",
+      "research/strategy_audit_validation/evidence/btcusdt-drive-dataset-attestation-v1.json"
+    ],
+    [
+      "0c7853131b5c855721453fe25511864cec713de3",
+      "research/strategy_audit_validation/src/strategy_audit_validation/dataset_attestation.py"
+    ],
+    [
+      "478a7715a3c48fc9fac80050ea3cc6e91f5f2f57",
+      "research/strategy_audit_validation/tests/test_dataset_attestation.py"
+    ],
+    [
+      "284939fa9b12c8a2648d53db3861bc2fa6655662",
+      "docs/strategy-contracts/BTCUSDT_DRIVE_DATASET_ATTESTATION.md"
+    ],
+    [
+      "99910a1085e12de91aab1f9cb056836ec917c8bc",
+      "research/strategy_audit_validation/compositions/canonical-strategy-decision-queue-v1.json"
+    ],
+    [
+      "ad3ed52ac68d6bf759acabc5c8c20d839cec97a9",
+      "research/strategy_audit_validation/tests/test_canonical_strategy_decision_queue.py"
+    ],
+    [
+      "8b6ea62db21d4f523431ae1f62bc83825f5b9eb7",
+      "research/strategy_audit_validation/src/strategy_audit_validation/__init__.py"
+    ]
+  ],
+  "attestation_canonical_sha256": "e3cc285ba9fe4e7a50879ae52660f380d7177bb35a20f13c264f993cb6975a91",
+  "attestation_id": "btcusdt-drive-history-20260719-v1",
+  "canonical": false,
+  "control_evidence_complete": false,
+  "evidence_id": "canonical-strategy-recovery-evidence-v3",
+  "executable": false,
+  "issue": 312,
+  "market_endpoint_proven": false,
+  "parent_evidence_id": "canonical-strategy-recovery-evidence-v2",
+  "pr": 316,
+  "registered_dataset_identity_proven": true,
+  "schema_version": 3,
+  "source_head_before_manifest": "c864dee0df9376241639b8fdc059959e82c42eb6",
+  "status": "DATASET_ATTESTED_AND_REGISTRATION_ACCEPTED_FAIL_CLOSED"
+}

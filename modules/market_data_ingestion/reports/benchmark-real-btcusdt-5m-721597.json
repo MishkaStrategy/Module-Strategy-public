@@ -1,0 +1,80 @@
+{
+  "benchmark_kind": "multi_year_real_parquet_normalization_validation_publish_reread",
+  "benchmark_version": 1,
+  "completed_at": "2026-07-27T18:34:27.680810+00:00",
+  "gate": {
+    "criteria": {
+      "all_rows_processed": true,
+      "monthly_memory_bound": true,
+      "rss_peak_below_1_gib": true,
+      "validation_valid": true,
+      "zero_gaps_duplicates_order_errors": true
+    },
+    "passed": true
+  },
+  "input": {
+    "name": "BTCUSDT_5m.parquet.bin",
+    "parquet_row_groups": 1,
+    "schema": "open_time: timestamp[ms, tz=UTC]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\nclose_time: timestamp[ms, tz=UTC]\nquote_volume: double\ntrades: int64\ntaker_buy_base: double\ntaker_buy_quote: double\n-- schema metadata --\npandas: '{\"index_columns\": [], \"column_indexes\": [], \"columns\": [{\"name\":' + 1426",
+    "sha256": "2b8a20ef09e1c292abbbee4a6963a1cedb7904cfc4340c9de72d0d2cd0b87ed1",
+    "size_bytes": 34020301
+  },
+  "memory": {
+    "arrow_peak_allocated_bytes": 57082624,
+    "python_heap_peak_bytes": 13081485,
+    "rss_peak_delta_bytes": 158109696,
+    "rss_peak_resource_bytes": 311468032,
+    "rss_peak_sampled_bytes": 311468032,
+    "rss_start_bytes": 153358336
+  },
+  "package_version": "0.4.0",
+  "performance": {
+    "phases_seconds": {
+      "checksum_verified_typed_reread_seconds": 218.563197,
+      "monthly_parquet_publish_seconds": 210.96444,
+      "source_decode_and_spool_seconds": 226.502075,
+      "stream_validation_seconds": 444.886294
+    },
+    "rows_per_second_total": 655.263,
+    "total_seconds": 1101.23262
+  },
+  "platform": "Linux-6.12.13-x86_64-with-glibc2.41",
+  "pyarrow": "25.0.0",
+  "python": "3.13.5",
+  "range": {
+    "exclusive_end": "2026-07-19T07:00:00+00:00",
+    "last_open": "2026-07-19T06:55:00+00:00",
+    "start": "2019-09-08T17:55:00+00:00"
+  },
+  "rows": {
+    "decoded": 721597,
+    "metadata": 721597,
+    "spooled_acquired": 721597,
+    "spooled_validated": 721597,
+    "typed_reread": 721597
+  },
+  "storage": {
+    "normalized_partition_bytes": 47588701,
+    "partition_checksums_unique": 83,
+    "partition_rows_sum": 721597,
+    "source_bytes": 34020301,
+    "spool_bytes": 0
+  },
+  "streaming": {
+    "maximum_month_rows_materialized": 8928,
+    "monthly_partition_count": 83,
+    "source_batch_count": 89,
+    "source_batch_size": 8192
+  },
+  "validation": {
+    "duplicates": 0,
+    "gaps": 0,
+    "issues": 0,
+    "reread_duplicates": 0,
+    "reread_gap_intervals": 0,
+    "reread_out_of_order": 0,
+    "rows_checked": 721597,
+    "status": "VALID",
+    "typed_reread_digest_sha256": "e6acf7a5335d5f73b6d3dc4b052dc1b91cd2338b98bab8130b19496f01a1343b"
+  }
+}

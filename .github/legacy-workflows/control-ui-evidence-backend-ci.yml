@@ -1,0 +1,306 @@
+name: control-ui-evidence-backend-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "modules/results_aggregator/**"
+      - "research/strategy_audit_validation/**"
+      - "docs/control_ui/EVIDENCE_CONTROL_V1.md"
+      - ".github/workflows/control-ui-evidence-backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-evidence-backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence-backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Evidence backend candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/control_plane/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+          cache-suffix: control-ui-evidence-backend
+
+      - name: Install Evidence owners and Control Plane
+        run: |
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "research/experiment_runner"
+          uv pip install -e "modules/results_aggregator"
+          uv pip install -e "research/strategy_audit_validation"
+          uv pip install -e "research/strategy_factory" --no-deps
+          uv pip install -e "applications/trading_runner"
+          uv pip install -e "modules/paper_execution"
+          uv pip install -e "applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Compile and format
+        run: |
+          python -m compileall -q \
+            applications/control_plane/src \
+            applications/control_plane/acceptance/evidence_api_contract.py \
+            modules/results_aggregator/src/modular_results_registry/evidence_query.py \
+            modules/results_aggregator/tests/test_readonly_evidence_query.py \
+            research/strategy_audit_validation/src/strategy_audit_validation/query.py \
+            research/strategy_audit_validation/tests/test_readonly_query.py
+          ruff format --check \
+            applications/control_plane/src/modular_control_plane/evidence.py \
+            applications/control_plane/src/modular_control_plane/evidence_api.py \
+            applications/control_plane/src/modular_control_plane/adapters/evidence.py \
+            applications/control_plane/src/modular_control_plane/server.py \
+            applications/control_plane/acceptance/evidence_api_contract.py \
+            modules/results_aggregator/src/modular_results_registry/evidence_query.py \
+            modules/results_aggregator/tests/test_readonly_evidence_query.py \
+            research/strategy_audit_validation/src/strategy_audit_validation/query.py \
+            research/strategy_audit_validation/tests/test_readonly_query.py
+
+      - name: Ruff and Control Plane strict MyPy
+        run: |
+          ruff check --output-format=concise \
+            applications/control_plane/src \
+            applications/control_plane/acceptance/evidence_api_contract.py \
+            modules/results_aggregator/src/modular_results_registry/evidence_query.py \
+            modules/results_aggregator/tests/test_readonly_evidence_query.py \
+            research/strategy_audit_validation/src/strategy_audit_validation/query.py \
+            research/strategy_audit_validation/tests/test_readonly_query.py
+          mypy --strict applications/control_plane/src
+
+      - name: Native read-only Evidence tests
+        run: |
+          pytest -q research/strategy_audit_validation/tests/test_readonly_query.py
+          pytest -q modules/results_aggregator/tests/test_readonly_evidence_query.py
+          pytest -q applications/control_plane/acceptance/evidence_api_contract.py
+
+      - name: Lightweight import boundary
+        run: |
+          python - <<'PY'
+          import sys
+          import modular_control_plane
+
+          assert "strategy_audit_validation" not in sys.modules
+          assert "modular_results_registry" not in sys.modules
+          assert "modular_trading_runner" not in sys.modules
+          assert "paper_execution" not in sys.modules
+          assert modular_control_plane.EvidenceControlService.__name__ == "EvidenceControlService"
+          print("PASS: Control Plane Evidence import remains owner-lazy")
+          PY
+
+      - name: Real Evidence Control API read-only smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-evidence-backend-${{ matrix.python-version }}"
+          rm -rf "$root"
+          mkdir -p "$root"
+          export EVIDENCE_ACCEPTANCE_ROOT="$root"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import sys
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          from fastapi.testclient import TestClient
+          from modular_control_plane.server import ServerSettings, create_server
+          from modular_results_registry import SQLiteRegistry
+          from strategy_audit_validation import (
+              AuditDecision,
+              AuditOutcome,
+              HmacDecisionSigner,
+              SQLiteAuditStore,
+          )
+          from strategy_audit_validation.canonical import canonical_sha256
+
+          sys.path.insert(0, str(Path("modules/results_aggregator/tests").resolve()))
+          from conftest import make_package  # type: ignore[import-not-found]
+
+          now = datetime(2026, 8, 7, 13, 30, tzinfo=UTC)
+          root = Path(os.environ["EVIDENCE_ACCEPTANCE_ROOT"])
+          audit_db = root / "strategy-audit.sqlite3"
+          results_db = root / "results.sqlite3"
+
+          signer = HmacDecisionSigner(b"evidence-acceptance-key-32-bytes!!")
+          with SQLiteAuditStore(audit_db) as store:
+              evidence = {
+                  "candidate": {"candidate_id": "candidate-acceptance"},
+                  "private_host_path": "/Users/private/audit-evidence",
+                  "private_secret": "AUDIT-SECRET-DO-NOT-PROJECT",
+              }
+              reference = "evidence://candidate-acceptance/package-v1"
+              evidence_hash = store.register_evidence(
+                  reference=reference,
+                  payload=evidence,
+                  candidate_id="candidate-acceptance",
+                  observed_at=now,
+              )
+              request_hash = canonical_sha256(
+                  {
+                      "reference": reference,
+                      "evidence_hash": evidence_hash,
+                      "auditor": "independent-auditor",
+                  }
+              )
+              signature_payload = {
+                  "audit_id": "audit-acceptance-1",
+                  "candidate_id": "candidate-acceptance",
+                  "status": "APPROVED_FOR_PAPER",
+                  "evidence_package_reference": reference,
+                  "evidence_hash": evidence_hash,
+                  "reason_codes": ("PAPER_ADMISSION_APPROVED",),
+                  "issued_at": now,
+                  "auditor_id": "independent-auditor",
+                  "contract_version": "strategy-audit-port-v1",
+                  "schema_version": 1,
+              }
+              signature = signer.sign(signature_payload)
+              decision = AuditDecision(
+                  audit_id="audit-acceptance-1",
+                  candidate_id="candidate-acceptance",
+                  outcome=AuditOutcome.APPROVED_FOR_PAPER,
+                  evidence_package_reference=reference,
+                  evidence_hash=evidence_hash,
+                  reason_codes=("PAPER_ADMISSION_APPROVED",),
+                  issued_at=now,
+                  auditor_id="independent-auditor",
+                  contract_version="strategy-audit-port-v1",
+                  signature=signature,
+                  decision_hash=canonical_sha256(
+                      {**signature_payload, "signature": signature}
+                  ),
+              )
+              store.save_decision(request_hash=request_hash, decision=decision)
+              store.verify_integrity()
+
+          package = make_package(
+              package_id="package-evidence-acceptance",
+              experiment_id="experiment-evidence-acceptance",
+              run_id="run-evidence-acceptance",
+              artifact_id="artifact-evidence-acceptance",
+          )
+          with SQLiteRegistry(results_db) as registry:
+              outcome = registry.register_package(package)
+              assert outcome.state == "REGISTERED"
+
+          before_hashes = {
+              audit_db.name: hashlib.sha256(audit_db.read_bytes()).hexdigest(),
+              results_db.name: hashlib.sha256(results_db.read_bytes()).hexdigest(),
+          }
+          before_files = sorted(path.name for path in root.iterdir())
+
+          settings = ServerSettings(
+              reader_token="reader-token",
+              strategy_audit_state_path=audit_db,
+              results_registry_path=results_db,
+          )
+          with TestClient(create_server(settings)) as client:
+              headers = {"Authorization": "Bearer reader-token"}
+              health = client.get("/api/control/v1/components/evidence/health", headers=headers)
+              assert health.status_code == 200, health.text
+              assert health.json()["status"] == "HEALTHY"
+
+              overview = client.get("/api/control/v1/evidence/overview", headers=headers)
+              assert overview.status_code == 200, overview.text
+              integrity = overview.json()["audit_integrity"]
+              assert integrity["hash_chain_verified"] is True
+              assert integrity["hmac_signatures_reverified"] is False
+
+              decisions = client.get(
+                  "/api/control/v1/evidence/audit/decisions?limit=200&offset=0",
+                  headers=headers,
+              )
+              assert decisions.status_code == 200, decisions.text
+              decision_payload = decisions.json()["decisions"][0]
+              assert decision_payload["outcome"] == "APPROVED_FOR_PAPER"
+              assert decision_payload["hmac_signature_present"] is True
+              assert decision_payload["hmac_signature_reverified"] is False
+              assert "signature" not in decision_payload
+
+              audit_evidence = client.get(
+                  "/api/control/v1/evidence/audit/evidence?limit=200&offset=0",
+                  headers=headers,
+              )
+              assert audit_evidence.status_code == 200, audit_evidence.text
+
+              results = client.get(
+                  "/api/control/v1/evidence/results?limit=200&offset=0",
+                  headers=headers,
+              )
+              assert results.status_code == 200, results.text
+              assert results.json()["evidence"][0]["evidence_id"] == "evidence-001"
+
+              rendered = json.dumps(
+                  {
+                      "health": health.json(),
+                      "overview": overview.json(),
+                      "decisions": decisions.json(),
+                      "audit_evidence": audit_evidence.json(),
+                      "results": results.json(),
+                  },
+                  sort_keys=True,
+              )
+              for forbidden in (
+                  "AUDIT-SECRET-DO-NOT-PROJECT",
+                  "/Users/private/audit-evidence",
+                  "hmac-sha256:",
+                  "payload_json",
+                  "scope",
+                  "worker-local",
+                  "machine-local",
+                  "journal.json",
+              ):
+                  assert forbidden not in rendered, forbidden
+
+              openapi = client.get("/api/control/v1/openapi.json", headers=headers)
+              assert openapi.status_code == 200
+              for path, operations in openapi.json()["paths"].items():
+                  if path.startswith("/api/control/v1/evidence/"):
+                      assert set(operations) <= {"get"}, (path, operations)
+
+          after_hashes = {
+              audit_db.name: hashlib.sha256(audit_db.read_bytes()).hexdigest(),
+              results_db.name: hashlib.sha256(results_db.read_bytes()).hexdigest(),
+          }
+          after_files = sorted(path.name for path in root.iterdir())
+          assert after_hashes == before_hashes
+          assert after_files == before_files
+          print("PASS: Evidence Control API is read-only and privacy-bounded")
+          PY

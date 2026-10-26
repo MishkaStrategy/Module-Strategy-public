@@ -1,0 +1,22 @@
+modules:
+  - plugin: protection_target
+    enabled: true
+    parameters:
+      entry_feature_key: entry_model.entry_plan
+      invalidation_mode: entry_plan
+      invalidation_field: invalidation_price
+      fixed_stop_percent: 0.005
+      stop_buffer_bps: 0
+      target_mode: fixed_r
+      structural_target_source: entry_plan
+      target_field: target_price
+      reward_r: 3
+      min_reward_r: 0.5
+      max_reward_r: 20
+      min_stop_distance_bps: 1
+      max_stop_distance_bps: 5000
+      require_same_bar_entry: true
+      require_structural_setup_match: false
+      max_processed_plans: 4096
+      max_diagnostic_results: 100
+      emit_rejection_feature: true

@@ -1,0 +1,66 @@
+{
+  "$id": "urn:modular-results-registry:structured-log-event:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "byte_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object"
+    },
+    "duration_seconds": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "entity_ids": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "event_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "level": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "reason_code": {
+      "type": "string"
+    },
+    "row_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "status": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "format": "date-time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "timestamp_utc",
+    "level",
+    "operation",
+    "status",
+    "reason_code",
+    "correlation_id",
+    "duration_seconds",
+    "row_count",
+    "byte_count",
+    "entity_ids",
+    "details",
+    "event_hash"
+  ],
+  "type": "object"
+}

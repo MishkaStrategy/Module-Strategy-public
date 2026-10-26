@@ -1,0 +1,154 @@
+name: System recovery CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/system-recovery-ci.yml"
+      - "applications/system_recovery/**"
+      - "applications/system_acceptance/**"
+      - "applications/trading_runner/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_factory/pyproject.toml"
+      - "research/strategy_factory/src/strategy_factory/**"
+      - "research/strategy_audit_validation/pyproject.toml"
+      - "research/strategy_audit_validation/src/strategy_audit_validation/**"
+      - "modules/results_aggregator/pyproject.toml"
+      - "modules/results_aggregator/src/modular_results_registry/**"
+      - "modules/market_data_ingestion/pyproject.toml"
+      - "modules/market_data_ingestion/src/market_data_application/composition.py"
+      - "modules/market_data_ingestion/src/market_data_application/settings.py"
+      - "modules/market_data_ingestion/src/market_data_application/job_store.py"
+      - "modules/market_data_ingestion/src/market_data_application/lease_store.py"
+      - "modules/market_data_ingestion/src/market_data_application/repair_confirmation_store.py"
+      - "modules/market_data_ingestion/src/market_data_application/control_plane_store.py"
+      - "modules/market_data_ingestion/src/market_data_application/control_plane_runtime.py"
+      - "modules/paper_execution/**"
+      - "src/modular_core/broker_state.py"
+      - "src/modular_core/checkpoints.py"
+      - "src/modular_core/events.py"
+      - "src/modular_core/extensions.py"
+      - "src/modular_core/manifest.py"
+      - "src/modular_core/serialization.py"
+      - "src/signal_bot/cli.py"
+      - "src/signal_bot/domain.py"
+      - "src/signal_bot/engine.py"
+      - "src/signal_bot/operator_contract.py"
+      - "src/signal_bot/operator_control.py"
+      - "src/signal_bot/operator_ledger.py"
+      - "src/signal_bot/state.py"
+      - "config/test_suites.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: system-recovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: System recovery / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact recovery candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - id: python-preflight
+        uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/system_recovery/pyproject.toml
+            applications/system_acceptance/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_factory/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/paper_execution/pyproject.toml
+          cache-suffix: system-recovery-owner-restore
+
+      - name: Report dependency cache state
+        env:
+          UV_CACHE_HIT: ${{ steps.python-preflight.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          echo "uv dependency cache hit: ${UV_CACHE_HIT:-unknown}"
+          echo "uv dependency cache suffix: system-recovery-owner-restore-py${{ matrix.python-version }}"
+          echo "uv cache directory: ${UV_CACHE_DIR:-unset}"
+          if [ -z "${UV_CACHE_DIR:-}" ] || [ ! -d "$UV_CACHE_DIR" ]; then
+            echo "uv cache directory is missing" >&2
+            exit 1
+          fi
+          if [ -n "$(ls -A "$UV_CACHE_DIR" 2>/dev/null)" ]; then
+            echo "uv cache has entries"
+          else
+            echo "uv cache is empty"
+          fi
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install \
+            -e . \
+            -e "./applications/system_recovery[dev]" \
+            -e ./applications/system_acceptance \
+            -e ./applications/trading_runner \
+            -e ./research/experiment_runner \
+            -e ./research/strategy_audit_validation \
+            -e ./research/strategy_factory \
+            -e ./modules/results_aggregator \
+            -e ./modules/market_data_ingestion \
+            -e ./modules/paper_execution
+          uv pip check
+
+      - name: Compile
+        working-directory: applications/system_recovery
+        run: python -m compileall -q src tests
+
+      - name: Ruff format
+        working-directory: applications/system_recovery
+        run: ruff format --check src tests
+
+      - name: Ruff lint
+        working-directory: applications/system_recovery
+        run: ruff check src tests
+
+      - name: Strict MyPy
+        working-directory: applications/system_recovery
+        run: mypy --strict src/system_recovery
+
+      - name: Focused tests
+        working-directory: applications/system_recovery
+        run: python -m pytest -q tests
+
+      - name: Public import smoke
+        run: >-
+          python -c
+          "from system_recovery import BackupPackage, RecoveryManifest, SnapshotRequest, SnapshotSpec, create_backup_package, load_backup_manifest, restore_manifest_entries, restore_snapshot_entry, snapshot_entry, verify_snapshot_file; assert BackupPackage and RecoveryManifest and SnapshotRequest and SnapshotSpec and create_backup_package and load_backup_manifest and restore_manifest_entries and restore_snapshot_entry and snapshot_entry and verify_snapshot_file"

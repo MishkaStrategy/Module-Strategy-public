@@ -1,0 +1,115 @@
+name: Market Data registered price reader CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/market-data-registered-price-reader-ci.yml"
+      - "modules/market_data_ingestion/src/market_data_ingestion/price_dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/__init__.py"
+      - "modules/market_data_ingestion/tests/test_price_dataset_reader.py"
+      - "modules/market_data_ingestion/tests/test_price_dataset_reader_acceptance.py"
+      - "docs/market_data/REGISTERED_PRICE_READER_V1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-registered-price-reader-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Registered price reader / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact registered price reader candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            modules/market_data_ingestion/pyproject.toml
+            pyproject.toml
+          cache-suffix: market-data-registered-price-reader
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Compile
+        working-directory: modules/market_data_ingestion
+        run: >-
+          python -m compileall -q
+          src/market_data_ingestion/price_dataset_reader.py
+          src/market_data_ingestion/__init__.py
+          tests/test_price_dataset_reader.py
+          tests/test_price_dataset_reader_acceptance.py
+
+      - name: Ruff format
+        working-directory: modules/market_data_ingestion
+        run: >-
+          ruff format --check
+          src/market_data_ingestion/price_dataset_reader.py
+          src/market_data_ingestion/__init__.py
+          tests/test_price_dataset_reader.py
+          tests/test_price_dataset_reader_acceptance.py
+
+      - name: Ruff lint
+        working-directory: modules/market_data_ingestion
+        run: >-
+          ruff check
+          src/market_data_ingestion/price_dataset_reader.py
+          src/market_data_ingestion/__init__.py
+          tests/test_price_dataset_reader.py
+          tests/test_price_dataset_reader_acceptance.py
+
+      - name: Strict MyPy owner contract
+        working-directory: modules/market_data_ingestion
+        run: mypy --strict src/market_data_ingestion/price_dataset_reader.py src/market_data_ingestion/__init__.py
+
+      - name: Registered price reader tests
+        working-directory: modules/market_data_ingestion
+        run: >-
+          python -m pytest -q
+          tests/test_price_dataset_reader.py
+          tests/test_price_dataset_reader_acceptance.py
+
+      - name: Existing registered funding and traded-kline regression
+        working-directory: modules/market_data_ingestion
+        run: >-
+          python -m pytest -q
+          tests/test_funding_dataset_reader.py
+          tests/test_funding_dataset_reader_acceptance.py
+          tests/test_dataset_reader.py
+
+      - name: Public import smoke
+        run: >-
+          python -c
+          "from market_data_ingestion import RegisteredPriceSelection, iter_registered_prices, resolve_registered_price_dataset; assert RegisteredPriceSelection and iter_registered_prices and resolve_registered_price_dataset"

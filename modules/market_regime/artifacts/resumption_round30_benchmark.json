@@ -1,0 +1,52 @@
+{
+  "deterministic_outputs": true,
+  "deterministic_states": true,
+  "events": 50000,
+  "maximum_checkpoint_bytes": 3511,
+  "maximum_peak_traced_bytes": null,
+  "maximum_seconds": 4.890551962000245,
+  "median_restore_seconds": 0.00018812700000125915,
+  "median_seconds": 4.884893121000005,
+  "median_throughput": 10235.638480001035,
+  "minimum_seconds": 4.758740765999846,
+  "python_version": "3.13.5",
+  "restart_at": null,
+  "runs": 3,
+  "samples": [
+    {
+      "checkpoint_bytes": 3511,
+      "elapsed_seconds": 4.884893121000005,
+      "feature_count": 149808,
+      "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+      "peak_traced_bytes": null,
+      "publications": 49936,
+      "restore_seconds": 0.00021103000017319573,
+      "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668",
+      "throughput_events_per_second": 10235.638480001035
+    },
+    {
+      "checkpoint_bytes": 3511,
+      "elapsed_seconds": 4.758740765999846,
+      "feature_count": 149808,
+      "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+      "peak_traced_bytes": null,
+      "publications": 49936,
+      "restore_seconds": 0.00018812700000125915,
+      "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668",
+      "throughput_events_per_second": 10506.98124958581
+    },
+    {
+      "checkpoint_bytes": 3511,
+      "elapsed_seconds": 4.890551962000245,
+      "feature_count": 149808,
+      "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+      "peak_traced_bytes": null,
+      "publications": 49936,
+      "restore_seconds": 0.00017443699971408932,
+      "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668",
+      "throughput_events_per_second": 10223.794857615601
+    }
+  ],
+  "timeframe": "1h",
+  "trace_memory": false
+}

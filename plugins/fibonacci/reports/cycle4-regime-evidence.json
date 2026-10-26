@@ -1,0 +1,156 @@
+{
+  "schema_version": "fibonacci-cycle4-regime-evidence/v2",
+  "created_at_utc": "2026-07-28T07:59:40.089477+00:00",
+  "updated_at_utc": "2026-07-28T14:48:29+00:00",
+  "candidate": {
+    "package_version": "0.4.0",
+    "tests_passed": 181,
+    "branch_aware_coverage_percent": 90.63404367271771,
+    "source_tree_sha256": "58885785df85639e0edf35ff91680a7f888032f20278a16bede9fc628d74e0af",
+    "wheel_sha256": "ce104cdf1df5155d81b60b6a470d32df6b0a3f9115bfb19fdd72661ee4ade2f3",
+    "selective_patch_sha256": "ce0126428062339b4e58c894f183a77d3662c372645df4f3f07050b3a5a62514"
+  },
+  "github_namespace_replay": {
+    "source_head": "8a8059b8d2beebcc06bfb078cd3479c41cdfb8ad",
+    "package_version": "0.4.0",
+    "config_sha256": "4e1384bea32e7274e4c7c2d3641779637644899132161838e53f6399ca5e83d9",
+    "verified_wheel_sha256": "c95bf0aa0fd080f175be14e591aad68d03242cad1b018a568f8671831615c8ae",
+    "wheel_artifact_zip_sha256": "a69e431e5828e7964d314c9ec4bd65958dff5e665aed5e7b1babe2dc2ad1b534",
+    "ci": {
+      "run_id": 30369619501,
+      "python_3_12": "success",
+      "python_3_13": "success",
+      "tests_passed_each": 217,
+      "branch_aware_coverage_percent": 91,
+      "statements": 1649,
+      "branches": 574
+    },
+    "aggregation": "strict complete UTC days from six 4h candles at 00/04/08/12/16/20",
+    "datasets": [
+      {
+        "symbol": "BTCUSDT",
+        "timeframe": "4h",
+        "rows": 15032,
+        "first_open_utc": "2019-09-08T20:00:00+00:00",
+        "last_open_utc": "2026-07-19T00:00:00+00:00",
+        "sha256": "1fdfd3f4df53f03ffbed0c833f47ed3f5902ec9e5ea3c2274aceb96e7d45135f",
+        "strict_1d_rows": 2505
+      },
+      {
+        "symbol": "ETHUSDT",
+        "timeframe": "4h",
+        "rows": 14555,
+        "first_open_utc": "2019-11-27T08:00:00+00:00",
+        "last_open_utc": "2026-07-19T00:00:00+00:00",
+        "sha256": "be8a7640dd2b4ed20404f3cdfb76efdac300137659f44537b4bf24fcf584ce78",
+        "strict_1d_rows": 2425
+      },
+      {
+        "symbol": "SOLUSDT",
+        "timeframe": "4h",
+        "rows": 12803,
+        "first_open_utc": "2020-09-14T08:00:00+00:00",
+        "last_open_utc": "2026-07-19T00:00:00+00:00",
+        "sha256": "967979abd61fb91afd332d24af9d15e56758d8fe7fc9f798614085e0654e998c",
+        "strict_1d_rows": 2133
+      }
+    ],
+    "input_integrity": {
+      "parquet_columns_read": 11,
+      "null_timestamps": 0,
+      "duplicate_open_times": 0,
+      "strictly_increasing_open_time": true,
+      "ohlcv_contracts_valid": true
+    },
+    "scanner_4h": [
+      {
+        "symbol": "BTCUSDT",
+        "historical_sample_size": 29,
+        "historical_successes": 18,
+        "historical_success_rate": 0.6206896551724138,
+        "recent_sample_size": 12,
+        "recent_successes": 6,
+        "recent_success_rate": 0.5,
+        "prior_sample_size": 12,
+        "prior_successes": 10,
+        "prior_success_rate": 0.8333333333333334,
+        "regime": "weakening",
+        "level_0_5_sample_size": 5,
+        "level_0_5_successes": 3,
+        "level_0_5_success_rate": 0.6,
+        "level_0_618_sample_size": 7,
+        "level_0_618_successes": 3,
+        "level_0_618_success_rate": 0.42857142857142855,
+        "terminal_linked_streak": 0,
+        "active_setup": false
+      },
+      {
+        "symbol": "ETHUSDT",
+        "historical_sample_size": 35,
+        "historical_successes": 24,
+        "historical_success_rate": 0.6857142857142857,
+        "recent_sample_size": 12,
+        "recent_successes": 9,
+        "recent_success_rate": 0.75,
+        "prior_sample_size": 12,
+        "prior_successes": 6,
+        "prior_success_rate": 0.5,
+        "regime": "improving",
+        "level_0_5_sample_size": 6,
+        "level_0_5_successes": 5,
+        "level_0_5_success_rate": 0.8333333333333334,
+        "level_0_618_sample_size": 6,
+        "level_0_618_successes": 4,
+        "level_0_618_success_rate": 0.6666666666666666,
+        "terminal_linked_streak": 1,
+        "active_setup": false
+      },
+      {
+        "symbol": "SOLUSDT",
+        "historical_sample_size": 40,
+        "historical_successes": 31,
+        "historical_success_rate": 0.775,
+        "recent_sample_size": 12,
+        "recent_successes": 6,
+        "recent_success_rate": 0.5,
+        "prior_sample_size": 12,
+        "prior_successes": 11,
+        "prior_success_rate": 0.9166666666666666,
+        "regime": "weakening",
+        "level_0_5_sample_size": 6,
+        "level_0_5_successes": 4,
+        "level_0_5_success_rate": 0.6666666666666666,
+        "level_0_618_sample_size": 6,
+        "level_0_618_successes": 2,
+        "level_0_618_success_rate": 0.3333333333333333,
+        "terminal_linked_streak": 0,
+        "active_setup": false
+      }
+    ],
+    "scanner_1d": [
+      {"symbol": "BTCUSDT", "bearish_observations": 3, "regime": "insufficient_data", "active_setup": false},
+      {"symbol": "ETHUSDT", "bearish_observations": 4, "regime": "insufficient_data", "active_setup": false},
+      {"symbol": "SOLUSDT", "bearish_observations": 7, "regime": "insufficient_data", "active_setup": false}
+    ],
+    "matches_candidate_final_scanner": true,
+    "orders_created": 0,
+    "trades_created": 0
+  },
+  "candidate_walk_forward": {
+    "symbol": "SOLUSDT",
+    "timeframe": "4h",
+    "legacy_selections": 5,
+    "linked_selections": 2,
+    "linked_regime_selections": 2,
+    "linked_regime_level_selections": 2,
+    "raw_replay_status": "exact standalone cutoff manifest was not retained; final scanner was independently reproduced, while point-in-time helper semantics remain regression-tested"
+  },
+  "accuracy_limits": [
+    "no PnL or profitability result",
+    "no active setup at final checked cutoff",
+    "standalone walk-forward sample is small",
+    "exact standalone walk-forward cutoff manifest was not retained",
+    "candidate hashes predate namespace selective port",
+    "raw datasets, caches and wheel are excluded from the GitHub tree"
+  ]
+}

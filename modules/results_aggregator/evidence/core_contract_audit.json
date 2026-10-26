@@ -1,0 +1,20 @@
+{
+  "adapter_metric_fields": [
+    "initial_equity", "final_equity", "net_profit", "return_pct", "trades", "wins", "losses", "breakevens", "win_rate", "gross_profit", "gross_loss", "profit_factor", "expectancy", "average_win", "average_loss", "payoff_ratio", "max_drawdown", "max_drawdown_pct", "max_consecutive_wins", "max_consecutive_losses", "average_r_multiple", "average_holding_bars", "exposure_pct", "total_fees"
+  ],
+  "adapter_uses_backtest_engine": false,
+  "adapter_uses_calculate_metrics": false,
+  "artifact_sha256": "d0beada52d8a546c7477b8e29ab62f70dfa3073af46fe36f8d5d4533145441ca",
+  "backtest_result_fields": ["metrics", "journal", "bars_processed", "modules", "run_manifest", "module_manifests", "checkpoint"],
+  "core_wheel_sha256": "62a283ffcf3014343bd12328b52abe11b1691b87a1d86bc3acac632750a13c9d",
+  "metrics_exact_match": true,
+  "metrics_fields": [
+    "initial_equity", "final_equity", "net_profit", "return_pct", "trades", "wins", "losses", "breakevens", "win_rate", "gross_profit", "gross_loss", "profit_factor", "expectancy", "average_win", "average_loss", "payoff_ratio", "max_drawdown", "max_drawdown_pct", "max_consecutive_wins", "max_consecutive_losses", "average_r_multiple", "average_holding_bars", "exposure_pct", "total_fees"
+  ],
+  "report_hash": "7e5aac47f8df2f866585c5fa0b50dadfa9bb3e0288b401d3d56e3baa5cbfe638",
+  "required_export_files": ["run.json", "metrics.json", "journal.json", "trades.csv", "equity.csv"],
+  "required_exports_exact_match": true,
+  "run_manifest_fields": ["run_id", "kernel_version", "created_at", "data_hash", "config_hash", "module_hash", "symbol", "base_timeframe", "bars", "module_manifests", "module_parameters"],
+  "schema_version": "core-contract-audit.v1",
+  "status": "PASS"
+}

@@ -1,0 +1,234 @@
+name: control-ui-evidence-e2e
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "modules/results_aggregator/**"
+      - "research/strategy_audit_validation/**"
+      - "web/market-data-console/**"
+      - "docs/control_ui/EVIDENCE_CONTROL_V1.md"
+      - ".github/workflows/control-ui-evidence-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-evidence-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence-browser-e2e:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Evidence UI candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install Evidence owners and Control Plane
+        run: |
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "research/experiment_runner"
+          uv pip install -e "modules/results_aggregator"
+          uv pip install -e "research/strategy_audit_validation"
+          uv pip install -e "research/strategy_factory" --no-deps
+          uv pip install -e "applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Install pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.12.0"
+
+      - name: Install exact browser dependencies
+        working-directory: web/market-data-console
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Evidence seed quality
+        working-directory: web/market-data-console
+        run: |
+          python -m compileall -q e2e/seed_evidence.py e2e/hash_state.py
+          ruff check --output-format=concise e2e/seed_evidence.py e2e/hash_state.py
+          ruff format --check e2e/seed_evidence.py e2e/hash_state.py
+          npm run e2e:typecheck
+
+      - name: Generate masked reader token and loopback ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_token=$(python -c 'import secrets; print("control-reader-" + secrets.token_hex(24))')
+          ports=$(python - <<'PY'
+          import socket
+          values = []
+          for _ in range(2):
+              with socket.socket() as current:
+                  current.bind(("127.0.0.1", 0))
+                  values.append(current.getsockname()[1])
+          print(*values)
+          PY
+          )
+          read -r control_port web_port <<< "$ports"
+          test "$control_port" != "$web_port"
+          echo "::add-mask::$control_token"
+          {
+            echo "MODULAR_CONTROL_E2E_READER_TOKEN=$control_token"
+            echo "MODULAR_CONTROL_PORT=$control_port"
+            echo "MODULAR_CONTROL_E2E_PORT=$control_port"
+            echo "MDI_E2E_WEB_PORT=$web_port"
+            echo "MDI_E2E_BASE_URL=http://127.0.0.1:$web_port"
+          } >> "$GITHUB_ENV"
+
+      - name: Seed native Evidence state
+        working-directory: web/market-data-console
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-evidence-e2e"
+          rm -rf "$root"
+          mkdir -p "$root/state" "$root/logs"
+          python e2e/seed_evidence.py \
+            --audit-state-path "$root/state/strategy-audit.sqlite3" \
+            --results-state-path "$root/state/results.sqlite3" \
+            | tee "$root/seed.log"
+          python e2e/hash_state.py "$root/state" > "$root/evidence-state.before.sha256"
+
+      - name: TypeScript unit and build gates
+        working-directory: web/market-data-console
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Install isolated Chromium
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-evidence-playwright
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install chromium
+
+      - name: Run real Evidence read-only browser flow
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-evidence-playwright
+          MODULAR_CONTROL_STRATEGY_AUDIT_STATE_PATH: ${{ runner.temp }}/control-ui-evidence-e2e/state/strategy-audit.sqlite3
+          MODULAR_CONTROL_RESULTS_REGISTRY_PATH: ${{ runner.temp }}/control-ui-evidence-e2e/state/results.sqlite3
+          MODULAR_CONTROL_LOG_LEVEL: warning
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MODULAR_CONTROL_READER_TOKEN="$MODULAR_CONTROL_E2E_READER_TOKEN"
+          modular-control-api --host 127.0.0.1 --port "$MODULAR_CONTROL_E2E_PORT" --log-level warning \
+            > "$RUNNER_TEMP/control-ui-evidence-e2e/logs/control.log" 2>&1 &
+          control_pid=$!
+          npm run preview -- --port "$MDI_E2E_WEB_PORT" \
+            > "$RUNNER_TEMP/control-ui-evidence-e2e/logs/web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" "$control_pid" 2>/dev/null || true
+            wait "$web_pid" "$control_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/control-ui-evidence-e2e/logs/control.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/control-ui-evidence-e2e/logs/web.log" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/components/evidence/health" \
+              >/dev/null \
+              && curl --fail --silent --show-error "http://127.0.0.1:$MDI_E2E_WEB_PORT/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              cat "$RUNNER_TEMP/control-ui-evidence-e2e/logs/control.log" >&2 || true
+              cat "$RUNNER_TEMP/control-ui-evidence-e2e/logs/web.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          npx playwright test e2e/evidence.spec.ts
+
+      - name: Prove complete Evidence SQLite state remained byte-identical
+        if: always()
+        working-directory: web/market-data-console
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-evidence-e2e"
+          if [ ! -f "$root/evidence-state.before.sha256" ]; then
+            echo "SKIP: Evidence seed did not complete; primary failing step already records the cause."
+            exit 0
+          fi
+          python e2e/hash_state.py "$root/state" > "$root/evidence-state.after.sha256"
+          diff -u "$root/evidence-state.before.sha256" "$root/evidence-state.after.sha256"
+
+      - name: Sanitize generated reader token and privacy canaries from logs
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "control-ui-evidence-e2e"
+          token = os.environ.get("MODULAR_CONTROL_E2E_READER_TOKEN", "")
+          forbidden = (
+              token,
+              "BROWSER-AUDIT-SECRET-DO-NOT-PROJECT",
+              "/Users/private/browser-audit-evidence",
+              "BROWSER-RESULTS-SECRET-DO-NOT-PROJECT",
+              "/Users/private/browser-results-evidence",
+              "BROWSER-RESULTS-LIMITATION-DO-NOT-PROJECT",
+          )
+          leaked = []
+          for path in sorted((root / "logs").glob("*.log")):
+              text = path.read_text(encoding="utf-8", errors="replace")
+              hits = [value for value in forbidden if value and value in text]
+              if hits:
+                  leaked.append(path.name)
+                  for value in hits:
+                      text = text.replace(value, "***REDACTED***")
+                  path.write_text(text, encoding="utf-8")
+          if leaked:
+              raise SystemExit("generated credential/private canary leaked into Evidence E2E logs")
+          print("PASS: generated credential/private canaries absent from Evidence E2E logs")
+          PY
+
+      - name: Upload short-lived sanitized Evidence E2E evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: control-ui-evidence-e2e-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            web/market-data-console/test-results
+            ${{ runner.temp }}/control-ui-evidence-e2e/seed.log
+            ${{ runner.temp }}/control-ui-evidence-e2e/evidence-state.before.sha256
+            ${{ runner.temp }}/control-ui-evidence-e2e/evidence-state.after.sha256
+            ${{ runner.temp }}/control-ui-evidence-e2e/logs
+          if-no-files-found: warn

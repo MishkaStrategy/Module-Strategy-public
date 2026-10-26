@@ -1,0 +1,8 @@
+{
+  "bandit_findings": 0,
+  "detect_secrets_findings": 0,
+  "pip_audit_completed": false,
+  "pip_audit_exit_code": 1,
+  "pip_audit_note": "not completed locally; public vulnerability service unavailable or command timed out",
+  "sbom_generated": true
+}

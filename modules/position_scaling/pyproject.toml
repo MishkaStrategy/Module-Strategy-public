@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-position-scaling"
+version = "0.2.2"
+description = "Deterministic position scaling and adjustment planning for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<10",
+  "coverage>=7,<8",
+  "ruff>=0.15,<1",
+  "mypy>=1.10,<3",
+  "hypothesis>=6,<7",
+  "build>=1,<2",
+]
+
+[project.entry-points."modular_strategy.modules"]
+position_scaling_planner = "modular_strategy_position_scaling:PositionScalingPlannerModule"
+position_scaling_approval = "modular_strategy_position_scaling:PositionScalingApprovalModule"
+
+[tool.setuptools.package-data]
+modular_strategy_position_scaling = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+branch = true
+source = ["modular_strategy_position_scaling"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_error_discovery_regressions.py" = ["RUF036"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

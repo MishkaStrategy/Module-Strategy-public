@@ -1,0 +1,298 @@
+name: protection-target-ci
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["modules/protection-target"]
+    paths:
+      - "modules/protection_target/**"
+      - ".github/workflows/protection-target-ci.yml"
+  pull_request:
+    paths:
+      - "modules/protection_target/**"
+      - ".github/workflows/protection-target-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  verify:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    env:
+      PIP_RETRIES: "10"
+      PIP_DEFAULT_TIMEOUT: "60"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact Protection Target candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Configure temporary paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-py${{ matrix.python-version }}"
+          {
+            echo "VENV=$RUNNER_TEMP/protection-target-ci-$suffix"
+            echo "WHEEL_VENV=$RUNNER_TEMP/protection-target-wheel-$suffix"
+            echo "UV_BOOTSTRAP=$RUNNER_TEMP/protection-target-uv-$suffix"
+          } >> "$GITHUB_ENV"
+
+      - name: Provision exact Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ matrix.python-version }}"
+          candidate="$(command -v "python${version}" || true)"
+          if [ -z "$candidate" ]; then
+            rm -rf "$UV_BOOTSTRAP"
+            python3 -m venv "$UV_BOOTSTRAP"
+            "$UV_BOOTSTRAP/bin/python" -m pip install --upgrade pip "uv==0.11.31"
+            "$UV_BOOTSTRAP/bin/uv" python install "$version"
+            candidate="$("$UV_BOOTSTRAP/bin/uv" python find "$version")"
+          fi
+          "$candidate" --version
+          echo "PYTHON_BIN=$candidate" >> "$GITHUB_ENV"
+
+      - name: Runner diagnostics
+        run: |
+          echo "Runner: $RUNNER_NAME"
+          echo "OS: $RUNNER_OS"
+          echo "Architecture: $RUNNER_ARCH"
+          uname -a
+          "$PYTHON_BIN" --version
+          df -h .
+
+      - name: Create isolated environment
+        run: |
+          rm -rf "$VENV" "$WHEEL_VENV" reports dist/protection-target dist/core dist/wheelhouse
+          "$PYTHON_BIN" -m venv "$VENV"
+          "$VENV/bin/python" -m pip install --upgrade pip
+          "$VENV/bin/python" -m pip install \
+            build \
+            setuptools \
+            wheel \
+            coverage \
+            mypy \
+            "pytest>=9.0.3" \
+            ruff \
+            twine \
+            bandit \
+            detect-secrets \
+            pip-audit \
+            cyclonedx-bom
+
+      - name: Install Core and module
+        run: |
+          "$VENV/bin/python" -m pip install -e '.[dev]'
+          "$VENV/bin/python" -m pip install -e './modules/protection_target[dev]' --no-deps
+          "$VENV/bin/python" -m pip check
+          mkdir -p dist/wheelhouse
+          "$VENV/bin/python" -m pip download --only-binary=:all: \
+            --dest dist/wheelhouse "PyYAML>=6.0"
+
+      - name: Fast quality
+        run: |
+          "$VENV/bin/python" -m compileall -q \
+            modules/protection_target/src \
+            modules/protection_target/tests \
+            modules/protection_target/benchmarks
+          "$VENV/bin/ruff" format --check \
+            modules/protection_target/src \
+            modules/protection_target/tests \
+            modules/protection_target/benchmarks
+          "$VENV/bin/ruff" check \
+            modules/protection_target/src \
+            modules/protection_target/tests \
+            modules/protection_target/benchmarks
+          "$VENV/bin/mypy" --strict \
+            modules/protection_target/src/modular_strategy_protection_target
+
+      - name: Full tests and coverage
+        run: |
+          mkdir -p reports
+          "$VENV/bin/coverage" run --branch \
+            --source=modules/protection_target/src/modular_strategy_protection_target \
+            -m pytest -q modules/protection_target/tests \
+            --junitxml="reports/protection-target-py${{ matrix.python-version }}-tests.xml"
+          "$VENV/bin/coverage" report --fail-under=90 \
+            | tee "reports/protection-target-py${{ matrix.python-version }}-coverage.txt"
+          "$VENV/bin/coverage" json \
+            -o "reports/protection-target-py${{ matrix.python-version }}-coverage.json"
+
+      - name: Build distributions
+        run: |
+          "$VENV/bin/python" -m build --no-isolation --wheel --outdir dist/core .
+          "$VENV/bin/python" -m build --no-isolation --wheel --sdist \
+            --outdir dist/protection-target modules/protection_target
+          "$VENV/bin/twine" check dist/protection-target/*
+
+      - name: Clean wheel install and entry-point smoke
+        run: |
+          "$PYTHON_BIN" -m venv "$WHEEL_VENV"
+          "$WHEEL_VENV/bin/python" -m pip install \
+            --no-index --find-links dist/wheelhouse \
+            dist/core/*.whl \
+            dist/protection-target/*.whl
+          "$WHEEL_VENV/bin/python" -m pip check
+          "$WHEEL_VENV/bin/python" - <<'PY'
+          from importlib.metadata import entry_points
+          from modular_core import ModuleRegistry
+          from modular_strategy_protection_target import ProtectionTargetModule, __version__
+
+          assert __version__ == "1.1.1"
+          assert ProtectionTargetModule().name == "protection_target"
+          assert "protection_target" in ModuleRegistry().discover_entry_points()
+          assert any(
+              item.name == "protection_target"
+              for item in entry_points(group="modular_strategy.modules")
+          )
+          PY
+
+      - name: Monorepo compatibility
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          "$VENV/bin/python" -m pip install -e '.[dev,backtest,signal-bot]'
+          "$VENV/bin/python" -m pip install -e './modules/session_range[dev]'
+          "$VENV/bin/python" -m pip install -e ./modules/market_regime
+          "$VENV/bin/python" -m pip install -e ./plugins/fvg
+          "$VENV/bin/python" -m pip install -e ./modules/setup_adapter
+          "$VENV/bin/python" -m pip install -e ./modules/entry_model
+          "$VENV/bin/python" -m pip install -e ./modules/risk_sizing
+          "$VENV/bin/python" -m pip install -e ./modules/position_scaling
+          "$VENV/bin/python" -m pip install -e ./modules/trade_plan_router
+          "$VENV/bin/python" -m pip install -e './modules/paper_execution[dev]'
+          "$VENV/bin/python" -m pip install -e './modules/position_exit_management[dev]'
+          "$VENV/bin/python" -m pip install -e './applications/trading_runner[dev]'
+          "$VENV/bin/python" -m pip install -e './modules/market_data_ingestion[dev,parquet]'
+          "$VENV/bin/python" -m pip install -e ./research/experiment_runner
+          "$VENV/bin/python" -m pip install -e ./modules/results_aggregator
+          "$VENV/bin/python" -m pip install -e ./research/strategy_audit_validation
+          "$VENV/bin/python" -m pip install -e ./modules/risk_request_composer --no-deps
+          "$VENV/bin/python" -m pip install -e './research/strategy_factory[dev]'
+          "$VENV/bin/python" -m pip install -e './applications/system_acceptance[dev]'
+          "$VENV/bin/python" -m pip check
+          "$VENV/bin/python" -m pytest -q tests/test_*.py \
+            --junitxml=reports/protection-target-root-tests.xml
+          "$VENV/bin/python" -m pytest -q tests/backtest_engine \
+            --junitxml=reports/protection-target-backtest-tests.xml
+          "$VENV/bin/python" -m pytest -q tests/breakout_return \
+            --junitxml=reports/protection-target-breakout-tests.xml
+          "$VENV/bin/python" -m pytest -q tests/integration \
+            --junitxml=reports/protection-target-integration-tests.xml
+          "$VENV/bin/python" -m pytest -q tests/signal_bot \
+            --junitxml=reports/protection-target-signal-bot-tests.xml
+          "$VENV/bin/python" scripts/integration_smoke.py \
+            | tee reports/protection-target-integration-smoke.txt
+
+      - name: Security and SBOM
+        if: matrix.python-version == '3.13'
+        run: |
+          "$VENV/bin/bandit" -q -r modules/protection_target/src \
+            -f json -o reports/protection-target-bandit.json
+          "$VENV/bin/detect-secrets" scan \
+            modules/protection_target/src \
+            modules/protection_target/tests \
+            modules/protection_target/pyproject.toml \
+            > reports/protection-target-detect-secrets.json
+          "$VENV/bin/python" - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("reports/protection-target-detect-secrets.json").read_text()
+          )
+          findings = {
+              path: rows
+              for path, rows in report.get("results", {}).items()
+              if rows
+          }
+          if findings:
+              raise SystemExit(f"detect-secrets findings present: {findings}")
+          PY
+          "$VENV/bin/pip-audit" --local --format json \
+            -o reports/protection-target-pip-audit.json
+          "$VENV/bin/cyclonedx-py" environment "$VENV/bin/python" \
+            --pyproject modules/protection_target/pyproject.toml \
+            --mc-type library --output-reproducible --of JSON \
+            -o reports/protection-target-sbom.json
+
+      - name: Deterministic benchmark
+        if: matrix.python-version == '3.13'
+        working-directory: modules/protection_target
+        run: |
+          "$VENV/bin/python" benchmarks/benchmark.py \
+            --plans 2000 --repeat 5 \
+            --output "$GITHUB_WORKSPACE/reports/protection-target-benchmark.json"
+
+      - name: Checksums
+        if: always()
+        run: |
+          find reports dist/protection-target -type f -print0 2>/dev/null \
+            | sort -z \
+            | xargs -0 shasum -a 256 \
+            > reports/protection-target-checksums.sha256 || true
+
+      - name: Stage bounded Protection Target evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="protection-target-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage/dist"
+          test -d reports
+          test -d dist/protection-target
+          cp -R reports "$stage/"
+          cp -R dist/protection-target "$stage/dist/"
+
+      - name: Publish exact Protection Target evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: protection-target-release-evidence
+          asset_name: protection-target-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Protection Target publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Protection Target failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: protection-target-py${{ matrix.python-version }}-${{ github.run_attempt }}
+          path: |
+            reports/**
+            dist/protection-target/**
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf "$VENV" "$WHEEL_VENV" "$UV_BOOTSTRAP" protection-target-release-evidence

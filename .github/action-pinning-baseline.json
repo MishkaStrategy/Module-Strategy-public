@@ -1,0 +1,5 @@
+{
+  "allowed_counts": {},
+  "description": "Optimization Wave 1 integration requires every external GitHub Action reference to use an immutable 40-character commit SHA. No mutable references are grandfathered.",
+  "schema_version": 1
+}

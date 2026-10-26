@@ -1,0 +1,9 @@
+include README.md
+include CHANGELOG.md
+include config.example.yaml
+recursive-include src *.py py.typed
+recursive-include tests *.py
+recursive-include benchmarks *.py
+recursive-include scripts *.py *.sh
+recursive-include examples *.py *.yaml
+recursive-include docs *.md

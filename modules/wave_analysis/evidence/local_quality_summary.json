@@ -1,0 +1,79 @@
+{
+  "base_branch": "integration/modular-strategy-v0.5.0",
+  "base_commit": "5e03b933207a99940244634f49a756d27888a5c3",
+  "benchmark": {
+    "bars_5000_runs_5": {
+      "checkpoint_max_bytes": 315813,
+      "restore_equal": true,
+      "throughput_max": 4337.085607474223,
+      "throughput_median": 4276.429940049505,
+      "throughput_min": 4105.227789932473,
+      "traced_peak_bytes": 822431
+    },
+    "chunked_1000000": {
+      "bars": 1000000,
+      "checkpoint_restarts": 9,
+      "checkpoint_size_max_bytes": 316092,
+      "checkpoint_size_min_bytes": 315870,
+      "chunk_throughput_max": 4152.511705878462,
+      "chunk_throughput_median": 4024.7197543714083,
+      "chunk_throughput_min": 3928.018066346803,
+      "chunks": 10,
+      "elapsed_seconds": 248.36588650400063,
+      "features": 1299948,
+      "final_hypotheses": 3,
+      "final_pivots": 128,
+      "final_state_digest": "3b3d721fa45428001c2291264af745ce530ed9478f78f8c8a27fff806fd10c8e",
+      "final_waves": 127,
+      "weighted_throughput_bars_per_second": 4026.31784129457
+    },
+    "continuous_100000": {
+      "elapsed_seconds": 24.76126745700003,
+      "restore_equal": true,
+      "state_digest": "ec1e12bf1287725cfa6b54907044bafac9dc9137df88925d2c0126d673fd84a6",
+      "throughput": 4038.5654802872345
+    }
+  },
+  "coverage": {
+    "gate": 95,
+    "missed": 82,
+    "percent": 95,
+    "statements": 1799
+  },
+  "github_ci": "pending_rc2_publication",
+  "module": "wave_analysis",
+  "packaging": {
+    "entry_point_smoke": "pass",
+    "metadata": "pass",
+    "pip_check": "pass",
+    "py_typed": "pass",
+    "sdist": "pass",
+    "sdist_clean_install": "pass",
+    "sdist_source_tests": "pass",
+    "wheel": "pass",
+    "wheel_clean_install": "pass"
+  },
+  "quality": {
+    "compileall": "pass",
+    "mypy_strict": "pass",
+    "ruff": "pass"
+  },
+  "security": {
+    "github_actions_security_gate": "required",
+    "local_pip_audit": "not_completed_dns_unavailable",
+    "secret_marker_scan": "pass"
+  },
+  "starting_remote_head": "de010e52f344ea7c7eeb82cbe2eb85f8769badda",
+  "tests": {
+    "failed": 0,
+    "integration_lifecycle": 15,
+    "passed": 159,
+    "property_based": 4,
+    "pytest_seconds": 4.68,
+    "regression_adversarial": 28,
+    "skipped": 0,
+    "total": 159,
+    "unit_validation": 112
+  },
+  "version": "0.2.0rc2"
+}

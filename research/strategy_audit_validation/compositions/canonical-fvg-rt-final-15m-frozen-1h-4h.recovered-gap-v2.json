@@ -1,0 +1,116 @@
+{
+  "approvable": false,
+  "asset_type": "canonical-composition-recovered-gap",
+  "candidate_id": "strategy-candidate-b4bb0191a60cb46ffe305e8b",
+  "canonical": false,
+  "composition": {
+    "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+    "composition_version": "0.2.0-recovered-gap",
+    "created_by": "strategy-contract-recovery-312",
+    "dependency_order": [
+      "fvg_rt_final_15m",
+      "frozen_1h_short",
+      "frozen_4h_short"
+    ],
+    "execution_order": [
+      "fvg_rt_final_15m",
+      "frozen_1h_short",
+      "frozen_4h_short"
+    ],
+    "lookahead_allowed": false,
+    "modules": [
+      {
+        "contract_complete": false,
+        "dependencies": [],
+        "module_id": "fvg_rt_final_15m",
+        "module_version": "1.0.0-recovered-gap",
+        "parameters": {
+          "decision_queue_id": "canonical-strategy-decision-queue-v1",
+          "expected_control_trades": 283,
+          "recovery_asset": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json",
+          "recovery_status": "RECOVERED_SPEC_NOT_IMPLEMENTED"
+        },
+        "role": "canonical-strategy-slot",
+        "source_provenance": {
+          "commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+          "path": "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json"
+        },
+        "timeframes": [
+          "15m",
+          "4h",
+          "1d"
+        ]
+      },
+      {
+        "contract_complete": false,
+        "dependencies": [],
+        "module_id": "frozen_1h_short",
+        "module_version": "1.0.0-recovered-gap",
+        "parameters": {
+          "decision_queue_id": "canonical-strategy-decision-queue-v1",
+          "expected_control_trades": 91,
+          "recovery_asset": "research/strategy_audit_validation/compositions/frozen-1h-short.recovered-gap.json",
+          "recovery_status": "RECOVERED_PARTIAL"
+        },
+        "role": "canonical-strategy-slot",
+        "source_provenance": {
+          "commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+          "path": "research/strategy_audit_validation/compositions/frozen-1h-short.recovered-gap.json"
+        },
+        "timeframes": [
+          "1h",
+          "4h"
+        ]
+      },
+      {
+        "contract_complete": false,
+        "dependencies": [],
+        "module_id": "frozen_4h_short",
+        "module_version": "missing-contract",
+        "parameters": {
+          "decision_queue_id": "canonical-strategy-decision-queue-v1",
+          "expected_control_trades": 21,
+          "gap_asset": "research/strategy_audit_validation/compositions/frozen-4h-short.gap.json",
+          "recovery_status": "MISSING_AUTHORITATIVE_CONTRACT"
+        },
+        "role": "canonical-strategy-slot",
+        "source_provenance": {
+          "commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+          "path": "research/strategy_audit_validation/compositions/frozen-4h-short.gap.json"
+        },
+        "timeframes": [
+          "4h"
+        ]
+      }
+    ],
+    "schema_version": "strategy-composition-v1",
+    "source_provenance": {
+      "commit_sha": "ff7bf327e2c647882c3fe0ad5e85bf71979ebfa2",
+      "paths": [
+        "docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md",
+        "research/strategy_audit_validation/compositions/recovered-contracts-v1.json",
+        "research/strategy_audit_validation/compositions/fvg-rt-final-15m.recovered.json",
+        "research/strategy_audit_validation/compositions/frozen-1h-short.recovered-gap.json",
+        "research/strategy_audit_validation/compositions/frozen-4h-short.gap.json",
+        "research/strategy_audit_validation/compositions/canonical-strategy-decision-queue-v1.json"
+      ],
+      "repository": "MishkaStrategy/Module-Strategy"
+    },
+    "state": "INCOMPLETE",
+    "timezone": "UTC",
+    "unfinished_htf_allowed": false
+  },
+  "composition_hash": "b4bb0191a60cb46ffe305e8b04ae6536890c380a8a2a55ff412fec47d884966d",
+  "decision_queue_id": "canonical-strategy-decision-queue-v1",
+  "executable": false,
+  "missing_contracts": [
+    "frozen_1h_short",
+    "frozen_4h_short",
+    "fvg_rt_final_15m"
+  ],
+  "ordering_status": "placeholder-only-blocked-by-STRATEGY-312-03",
+  "original_gap_asset_unchanged": "canonical-fvg-rt-final-15m-frozen-1h-4h.gap.json",
+  "recovery_registry": "module-contracts-recovery-v2.json",
+  "schema_version": 2,
+  "status": "PARTIAL_RECOVERY_FAIL_CLOSED"
+}

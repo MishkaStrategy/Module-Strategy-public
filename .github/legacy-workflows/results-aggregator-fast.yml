@@ -1,0 +1,124 @@
+name: results-aggregator-fast
+
+on:
+  pull_request:
+    paths:
+      - "modules/results_aggregator/**"
+      - ".github/workflows/results-aggregator-fast.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: results-aggregator-fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    name: Results Aggregator fast / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/results_aggregator/pyproject.toml
+          cache-suffix: results-aggregator
+      - name: Install exact development surface
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/results_aggregator[dev]"
+          uv pip check
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          modules/results_aggregator/src
+          modules/results_aggregator/tests
+          modules/results_aggregator/tools
+      - name: Ruff check
+        run: >-
+          ruff check --output-format=concise
+          modules/results_aggregator/src
+          modules/results_aggregator/tests
+          modules/results_aggregator/tools
+          2>&1 | tee results-ruff-${{ matrix.python-version }}.log
+      - name: MyPy
+        env:
+          MYPYPATH: modules/results_aggregator/src
+        run: >-
+          mypy modules/results_aggregator/src/modular_results_registry
+          2>&1 | tee results-mypy-${{ matrix.python-version }}.log
+      - name: Full correctness suite
+        run: >-
+          python -m pytest -q modules/results_aggregator/tests
+          --junitxml=results-tests-${{ matrix.python-version }}.xml
+          2>&1 | tee results-tests-${{ matrix.python-version }}.log
+      - name: Branch-aware coverage gate
+        working-directory: modules/results_aggregator
+        run: |
+          set -euo pipefail
+          coverage erase
+          coverage run --branch --source=modular_results_registry \
+            -m pytest -q tests --ignore=tests/test_sqlite_crash_recovery.py \
+            2>&1 | tee ../../results-coverage-tests-${{ matrix.python-version }}.log
+          coverage report --fail-under=90 \
+            2>&1 | tee ../../results-coverage-${{ matrix.python-version }}.log
+          coverage json -o ../../results-coverage-${{ matrix.python-version }}.json \
+            2>&1 | tee -a ../../results-coverage-${{ matrix.python-version }}.log
+      - name: Deterministic security scan
+        run: >-
+          python modules/results_aggregator/tools/security_scan.py
+          modules/results_aggregator/src
+          modules/results_aggregator/tests
+          modules/results_aggregator/tools
+          --output results-security-${{ matrix.python-version }}.json
+          2>&1 | tee results-security-${{ matrix.python-version }}.log
+      - name: Wheel build
+        run: >-
+          python -m pip wheel ./modules/results_aggregator
+          --no-deps --no-build-isolation
+          -w dist/results_aggregator
+          2>&1 | tee results-wheel-${{ matrix.python-version }}.log
+      - name: Clean wheel smoke
+        run: |
+          set -euo pipefail
+          wheel="$(find dist/results_aggregator -maxdepth 1 -type f -name '*.whl' -print)"
+          test "$(printf '%s\n' "$wheel" | sed '/^$/d' | wc -l | tr -d ' ')" = "1"
+          uv venv --python "${{ matrix.python-version }}" .wheel-smoke
+          uv pip install --python .wheel-smoke/bin/python "$wheel"
+          .wheel-smoke/bin/python - <<'PY' 2>&1 | tee results-smoke-${{ matrix.python-version }}.log
+          import modular_results_registry as package
+          from modular_results_registry.schema_resources import list_schema_names
+          assert package.__version__ == "0.1.0.dev0"
+          assert len(list_schema_names()) == 17
+          print("results-registry wheel smoke: ok")
+          PY
+      - name: Upload diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: results-aggregator-fast-${{ matrix.python-version }}
+          if-no-files-found: error
+          path: |
+            results-*-${{ matrix.python-version }}.log
+            results-tests-${{ matrix.python-version }}.xml
+            results-coverage-${{ matrix.python-version }}.json
+            results-security-${{ matrix.python-version }}.json
+            dist/results_aggregator/*.whl

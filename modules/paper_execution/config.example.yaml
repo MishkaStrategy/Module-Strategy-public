@@ -1,0 +1,8 @@
+schema_version: "1"
+execution_mode: paper
+reconciliation_mode: strict_block
+strict_invariants: true
+maximum_open_orders: 100
+maximum_conditional_orders: 100
+client_order_id_max_length: 36
+module_namespace: pevr

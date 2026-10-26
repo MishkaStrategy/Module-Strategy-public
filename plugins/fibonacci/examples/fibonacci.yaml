@@ -1,0 +1,18 @@
+modules:
+  - plugin: fibonacci
+    enabled: true
+    parameters:
+      timeframes: [15m, 1h, 4h, 1d]
+      dataset_hash: core-stream-unhashed
+      min_atr_multiple: "1.5"
+      publish_short_setup: true
+      short_reaction_lookback: 40
+      short_reaction_minimum_samples: 8
+      short_reaction_minimum_success_rate: "0.65"
+      short_reaction_minimum_streak: 3
+      short_regime_window_size: 12
+      short_regime_minimum_window_samples: 8
+      short_regime_minimum_success_rate: "0.65"
+      short_regime_minimum_level_samples: 4
+      short_regime_minimum_level_success_rate: "0.65"
+      short_regime_change_threshold: "0.15"

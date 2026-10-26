@@ -1,0 +1,45 @@
+name: actionlint
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/**"
+      - ".github/workflows/**"
+      - ".github/actionlint.yaml"
+      - "scripts/install_actionlint.sh"
+      - "scripts/runner_preflight.sh"
+  push:
+    branches:
+      - main
+      - "integration/**"
+    paths:
+      - ".github/actions/**"
+      - ".github/workflows/**"
+      - ".github/actionlint.yaml"
+      - "scripts/install_actionlint.sh"
+      - "scripts/runner_preflight.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Install pinned actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install_actionlint.sh "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
+      - name: Run actionlint
+        run: actionlint -color

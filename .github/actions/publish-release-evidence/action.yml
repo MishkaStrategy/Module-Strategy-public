@@ -1,0 +1,533 @@
+name: Publish immutable release evidence
+description: Publish exact-commit evidence directly from the current job without Actions artifact storage.
+inputs:
+  source_path:
+    description: One or more newline-separated files/directories produced by this job.
+    required: true
+  asset_name:
+    description: Purpose-specific asset name (the repository and exact SHA are prepended automatically).
+    required: true
+  commit_sha:
+    description: Exact 40-character commit SHA proven by this evidence.
+    required: true
+  draft:
+    description: Create a private draft evidence release when no release exists.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Publish immutable exact-commit evidence
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SOURCE_PATHS: ${{ inputs.source_path }}
+        PURPOSE_NAME: ${{ inputs.asset_name }}
+        EVIDENCE_COMMIT_SHA: ${{ inputs.commit_sha }}
+        DRAFT_RELEASE: ${{ inputs.draft }}
+      run: |
+        set -euo pipefail
+
+        [[ "${EVIDENCE_COMMIT_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+          echo "commit_sha must be an exact lowercase 40-character SHA" >&2
+          exit 1
+        }
+        [[ "${PURPOSE_NAME}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+          echo "asset_name contains unsafe characters" >&2
+          exit 1
+        }
+        case "${DRAFT_RELEASE}" in
+          true|false) ;;
+          *) echo "draft must be true or false" >&2; exit 1 ;;
+        esac
+
+        sources=()
+        while IFS= read -r source; do
+          [[ -z "${source}" ]] && continue
+          [[ -e "${source}" ]] || { echo "Evidence source does not exist: ${source}" >&2; exit 1; }
+          sources+=("${source}")
+        done <<< "${SOURCE_PATHS}"
+        ((${#sources[@]} > 0)) || { echo "No evidence sources were supplied" >&2; exit 1; }
+
+        repository_name="${GITHUB_REPOSITORY#*/}"
+        if [[ ! "${repository_name}" =~ ^[A-Za-z0-9] ]]; then
+          repository_name="repo${repository_name}"
+        fi
+        asset_name="${repository_name}-${EVIDENCE_COMMIT_SHA}-${PURPOSE_NAME}"
+        tag="ci-evidence-${EVIDENCE_COMMIT_SHA}"
+        temporary_directory="$(mktemp -d)"
+        trap 'rm -rf "${temporary_directory}"' EXIT
+        prepared_asset="${temporary_directory}/${asset_name}"
+
+        if ((${#sources[@]} == 1)) && [[ -f "${sources[0]}" ]]; then
+          cp "${sources[0]}" "${prepared_asset}"
+        elif [[ "${asset_name}" == *.zip ]]; then
+          python3 - "${prepared_asset}" "${sources[@]}" <<'PY'
+        import sys
+        import zipfile
+        from pathlib import Path
+
+        destination = Path(sys.argv[1])
+        sources = [Path(value) for value in sys.argv[2:]]
+        flatten_single_directory = len(sources) == 1 and sources[0].is_dir()
+
+        names = set()
+        with zipfile.ZipFile(destination, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+            for source in sources:
+                if source.is_symlink():
+                    raise SystemExit(f'Symlink evidence source is forbidden: {source}')
+                candidates = sorted(source.rglob('*')) if source.is_dir() else [source]
+                for candidate in candidates:
+                    if candidate.is_symlink():
+                        raise SystemExit(f'Symlink evidence entry is forbidden: {candidate}')
+                    if not candidate.is_file():
+                        continue
+                    if flatten_single_directory:
+                        archive_name = candidate.relative_to(source)
+                    elif source.is_dir():
+                        archive_name = candidate.relative_to(source.parent)
+                    else:
+                        archive_name = Path(source.name)
+                    archive_name = archive_name.as_posix()
+                    if archive_name in names:
+                        raise SystemExit(f'Duplicate archive entry: {archive_name}')
+                    names.add(archive_name)
+                    info = zipfile.ZipInfo(archive_name, date_time=(1980, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    info.external_attr = 0o100644 << 16
+                    archive.writestr(info, candidate.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+        PY
+        else
+          [[ "${asset_name}" == *.tar.gz ]] || {
+            echo "asset_name must end in .tar.gz when publishing a directory or multiple paths" >&2
+            exit 1
+          }
+          python3 - "${prepared_asset}" "${sources[@]}" <<'PY'
+        import gzip
+        import io
+        import sys
+        import tarfile
+        from pathlib import Path
+
+        destination = Path(sys.argv[1])
+        sources = [Path(value) for value in sys.argv[2:]]
+        flatten_single_directory = len(sources) == 1 and sources[0].is_dir()
+        names = set()
+
+        with destination.open('wb') as raw:
+            with gzip.GzipFile(fileobj=raw, mode='wb', mtime=0, filename='') as compressed:
+                with tarfile.open(fileobj=compressed, mode='w') as archive:
+                    for source in sources:
+                        if source.is_symlink():
+                            raise SystemExit(f'Symlink evidence source is forbidden: {source}')
+                        candidates = sorted(source.rglob('*')) if source.is_dir() else [source]
+                        for candidate in candidates:
+                            if candidate.is_symlink():
+                                raise SystemExit(f'Symlink evidence entry is forbidden: {candidate}')
+                            if not candidate.is_file():
+                                continue
+                            if flatten_single_directory:
+                                archive_name = candidate.relative_to(source)
+                            elif source.is_dir():
+                                archive_name = candidate.relative_to(source.parent)
+                            else:
+                                archive_name = Path(source.name)
+                            archive_name = archive_name.as_posix()
+                            if archive_name in names:
+                                raise SystemExit(f'Duplicate archive entry: {archive_name}')
+                            names.add(archive_name)
+                            payload = candidate.read_bytes()
+                            info = tarfile.TarInfo(archive_name)
+                            info.size = len(payload)
+                            info.mode = 0o644
+                            info.mtime = 0
+                            info.uid = info.gid = 0
+                            info.uname = info.gname = ''
+                            archive.addfile(info, io.BytesIO(payload))
+        PY
+        fi
+
+        api_url="${GITHUB_API_URL:-https://api.github.com}/repos/${GITHUB_REPOSITORY}"
+        uploads_url="${GITHUB_SERVER_URL:-https://github.com}"
+        if [[ "${uploads_url}" == "https://github.com" ]]; then
+          uploads_url="https://uploads.github.com/repos/${GITHUB_REPOSITORY}"
+        else
+          uploads_url="${api_url}"
+        fi
+        api_headers=(
+          --header "Authorization: Bearer ${GH_TOKEN}"
+          --header "Accept: application/vnd.github+json"
+          --header "X-GitHub-Api-Version: 2022-11-28"
+        )
+
+        header_value() {
+          local name="$1" headers_file="$2"
+          python3 - "${name}" "${headers_file}" <<'PY'
+        import sys
+        from pathlib import Path
+
+        name = sys.argv[1].lower()
+        value = ""
+        for line in Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace").splitlines():
+            key, separator, candidate = line.partition(":")
+            if separator and key.strip().lower() == name:
+                value = candidate.strip()
+        print(value)
+        PY
+        }
+
+        api_error_message() {
+          local body_file="$1"
+          python3 - "${body_file}" <<'PY'
+        import json
+        import sys
+        from pathlib import Path
+
+        path = Path(sys.argv[1])
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, json.JSONDecodeError):
+            print("[non-JSON response body omitted]")
+            raise SystemExit(0)
+
+        message = payload.get("message") if isinstance(payload, dict) else None
+        documentation = payload.get("documentation_url") if isinstance(payload, dict) else None
+        parts = []
+        if isinstance(message, str):
+            parts.append(message.replace("\r", " ").replace("\n", " ")[:400])
+        if isinstance(documentation, str):
+            parts.append(documentation[:200])
+        print(" | ".join(parts) if parts else "[JSON error body omitted]")
+        PY
+        }
+
+        github_request() {
+          local method="$1" url="$2" response_file="$3"
+          shift 3
+          local max_attempts=3 attempt=1
+          local headers_file status curl_status retry_after remaining reset_at message lower_message
+          local accepted_permissions request_id rate_resource rate_used
+          local failure_class delay now
+
+          while ((attempt <= max_attempts)); do
+            if ! headers_file="$(mktemp "${temporary_directory}/github-response.headers.XXXXXX")"; then
+              echo "Unable to allocate GitHub API response header file" >&2
+              return 1
+            fi
+            : > "${response_file}"
+            set +e
+            status="$(curl --silent --show-error --location \
+              --dump-header "${headers_file}" \
+              --output "${response_file}" \
+              --write-out '%{http_code}' \
+              "${api_headers[@]}" \
+              --request "${method}" \
+              "$@" \
+              "${url}")"
+            curl_status=$?
+            set -e
+
+            if [[ ${curl_status} -eq 0 && "${status}" =~ ^2[0-9][0-9]$ ]]; then
+              return 0
+            fi
+
+            retry_after="$(header_value "retry-after" "${headers_file}")"
+            remaining="$(header_value "x-ratelimit-remaining" "${headers_file}")"
+            reset_at="$(header_value "x-ratelimit-reset" "${headers_file}")"
+            accepted_permissions="$(header_value "x-accepted-github-permissions" "${headers_file}")"
+            request_id="$(header_value "x-github-request-id" "${headers_file}")"
+            rate_resource="$(header_value "x-ratelimit-resource" "${headers_file}")"
+            rate_used="$(header_value "x-ratelimit-used" "${headers_file}")"
+            message="$(api_error_message "${response_file}")"
+            lower_message="$(printf '%s' "${message}" | tr '[:upper:]' '[:lower:]')"
+            failure_class="permanent"
+
+            if [[ ${curl_status} -ne 0 ]]; then
+              failure_class="transport"
+            elif [[ "${status}" == "429" ]]; then
+              failure_class="rate-limit"
+            elif [[ "${status}" == "403" ]] && {
+              [[ -n "${retry_after}" ]] ||
+              [[ "${remaining}" == "0" ]] ||
+              [[ "${lower_message}" == *"secondary rate limit"* ]] ||
+              [[ "${lower_message}" == *"rate limit"* ]] ||
+              [[ "${lower_message}" == *"abuse detection"* ]]
+            }; then
+              failure_class="rate-limit"
+            elif [[ "${status}" =~ ^5[0-9][0-9]$ ]]; then
+              failure_class="server"
+            fi
+
+            echo "GitHub API request failed: method=${method} status=${status:-000} curl=${curl_status} class=${failure_class} attempt=${attempt}/${max_attempts}" >&2
+            echo "GitHub API error: ${message}" >&2
+            if [[ -n "${retry_after}" ]]; then
+              echo "GitHub API Retry-After: ${retry_after}" >&2
+            fi
+            if [[ -n "${remaining}" || -n "${reset_at}" ]]; then
+              echo "GitHub API rate limit: remaining=${remaining:-unknown} reset=${reset_at:-unknown}" >&2
+            fi
+            if [[ -n "${request_id}" || -n "${accepted_permissions}" || -n "${rate_resource}" || -n "${rate_used}" ]]; then
+              echo "GitHub API diagnostics: request_id=${request_id:-unknown} accepted_permissions=${accepted_permissions:-unknown} rate_resource=${rate_resource:-unknown} rate_used=${rate_used:-unknown}" >&2
+            fi
+
+            if [[ "${failure_class}" == "permanent" || ${attempt} -ge ${max_attempts} ]]; then
+              return 1
+            fi
+
+            delay=0
+            if [[ "${retry_after}" =~ ^[0-9]+$ ]]; then
+              delay="${retry_after}"
+            elif [[ "${remaining}" == "0" && "${reset_at}" =~ ^[0-9]+$ ]]; then
+              now="$(date +%s)"
+              delay=$((reset_at - now + 1))
+              ((delay < 1)) && delay=1
+            elif [[ "${failure_class}" == "rate-limit" ]]; then
+              delay=$((60 * (2 ** (attempt - 1))))
+            else
+              delay=$((2 ** attempt))
+            fi
+            ((delay > 120)) && delay=120
+            echo "Retrying GitHub API request after ${delay}s" >&2
+            sleep "${delay}"
+            attempt=$((attempt + 1))
+          done
+          return 1
+        }
+
+        find_release() {
+          local response_file="${temporary_directory}/releases.json"
+          github_request GET "${api_url}/releases?per_page=100" "${response_file}" || return 2
+          python3 -c 'import json,sys; tag=sys.argv[1]; matches=[item for item in json.load(sys.stdin) if item.get("tag_name")==tag]; matches or sys.exit(1); json.dump(matches[0],sys.stdout)' "${tag}" < "${response_file}"
+        }
+
+        reconcile_release_after_create_failure() {
+          local max_attempts=6 attempt=1 delay=2
+          local candidate find_status
+
+          while ((attempt <= max_attempts)); do
+            if candidate="$(find_release)"; then
+              printf '%s\n' "${candidate}"
+              return 0
+            else
+              find_status=$?
+              [[ ${find_status} -eq 1 ]] || return 2
+            fi
+            if ((attempt < max_attempts)); then
+              echo "Concurrent exact-SHA evidence release not visible yet; reconciliation attempt ${attempt}/${max_attempts}" >&2
+              sleep "${delay}"
+            fi
+            attempt=$((attempt + 1))
+          done
+          return 1
+        }
+
+        expected_release_name="CI evidence ${EVIDENCE_COMMIT_SHA}"
+        expected_release_body="Canonical immutable evidence for ${GITHUB_REPOSITORY}@${EVIDENCE_COMMIT_SHA}."
+        release_payload=""
+        if release_payload="$(find_release)"; then
+          :
+        else
+          find_status=$?
+          [[ ${find_status} -eq 1 ]] || exit 1
+          create_payload="$(python3 - "${tag}" "${EVIDENCE_COMMIT_SHA}" "${DRAFT_RELEASE}" "${GITHUB_REPOSITORY}" <<'PY'
+        import json
+        import sys
+        tag, commit_sha, draft, repository = sys.argv[1:]
+        payload = {
+            'tag_name': tag,
+            'name': f'CI evidence {commit_sha}',
+            'body': f'Canonical immutable evidence for {repository}@{commit_sha}.',
+            'draft': draft == 'true',
+            'prerelease': False,
+        }
+        if draft != 'true':
+            payload['target_commitish'] = commit_sha
+        json.dump(payload, sys.stdout)
+        PY
+          )"
+          create_response="${temporary_directory}/create-release.json"
+          if github_request POST "${api_url}/releases" "${create_response}" \
+            --header "Content-Type: application/json" \
+            --data-binary "${create_payload}"; then
+            release_payload="$(cat "${create_response}")"
+          else
+            create_error="$(api_error_message "${create_response}")"
+            if reconciled_release="$(reconcile_release_after_create_failure)"; then
+              release_payload="${reconciled_release}"
+              echo "Reconciled concurrent exact-SHA evidence release after create failure" >&2
+            else
+              reconcile_status=$?
+              echo "Release creation failed after bounded reconciliation: ${create_error}" >&2
+              if [[ ${reconcile_status} -ne 1 ]]; then
+                echo "Release reconciliation failed while querying GitHub API" >&2
+              fi
+              exit 1
+            fi
+          fi
+        fi
+
+        release_tag="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", ""))' <<< "${release_payload}")"
+        [[ "${release_tag}" == "${tag}" ]] || {
+          echo "Existing evidence release tag mismatch: ${release_tag}" >&2
+          exit 1
+        }
+        release_name="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("name", ""))' <<< "${release_payload}")"
+        [[ "${release_name}" == "${expected_release_name}" ]] || {
+          echo "Existing evidence release name mismatch: ${release_name}" >&2
+          exit 1
+        }
+        release_body="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("body", ""))' <<< "${release_payload}")"
+        [[ "${release_body}" == "${expected_release_body}" ]] || {
+          echo "Existing evidence release body mismatch" >&2
+          exit 1
+        }
+        release_draft="$(python3 -c 'import json,sys; value=json.load(sys.stdin).get("draft"); print("true" if value is True else "false" if value is False else "invalid")' <<< "${release_payload}")"
+        [[ "${release_draft}" == "${DRAFT_RELEASE}" ]] || {
+          echo "Existing evidence release draft state mismatch: expected=${DRAFT_RELEASE} actual=${release_draft}" >&2
+          exit 1
+        }
+
+        repository_response="${temporary_directory}/repository.json"
+        github_request GET "${api_url}" "${repository_response}"
+        default_branch="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("default_branch", ""))' < "${repository_response}")"
+        [[ -n "${default_branch}" ]] || {
+          echo "Repository default branch is unavailable" >&2
+          exit 1
+        }
+        target_commitish="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("target_commitish", ""))' <<< "${release_payload}")"
+        if [[ "${DRAFT_RELEASE}" == "true" ]]; then
+          if [[ "${target_commitish}" != "${EVIDENCE_COMMIT_SHA}" && "${target_commitish}" != "${default_branch}" ]]; then
+            echo "Existing draft evidence release target mismatch: expected=${EVIDENCE_COMMIT_SHA} or ${default_branch} actual=${target_commitish}" >&2
+            exit 1
+          fi
+        elif [[ "${target_commitish}" != "${EVIDENCE_COMMIT_SHA}" ]]; then
+          echo "Existing published evidence release is not bound to ${EVIDENCE_COMMIT_SHA}: ${target_commitish}" >&2
+          exit 1
+        fi
+        release_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<< "${release_payload}")"
+
+        find_asset_id() {
+          local upload_name="$1" response_file="${temporary_directory}/release-assets.json"
+          github_request GET "${api_url}/releases/${release_id}/assets?per_page=100" "${response_file}" || return 2
+          python3 -c 'import json,sys; name=sys.argv[1]; matches=[item for item in json.load(sys.stdin) if item.get("name")==name]; print(matches[0]["id"]) if matches else sys.exit(1)' "${upload_name}" < "${response_file}"
+        }
+
+        download_asset() {
+          local asset_id="$1" destination="$2"
+          github_request GET "${api_url}/releases/assets/${asset_id}" "${destination}" \
+            --header "Accept: application/octet-stream"
+        }
+
+        run_scoped_asset_name() {
+          local upload_name="$1" stem suffix
+          [[ "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]] || {
+            echo "GITHUB_RUN_ID is required to preserve a differing immutable asset" >&2
+            return 1
+          }
+          [[ "${GITHUB_RUN_ATTEMPT:-}" =~ ^[0-9]+$ ]] || {
+            echo "GITHUB_RUN_ATTEMPT is required to preserve a differing immutable asset" >&2
+            return 1
+          }
+          case "${upload_name}" in
+            *.tar.gz)
+              stem="${upload_name%.tar.gz}"
+              suffix=".tar.gz"
+              ;;
+            *.zip)
+              stem="${upload_name%.zip}"
+              suffix=".zip"
+              ;;
+            *.*)
+              stem="${upload_name%.*}"
+              suffix=".${upload_name##*.}"
+              ;;
+            *)
+              stem="${upload_name}"
+              suffix=""
+              ;;
+          esac
+          printf '%s-run-%s-attempt-%s%s\n' \
+            "${stem}" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" "${suffix}"
+        }
+
+        upload_immutable() {
+          local source_file="$1" upload_name="$2" existing_directory asset_id encoded_name
+          local find_status upload_response compare_status
+          existing_directory="${temporary_directory}/existing-${upload_name}"
+          if asset_id="$(find_asset_id "${upload_name}")"; then
+            mkdir -p "${existing_directory}" || return 1
+            download_asset "${asset_id}" "${existing_directory}/${upload_name}" || return 1
+            if cmp -s "${source_file}" "${existing_directory}/${upload_name}"; then
+              echo "Immutable asset already exists and is identical: ${upload_name}"
+              return 0
+            else
+              compare_status=$?
+              [[ ${compare_status} -eq 1 ]] || return 1
+              echo "Refusing to replace differing immutable asset: ${upload_name}" >&2
+              return 3
+            fi
+          else
+            find_status=$?
+            [[ ${find_status} -eq 1 ]] || return 1
+          fi
+
+          encoded_name="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "${upload_name}")" || return 1
+          upload_response="${temporary_directory}/upload-response.json"
+          if github_request POST "${uploads_url}/releases/${release_id}/assets?name=${encoded_name}" "${upload_response}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary "@${source_file}"; then
+            return 0
+          fi
+
+          if asset_id="$(find_asset_id "${upload_name}")"; then
+            mkdir -p "${existing_directory}" || return 1
+            download_asset "${asset_id}" "${existing_directory}/${upload_name}" || return 1
+            if cmp -s "${source_file}" "${existing_directory}/${upload_name}"; then
+              return 0
+            else
+              compare_status=$?
+              [[ ${compare_status} -eq 1 ]] || return 1
+              echo "Concurrent immutable asset differs: ${upload_name}" >&2
+              return 3
+            fi
+          fi
+          find_status=$?
+          [[ ${find_status} -eq 1 ]] || return 1
+          echo "Evidence upload failed and no concurrent immutable asset appeared: ${upload_name}" >&2
+          return 1
+        }
+
+        effective_asset_name="${asset_name}"
+        if upload_immutable "${prepared_asset}" "${effective_asset_name}"; then
+          :
+        else
+          archive_upload_status=$?
+          if [[ ${archive_upload_status} -ne 3 ]]; then
+            echo "Evidence archive upload failed; refusing a fallback without a verified conflicting asset" >&2
+            exit 1
+          fi
+
+          effective_asset_name="$(run_scoped_asset_name "${asset_name}")" || exit 1
+          echo "Preserving the differing immutable asset and switching once to ${effective_asset_name}"
+          if upload_immutable "${prepared_asset}" "${effective_asset_name}"; then
+            :
+          else
+            echo "Run-scoped evidence archive upload failed; refusing another fallback" >&2
+            exit 1
+          fi
+        fi
+
+        digest_name="${effective_asset_name}.sha256"
+        digest_path="${temporary_directory}/${digest_name}"
+        if command -v shasum >/dev/null 2>&1; then
+          digest="$(shasum -a 256 "${prepared_asset}" | awk '{print $1}')" || exit 1
+        else
+          digest="$(sha256sum "${prepared_asset}" | awk '{print $1}')" || exit 1
+        fi
+        printf '%s  %s\n' "${digest}" "${effective_asset_name}" > "${digest_path}" || exit 1
+        if upload_immutable "${digest_path}" "${digest_name}"; then
+          echo "Verified immutable evidence archive and digest: ${effective_asset_name}"
+        else
+          echo "Evidence digest upload failed; refusing to report publication success" >&2
+          exit 1
+        fi

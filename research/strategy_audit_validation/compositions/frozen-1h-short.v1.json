@@ -1,0 +1,114 @@
+{
+  "adapter": {
+    "feature_contract": "canonical-frozen-1h-feature-snapshot-v1",
+    "import_path": "strategy_audit_validation.canonical_runtime:ContractBoundAdapter",
+    "output_contract": "canonical-strategy-order-plan-v1"
+  },
+  "approved_at": "2026-08-03T03:40:00Z",
+  "approved_by": "mishkacher",
+  "causality": {
+    "first_eligible_5m_bar": "open timestamp equals first 5m boundary after completed 1h C close",
+    "lookahead_allowed": false,
+    "signal_available_after_completed_c": true,
+    "unfinished_htf_allowed": false
+  },
+  "checkpoint_and_restart": {
+    "identity_fields": [
+      "composition_hash",
+      "candidate_id",
+      "module_id",
+      "module_version",
+      "dataset_id",
+      "dataset_version",
+      "dataset_hash",
+      "symbol",
+      "last_processed_5m_open_utc"
+    ],
+    "open_position_restore": "restore exact side, quantity, entry, stop, target, fill index, remaining hold, fees, MFE and state sequence; reject any identity or digest mismatch",
+    "pending_order_restore": "restore exact limit, stop, target, remaining TTL, signal identity and priority; cancel if expired, crossed a data gap, or any identity/digest differs",
+    "schema_version": "canonical-strategy-state-v1"
+  },
+  "costs_and_sizing": {
+    "adverse_market_slippage": 0.00025,
+    "funding_baseline": 0.0,
+    "maker_entry_fee": 0.0002,
+    "maker_target_fee": 0.0002,
+    "market_exit_fee": 0.00055,
+    "max_notional_multiple": 3.0,
+    "risk_fraction_research": 0.005,
+    "risk_fraction_working_mode": 0.02,
+    "risk_reference": "current equity and net stop loss including entry fee, stop fee, and adverse slippage",
+    "stop_fee": 0.00055
+  },
+  "entry": "C.high + 0.75 * (A.low - C.high)",
+  "filters": {
+    "atr_fraction_of_close": [
+      0.0,
+      0.025
+    ],
+    "ema50_falling": "EMA50(C) < EMA50 four completed 1h bars earlier",
+    "fvg": "C.high < A.low; strict equality exclusion",
+    "fvg_size_atr": [
+      0.08,
+      1.25
+    ],
+    "htf_regime": "last completed 4h close < completed 4h EMA200",
+    "impulse_efficiency_min": 0.45,
+    "middle_body_atr_min": 0.4,
+    "middle_direction": "bearish",
+    "rsi": null,
+    "short_location": "(high_8_completed_1h - C.close) / (high_8_completed_1h - low_8_completed_1h) >= 0.75; zero range rejects",
+    "volume_ratio_min": 0.85
+  },
+  "identity": {
+    "module_id": "frozen_1h_short",
+    "module_version": "1.0.0",
+    "name": "Frozen 1H Short"
+  },
+  "intrabar": {
+    "full_target_on_fill_bar": false,
+    "gap_through_stop": "fill at the worse of configured stop and first available 5m open/market price, then apply market fee and adverse slippage",
+    "no_progress_check_priority": [
+      "stop",
+      "full_target",
+      "close_based_no_progress_exit"
+    ],
+    "stop_on_fill_bar": true,
+    "stop_target_same_bar": "stop_first"
+  },
+  "required_conditions_by_setup": {
+    "short": [
+      "bearish_fvg",
+      "fvg_size_atr_inclusive",
+      "middle_body_atr_min",
+      "middle_bearish",
+      "volume_ratio_min",
+      "impulse_efficiency_min",
+      "close_below_ema50",
+      "ema50_falling_4",
+      "completed_4h_close_below_ema200",
+      "short_location_8h_min",
+      "atr_fraction_inclusive",
+      "all_inputs_completed"
+    ]
+  },
+  "schema_version": 1,
+  "setups": {
+    "short": {
+      "max_hold_bars_5m": 144,
+      "no_progress_bars_5m": 72,
+      "no_progress_min_mfe_r": 0.5,
+      "side": "short",
+      "target_r": 6.0,
+      "ttl_bars_5m": 48
+    }
+  },
+  "source": "https://github.com/MishkaStrategy/Module-Strategy/issues/312#issuecomment-5162067264",
+  "status": "OWNER_APPROVED_EXECUTABLE_CONTRACT",
+  "stop": "maximum high of the last five completed 1h candles including C plus 0.05 ATR14_1h; reject if distance > 4% of entry",
+  "timeframes": [
+    "5m",
+    "1h",
+    "4h"
+  ]
+}

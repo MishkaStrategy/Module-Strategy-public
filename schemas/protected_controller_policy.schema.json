@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://module-strategy.invalid/schemas/protected-controller-policy-v1.json",
+  "title": "Protected controller policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "policy_id", "repository", "provider_id", "workflow_id",
+    "workflow_digest", "event", "ref", "audience", "grant_ttl_seconds",
+    "resource_policy_id", "resource_policy_digest", "network_policy_id",
+    "network_policy_digest", "resource_policy", "network_policy"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "policy_id": { "$ref": "#/$defs/boundedText" },
+    "repository": { "const": "https://github.com/MishkaStrategy/Module-Strategy.git" },
+    "provider_id": { "$ref": "#/$defs/boundedText" },
+    "workflow_id": { "$ref": "#/$defs/boundedText" },
+    "workflow_digest": { "$ref": "#/$defs/sha256" },
+    "event": { "$ref": "#/$defs/boundedText" },
+    "ref": { "$ref": "#/$defs/boundedText" },
+    "audience": { "$ref": "#/$defs/boundedText" },
+    "grant_ttl_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+    "resource_policy_id": { "$ref": "#/$defs/boundedText" },
+    "resource_policy_digest": { "$ref": "#/$defs/sha256" },
+    "network_policy_id": { "$ref": "#/$defs/boundedText" },
+    "network_policy_digest": { "$ref": "#/$defs/sha256" },
+    "resource_policy": { "$ref": "#/$defs/resourcePolicy" },
+    "network_policy": { "$ref": "#/$defs/networkPolicy" }
+  },
+  "$defs": {
+    "boundedText": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "resourcePolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cpu_millis", "memory_bytes", "storage_bytes", "process_limit", "execution_timeout_seconds"],
+      "properties": {
+        "cpu_millis": { "type": "integer", "minimum": 1 },
+        "memory_bytes": { "type": "integer", "minimum": 1 },
+        "storage_bytes": { "type": "integer", "minimum": 1 },
+        "process_limit": { "type": "integer", "minimum": 1 },
+        "execution_timeout_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "networkPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "allowed_destinations"],
+      "properties": {
+        "mode": { "enum": ["disabled", "allowlist"] },
+        "allowed_destinations": {
+          "type": "array", "maxItems": 256, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 255 }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "disabled" } } },
+          "then": { "properties": { "allowed_destinations": { "maxItems": 0 } } }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "allowlist" } } },
+          "then": { "properties": { "allowed_destinations": { "minItems": 1 } } }
+        }
+      ]
+    }
+  }
+}

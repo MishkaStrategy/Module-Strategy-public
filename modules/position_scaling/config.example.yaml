@@ -1,0 +1,37 @@
+modules:
+  - class: modular_strategy_position_scaling:PositionScalingPlannerModule
+    enabled: true
+    parameters:
+      enabled: true
+      allow_averaging_down: false
+      allow_pyramiding: true
+      allow_fixed_dca: false
+      allow_weighted_dca: false
+      allow_scale_out: true
+      allow_rebalance: false
+      allow_martingale: false
+      max_scale_in_count: 2
+      max_scale_out_count: 4
+      max_total_leverage: 3
+      max_total_position_risk_fraction: 0.005
+      max_additional_risk_fraction: 0.0025
+      max_position_drawdown_fraction: 0.02
+      minimum_liquidation_distance_fraction: 0.05
+      maximum_margin_usage_fraction: 0.5
+      rules:
+        - stage: 1
+          mode: pyramiding
+          action: add
+          trigger_kind: r_multiple
+          trigger_value: 1
+          quantity_kind: initial_fraction
+          quantity_value: 0.25
+          cooldown_bars: 3
+          expires_bars: 1
+
+  # Place the real Risk & Position Sizing module here.
+
+  - class: modular_strategy_position_scaling:PositionScalingApprovalModule
+    enabled: true
+    parameters:
+      max_processed_adjustments: 1024

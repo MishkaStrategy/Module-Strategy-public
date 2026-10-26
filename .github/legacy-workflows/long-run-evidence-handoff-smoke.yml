@@ -1,0 +1,86 @@
+name: Long-run evidence handoff smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/prepare-release-evidence-handoff/**"
+      - ".github/actions/publish-release-evidence-handoff/**"
+      - ".github/workflows/publish-release-evidence-handoff.yml"
+      - ".github/workflows/long-run-evidence-handoff-smoke.yml"
+      - "scripts/release_evidence_handoff.py"
+      - "tests/ci_policy/test_release_evidence_handoff.py"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - ".github/actions/prepare-release-evidence-handoff/**"
+      - ".github/actions/publish-release-evidence-handoff/**"
+      - ".github/workflows/publish-release-evidence-handoff.yml"
+      - ".github/workflows/long-run-evidence-handoff-smoke.yml"
+      - "scripts/release_evidence_handoff.py"
+      - "tests/ci_policy/test_release_evidence_handoff.py"
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 10
+    outputs:
+      payload: ${{ steps.handoff.outputs.payload }}
+      payload_sha256: ${{ steps.handoff.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-suffix: evidence-handoff-producer
+      - name: Build synthetic sanitized evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/handoff-smoke"
+          printf '{"kind":"handoff-smoke","schema_version":1}\n' > "${RUNNER_TEMP}/handoff-smoke/evidence.json"
+      - name: Encode through GitHub job output
+        id: handoff
+        uses: ./.github/actions/prepare-release-evidence-handoff
+        with:
+          source_path: ${{ runner.temp }}/handoff-smoke
+
+  consume:
+    needs: produce
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-suffix: evidence-handoff-consumer
+      - name: Decode downstream job output and verify content
+        shell: bash
+        env:
+          HANDOFF_PAYLOAD: ${{ needs.produce.outputs.payload }}
+          HANDOFF_SHA256: ${{ needs.produce.outputs.payload_sha256 }}
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/handoff-smoke.tar.gz"
+          python3 scripts/release_evidence_handoff.py unpack-input --output "${archive}"
+          python3 - "${archive}" <<'PY'
+          import json
+          import sys
+          import tarfile
+
+          with tarfile.open(sys.argv[1], "r:gz") as bundle:
+              member = bundle.getmember("evidence.json")
+              payload = json.loads(bundle.extractfile(member).read())
+          if payload != {"kind": "handoff-smoke", "schema_version": 1}:
+              raise SystemExit("cross-job evidence handoff changed payload")
+          PY

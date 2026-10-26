@@ -1,0 +1,88 @@
+{
+  "baseline_semantic_digest": "e582e80fcfcc0d1fe2c39dc9b580fa2951023b6ce0e7b54678d6aaa19767ec26",
+  "bottleneck_verdict": "NO_PREEXISTING_SLO_BREACH_AND_NO_PROFILED_OWNED_BOTTLENECK",
+  "canonical_strategy_status": "INCOMPLETE_FAIL_CLOSED",
+  "environment": {
+    "implementation": "CPython",
+    "machine": "arm64",
+    "platform": "macOS-27.0-arm64-arm-64bit",
+    "python": "3.12.13"
+  },
+  "measurement_source": {
+    "artifact_id": 8834237653,
+    "head_sha": "73861889717ab1a656700d778de4d8eec4833ac2",
+    "workflow_run_id": 30750252004
+  },
+  "production_optimization_performed": false,
+  "publication": {
+    "duplicate_latency_ms": 0.432042,
+    "packages_per_second": 446.92889735484954,
+    "p50_ms": 2.0565,
+    "p95_ms": 2.631458,
+    "p99_ms": 6.611583,
+    "peak_rss_bytes": 84033536,
+    "registry_bytes": 14528512,
+    "repeat_cv_percent": 2.032304773213612,
+    "repeat_mean_packages_per_second": 490.78015147203115,
+    "semantic_digest_count": 1
+  },
+  "recovery": {
+    "cancellation_cleanup_ms": 4.724625003291294,
+    "canceled_runs": 10,
+    "ordering_preserved": true,
+    "orphan_artifacts": 0,
+    "orphan_processes": 0,
+    "recovered_leases": 1,
+    "restart_recovery_ms": 0.8820410002954304
+  },
+  "scheduler_bounded_1000": {
+    "admission_p50_ms": 0.810041,
+    "admission_p95_ms": 1.253667,
+    "admission_p99_ms": 1.9225,
+    "artifact_bytes": 784000,
+    "artifact_bytes_per_experiment": 784.0,
+    "candidates_per_second": 269.30107752791105,
+    "cpu_seconds": 4.436573000000001,
+    "fd_growth": 0,
+    "lifecycle_p50_ms": 10.636,
+    "lifecycle_p95_ms": 17.392999999999997,
+    "lifecycle_p99_ms": 20.625,
+    "orchestration_p50_ms": 10.350041999999998,
+    "orchestration_p95_ms": 17.0195,
+    "orchestration_p99_ms": 20.082583,
+    "peak_rss_bytes": 80805888,
+    "repeat_cv_percent": 5.0783168841126995,
+    "repeat_mean_candidates_per_second": 302.4909400627662,
+    "rss_delta_bytes": 393216,
+    "scheduling_p50_ms": 1931.423,
+    "scheduling_p95_ms": 3486.284,
+    "scheduling_p99_ms": 3624.1569999999997,
+    "semantic_digest_count": 1,
+    "temporary_bytes": 3643008,
+    "wall_seconds": 3.713315999993938,
+    "workers": 4
+  },
+  "scheduler_sequential_1000": {
+    "admission_p50_ms": 1.072041,
+    "admission_p95_ms": 2.558167,
+    "admission_p99_ms": 4.985792,
+    "candidates_per_second": 134.57049068582901,
+    "orchestration_p99_ms": 8.717625,
+    "scheduling_p99_ms": 7318.842,
+    "wall_seconds": 7.4310496670077555,
+    "workers": 1
+  },
+  "semantic_invariants": {
+    "canonical_execution_claimed": false,
+    "conflicting_publication_visible": false,
+    "duplicate_admissions_suppressed": 1000,
+    "invalid_candidates_rejected": 1000,
+    "invalid_side_effects": 0,
+    "original_publication_preserved": true,
+    "publication_conflict_quarantined": true,
+    "raw_dataset_published": false,
+    "semantic_repeat_variance": 0
+  },
+  "summary_id": "research-platform-wave2a-baseline-summary-v1",
+  "schema_version": 1
+}

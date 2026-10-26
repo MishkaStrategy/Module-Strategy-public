@@ -1,0 +1,17 @@
+Name                                                                                Stmts   Miss Branch BrPart  Cover   Missing
+-------------------------------------------------------------------------------------------------------------------------------
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/__init__.py           10      0      0      0   100%
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/canonical.py         230      3    126      3    98%   36, 272, 334
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/config.py            198      0     88      0   100%
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/decimal_math.py       78      6     14      4    89%   23, 32-33, 35, 46, 71
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/enums.py              89      1      0      0    99%   12
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/errors.py             15      0      0      0   100%
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/handoff.py           123     20     50     12    82%   25, 43, 46-47, 74, 78, 95, 99, 103, 106-107, 115, 120, 170-171, 222-223, 241, 245, 251
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/limits.py              1      0      0      0   100%
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/models.py           1044     40    448     43    94%   236->249, 242->249, 245->249, 296, 345->349, 356-357, 360->362, 374-375, 411, 463->467, 505, 534->536, 593->597, 608, 630, 873, 896, 899, 910, 999, 1001, 1032, 1113, 1118, 1126, 1237, 1257, 1259, 1264, 1270, 1274, 1293, 1297, 1299, 1302, 1304, 1310-1311, 1313, 1358-1359, 1376, 1410, 1430->1427, 1492, 1565, 1579->1576, 1628->1630, 1635
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/module.py            229     10     64      2    96%   241-242, 278-279, 442, 448, 510-511, 602-603
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/normalizer.py        469     21    210     18    94%   217, 390, 392, 395, 403, 748, 758-765, 786->793, 789-790, 793->802, 798-799, 819, 828, 830, 835, 840, 844, 846, 865->871, 868
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/router.py            728    166    354     65    75%   178, 232, 243, 294, 304, 306, 313-320, 330-333, 340-366, 390, 394-397, 417-418, 439-440, 445-446, 451-452, 457-458, 463-464, 466-467, 477-478, 480-481, 488-489, 495-496, 502-503, 505-506, 515-516, 521-522, 528-529, 531-547, 571, 769-770, 774-827, 832-836, 843, 853->873, 855, 915, 923-924, 928-929, 934, 937, 948->932, 1004, 1010, 1075->1077, 1077->1079, 1080, 1095, 1148-1154, 1177-1187, 1257->1259, 1295->1303, 1391-1392, 1411, 1418, 1493, 1498, 1541-1560, 1616-1630, 1678-1688, 1699-1709, 1745-1761, 1770-1782, 1789-1839, 1851-1861, 1872-1882, 1895-1910, 2029-2039, 2119
+modules/trade_plan_router/src/modular_strategy_trade_plan_router/serialization.py     432     22    174     16    93%   297, 376-384, 425->437, 431->437, 433->437, 474, 612, 634, 645, 647, 649, 654-655, 660, 674->685, 682, 689, 888, 910, 919-920
+-------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                3646    289   1528    163    90%

@@ -1,0 +1,96 @@
+{
+  "schema_version": "1",
+  "entries": [
+    {
+      "scenario_id": "runner_process_kill",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI forks a real child process on an eligible Linux [self-hosted, fast] runner, durably records the Trading Runner PaperBar pending fence, applies and fsyncs authoritative Core broker state, then sends SIGKILL before the PaperBar owner can commit the processed identity. The same scenario verifies Risk Supervisor HALT/transport_unhealthy and Trading Runner UNAVAILABLE/owner_unavailable, restores the broker and Runner checkpoint/journal from durable owner stores, reconciles the already-applied bar without replaying financial effects, and matches order/fill/position/checkpoint factual state to the uninterrupted reference path.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "runner_process_kill_before_checkpoint",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI forks a real child process on an eligible Linux [self-hosted, fast] runner and sends SIGKILL after the Trading Runner PaperBar pending fence is durable but before Core broker mutation. The same scenario verifies Risk Supervisor HALT/transport_unhealthy and Trading Runner UNAVAILABLE/owner_unavailable, proves the last durable broker state has no fill or position mutation, recovers through the owner-native pending-bar retry, and matches order/fill/position/checkpoint factual state to the uninterrupted reference path without duplicate effects.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "market_data_stale_interrupt",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI composes the accepted Market Data IngestionService, fail-closed registered Parquet reader, unified observability projection, Risk Supervisor recovery latch, RiskSupervisedPaperAdmission, PaperExecutionCoordinator, and Core broker. It proves stale Market Data halts risk-increasing PAPER admission without broker mutation, resumes from the authoritative checkpoint while restoring completed raw chunks, verifies registered dataset identity, clears the latch only through signed operator RECOVER, executes a real PAPER order/fill from the registered Kline stream, and matches market cursor, dataset version, order count, and fill count to the uninterrupted reference path.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "out_of_order_owner_evidence",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI composes the accepted Risk Supervisor, RiskSupervisedPaperAdmission, PaperExecutionCoordinator, and Core broker. It proves a non-monotonic snapshot returns MANUAL_REVIEW without advancing the persisted Risk sequence or changing broker factual state, then accepts a newer authoritative snapshot, performs a real reduce-only PAPER close, and matches order/fill/position/Risk factual state to the uninterrupted reference path.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "acceptance_sqlite_busy_wal",
+      "verification_status": "owner_backed_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI composes real WAL-mode System Acceptance owner storage with deterministic writer contention, proves the locked owner request leaves no run or mutation, releases and reopens the authoritative store, retries through SystemAcceptanceOwner, verifies SQLite integrity and WAL sidecars, and matches the declared factual state to an uninterrupted reference path.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "disk_pressure_read_only",
+      "verification_status": "residual_not_fully_reproduced",
+      "residual_risk_id": "host_disk_read_only",
+      "residual_risk": "Fast CI injects the authoritative low-capacity signal and verifies fail-closed admission, but does not fill or remount the host filesystem read-only.",
+      "physical_required": true
+    },
+    {
+      "scenario_id": "corrupt_truncated_checkpoint",
+      "verification_status": "residual_not_fully_reproduced",
+      "residual_risk_id": "torn_checkpoint_storage",
+      "residual_risk": "Fast CI deterministically truncates a checkpoint copy and verifies the Risk Supervisor integrity guard, but does not reproduce a host-level torn write during durable checkpoint commit.",
+      "physical_required": true
+    },
+    {
+      "scenario_id": "wall_clock_forward_backward",
+      "verification_status": "residual_not_fully_reproduced",
+      "residual_risk_id": "host_wall_clock_step",
+      "residual_risk": "Fast CI injects future and non-monotonic authoritative timestamps without changing the runner host clock; host clock stepping remains physical acceptance work.",
+      "physical_required": true
+    },
+    {
+      "scenario_id": "signal_bot_unavailable",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI composes the production Signal Bot TelegramNotifier and SQLiteStateStore with a real OS TCP connection refusal against a deliberately non-listening local HTTPS endpoint. The failed production transport leaves the owner signal durably SEND_FAILED with one outbox identity, a monotonic market cursor, and zero SENT notifications; unified observability projects SIGNAL_BOT UNAVAILABLE/owner_unavailable while the matrix correctly leaves Risk Supervisor HEALTHY. The owner store is then closed and reopened, SignalEngine.retry_pending resumes through the durable outbox after its bounded retry delay, exactly one notification reaches SENT, a second retry emits no duplicate, and signal_outbox_count, signal_cursor, and notification_count match the uninterrupted reference path. This proves #399's Signal Bot unavailable/notification delivery-failure class without claiming that a literal upstream Telegram or host-NIC partition was reproduced.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "control_plane_restart",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Exact-head fast CI keeps the real durable System Acceptance owner running, sends SIGKILL to the separate Control Plane OS process, proves its loopback transport is unavailable and Web fails closed without cached runtime truth, rebinds the same loopback port, then proves HTTP, CLI, and browser re-read the unchanged owner identity/status/phase and the same typed observability health/reason semantics. Control Plane remains a read/control projection and no owner mutation or synthetic recovery state is introduced.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "partial_outage_recovery_order",
+      "verification_status": "residual_not_fully_reproduced",
+      "residual_risk_id": "multi_service_outage_order",
+      "residual_risk": "Fast CI verifies the latched Risk Supervisor recovery-required contract and declared ordering primitives, but not a simultaneous supported-host multi-service outage.",
+      "physical_required": true
+    },
+    {
+      "scenario_id": "operator_retry_after_timeout",
+      "verification_status": "composed_contract_fast",
+      "residual_risk_id": null,
+      "residual_risk": "Fast CI composes a real PAPER baseline order/fill with RiskSupervisedPaperAdmission, commits a signed Risk Supervisor HALT, simulates a lost response by replaying the identical command ID, proves only one operator-halt transition is recorded, proves a subsequent risk-increasing PAPER open is blocked before side effects, and matches the declared factual state to the single-apply reference path.",
+      "physical_required": false
+    },
+    {
+      "scenario_id": "bounded_queue_resource_pressure",
+      "verification_status": "residual_not_fully_reproduced",
+      "residual_risk_id": "runtime_queue_saturation",
+      "residual_risk": "Fast CI verifies bounded-queue saturation mechanics and the authoritative resource-pressure guard separately; sustained whole-runtime queue pressure remains physical/system acceptance work.",
+      "physical_required": true
+    }
+  ]
+}

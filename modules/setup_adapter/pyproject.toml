@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-setup-adapter"
+version = "0.1.0"
+description = "Canonical setup adapter for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "LicenseRef-Proprietary"
+authors = [{name = "Modular Strategy Project"}]
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.entry-points."modular_strategy.modules"]
+setup_adapter = "modular_setup_adapter:CanonicalSetupAdapterModule"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "coverage>=7.6",
+  "mypy>=1.11",
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+modular_setup_adapter = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+
+[tool.coverage.run]
+branch = true
+source = ["modular_setup_adapter"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["src"]
+packages = ["modular_setup_adapter"]

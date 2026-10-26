@@ -1,0 +1,36 @@
+{
+  "bounded_state_load": {
+    "events": 50000,
+    "history_count": 256,
+    "processed_event_count": 2048,
+    "seconds": 0.016025597000407288,
+    "snapshot_digest": "bfdab1e0b4d8145484d29ef126454d1b1e1b0ce7276c07186ba2a64b01c337f9",
+    "snapshot_size_bytes": 37311,
+    "throughput_events_per_second": 3120008.5712082526
+  },
+  "checkpoint": {
+    "checkpoint_size_bytes": 1017,
+    "restore_runs": 1000,
+    "restore_seconds_maximum": 0.00011501100016175769,
+    "restore_seconds_median": 0.00004837699998461176,
+    "restore_seconds_minimum": 0.00004531800004770048,
+    "snapshot_digest": "e04ab3762208aeecd2cff7feb4c49656b6648a72d063a3246468a1848dece350"
+  },
+  "core_version": "0.4.1",
+  "measurements": [
+    {"digest":"6adc3cf204ab1dcb2fb4e77188db4501ab23efe8516fb5742cdc286459e01e7f","events":1000,"name":"full_plan_creation","runs":5,"seconds":{"maximum":0.05593664000116405,"median":0.050380297001538565,"minimum":0.04690752600072301},"throughput_events_per_second":19849.029472165694},
+    {"digest":"fdfedc6f5e3d3bcb605f68471fbfb3e09c7f41265a4268a0e89246acba182a3f","events":10000,"name":"full_plan_creation","runs":5,"seconds":{"maximum":0.4835050039982889,"median":0.4766687070004991,"minimum":0.47050296399902436},"throughput_events_per_second":20978.93118037121},
+    {"digest":"d41d2195ae53761149db6e9b8d2ae63c6e18e0cd86b9d1a0b125f5bfd0fd4593","events":50000,"name":"full_plan_creation","runs":3,"seconds":{"maximum":2.538139037002111,"median":2.453522843999963,"minimum":2.416403031002119},"throughput_events_per_second":20378.860593156456},
+    {"digest":"a26d723c80b85ac75fbbcd92d23bfc8dd4e89bf4c317b278136bec06ba2c1bbd","events":10000,"name":"risk_request_creation","runs":5,"seconds":{"maximum":0.05337062900071032,"median":0.05074302600041847,"minimum":0.05037690099925385},"throughput_events_per_second":197071.41627536228},
+    {"digest":"5a141b61e98d38758915ff3d952cc80a52b87520235e4402244929d5df077baf","events":50000,"name":"early_rejection_no_trigger","runs":5,"seconds":{"maximum":0.06942921900190413,"median":0.0677983210007369,"minimum":0.066934003996721},"throughput_events_per_second":737481.389833482},
+    {"digest":"118d59646a313faf01d03035e148b9a6e00ae34f76484f28175661e086bb2c9d","events":250000,"name":"early_rejection_no_trigger","runs":3,"seconds":{"maximum":0.35161191699808114,"median":0.34972764199847006,"minimum":0.3410249139997177},"throughput_events_per_second":714841.9798086582},
+    {"digest":"229178b704507b037b1b23fe3394c2a5a90c1cd135362dd1e03f3e54f146e402","events":1000000,"name":"early_rejection_no_trigger","runs":1,"seconds":{"maximum":1.4081137829998625,"median":1.4081137829998625,"minimum":1.4081137829998625},"throughput_events_per_second":710169.8826280843}
+  ],
+  "memory": {"current_bytes":249,"digest":"80eaa7662e2e77b9af533cec22103e38714a4073b471f6fbd31d881762493a6b","events":2000,"peak_bytes":5820,"seconds":0.4943773439990764,"workload":"full_plan_creation"},
+  "module": "Position Scaling & Adjustment",
+  "module_version": "0.2.2",
+  "platform": "Linux-4.4.0-x86_64-with-glibc2.41",
+  "python": "3.13.5",
+  "restart_state_load": {"chunked_seconds":0.10557504600001266,"chunked_throughput_events_per_second":2367983.8131443486,"chunks":5,"events":250000,"history_count":256,"processed_event_count":2048,"restore_seconds_maximum":0.0026627049992384855,"restore_seconds_median":0.0023596030005137436,"snapshot_digest":"6acaaed2b099202400340ad1e77d9d4f1813551a3bda6ce398de2444027c998f","snapshot_size_bytes":39616,"uninterrupted_seconds":0.07449669500056189},
+  "stress_scope_note": "One million events is measured on the representative O(1) early-rejection path. One million full cryptographic plan constructions was intentionally not used after the initial run exceeded four minutes; 50,000 full plans provides the bounded computational workload without distorting the release gate."
+}

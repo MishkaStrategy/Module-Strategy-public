@@ -1,0 +1,123 @@
+name: market-data-external-corpus-ci
+
+on:
+  pull_request:
+    paths:
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/drive_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/cli.py"
+      - "modules/market_data_ingestion/tests/test_external_corpus.py"
+      - "modules/market_data_ingestion/tests/test_drive_corpus.py"
+      - "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json"
+      - "modules/market_data_ingestion/docs/market_data_ingestion/CLI_REFERENCE.md"
+      - "docs/integration/HISTORICAL_DATA_LINEAGE.md"
+      - ".github/workflows/market-data-external-corpus-ci.yml"
+      - ".github/workflows/market-data-external-corpus-drive-acceptance.yml"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/drive_corpus.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/cli.py"
+      - "modules/market_data_ingestion/tests/test_external_corpus.py"
+      - "modules/market_data_ingestion/tests/test_drive_corpus.py"
+      - "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json"
+      - "modules/market_data_ingestion/docs/market_data_ingestion/CLI_REFERENCE.md"
+      - "docs/integration/HISTORICAL_DATA_LINEAGE.md"
+      - ".github/workflows/market-data-external-corpus-ci.yml"
+      - ".github/workflows/market-data-external-corpus-drive-acceptance.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-external-corpus-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  external-corpus:
+    name: External corpus / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          clean: true
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install exact verification surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,parquet]"
+          uv pip check
+
+      - name: Compile verifier and tests
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            src/market_data_ingestion/external_corpus.py \
+            src/market_data_ingestion/drive_corpus.py \
+            tests/test_external_corpus.py \
+            tests/test_drive_corpus.py
+
+      - name: Ruff lint and format
+        run: |
+          set -euo pipefail
+          ruff check --output-format=concise \
+            src/market_data_ingestion/external_corpus.py \
+            src/market_data_ingestion/drive_corpus.py \
+            src/market_data_ingestion/cli.py \
+            tests/test_external_corpus.py \
+            tests/test_drive_corpus.py
+          ruff format --check \
+            src/market_data_ingestion/external_corpus.py \
+            src/market_data_ingestion/drive_corpus.py \
+            src/market_data_ingestion/cli.py \
+            tests/test_external_corpus.py \
+            tests/test_drive_corpus.py
+
+      - name: Strict MyPy
+        run: |
+          set -euo pipefail
+          mypy \
+            src/market_data_ingestion/external_corpus.py \
+            src/market_data_ingestion/drive_corpus.py
+
+      - name: Deep corpus contract tests
+        run: |
+          set -euo pipefail
+          pytest -o addopts="" -q \
+            tests/test_external_corpus.py \
+            tests/test_drive_corpus.py
+
+      - name: CLI contract smoke
+        run: |
+          set -euo pipefail
+          market-data verify-external-corpus --help >/dev/null
+          python -m market_data_ingestion.drive_corpus --help >/dev/null
+
+      - name: Build and clean-wheel smoke
+        run: |
+          set -euo pipefail
+          python -m build
+          clean="$RUNNER_TEMP/external-corpus-wheel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python-version }}"
+          rm -rf "$clean"
+          uv venv --python "${{ matrix.python-version }}" --seed "$clean"
+          uv pip install --python "$clean/bin/python" dist/*.whl "pyarrow>=16.0"
+          uv pip check --python "$clean/bin/python"
+          "$clean/bin/market-data" verify-external-corpus --help >/dev/null
+          "$clean/bin/python" -m market_data_ingestion.drive_corpus --help >/dev/null

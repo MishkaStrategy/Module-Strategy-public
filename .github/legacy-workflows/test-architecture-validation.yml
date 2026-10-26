@@ -1,0 +1,353 @@
+name: Test architecture validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/test-architecture-validation.yml"
+      - "config/test_suites.toml"
+      - "docs/testing/TEST_ARCHITECTURE.md"
+      - "docs/testing/AUDITED_BASE_MANIFEST_POLICY.md"
+      - "scripts/materialize_audited_suite_manifest.py"
+      - "scripts/pytest_collect_ids.py"
+      - "scripts/test_collection_baseline.py"
+      - "scripts/test_inventory.py"
+      - "scripts/test_suites.py"
+      - "tests/test_test_architecture_contract.py"
+      - "tests/test_audited_base_manifest_policy.py"
+      - "pyproject.toml"
+      - "applications/**/pyproject.toml"
+      - "modules/**/pyproject.toml"
+      - "plugins/**/pyproject.toml"
+      - "research/**/pyproject.toml"
+      - "research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: test-architecture-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  collect-all-suites:
+    name: Collect all isolated suites / Python 3.12
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: 0
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          clean: true
+          show-progress: false
+
+      - name: Verify exact test architecture candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.12"
+
+      - name: Install collection dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e '.[dev,backtest,signal-bot]'
+          uv pip install pytest-asyncio pytest-timeout httpx fastapi typer rich uvicorn jsonschema
+          uv pip install -e ./modules/session_range
+          uv pip install -e ./modules/market_regime
+          uv pip install -e ./modules/setup_adapter
+          uv pip install -e ./modules/entry_model
+          uv pip install -e ./modules/protection_target
+          uv pip install -e ./modules/risk_sizing
+          uv pip install -e ./modules/risk_request_composer
+          uv pip install -e ./modules/position_scaling
+          uv pip install -e ./modules/trade_plan_router
+          uv pip install -e ./modules/paper_execution
+          uv pip install -e ./modules/position_exit_management
+          uv pip install -e ./applications/trading_runner
+          uv pip install -e './applications/control_plane[dev,interface]'
+          uv pip install -e ./applications/risk_supervisor
+          uv pip install -e ./applications/observability
+          uv pip install -e ./applications/system_acceptance
+          uv pip install -e ./applications/system_recovery
+          uv pip install -e ./modules/wave_analysis
+          uv pip install -e ./plugins/fibonacci
+          uv pip install -e ./plugins/fvg
+          uv pip install -e './modules/market_data_ingestion[parquet,interface]'
+          uv pip install -e ./modules/results_aggregator
+          uv pip install -e ./research/experiment_runner
+          uv pip install -e ./research/strategy_audit_validation
+          uv pip install -r ./research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+          uv pip install -e ./research/strategy_factory
+          uv pip check
+
+      - name: Validate architecture tools
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            scripts/materialize_audited_suite_manifest.py \
+            scripts/test_suites.py \
+            scripts/test_inventory.py \
+            scripts/pytest_collect_ids.py \
+            scripts/test_collection_baseline.py \
+            tests/test_test_architecture_contract.py \
+            tests/test_audited_base_manifest_policy.py
+          ruff check \
+            scripts/materialize_audited_suite_manifest.py \
+            scripts/test_suites.py \
+            scripts/test_inventory.py \
+            scripts/pytest_collect_ids.py \
+            scripts/test_collection_baseline.py \
+            tests/test_test_architecture_contract.py \
+            tests/test_audited_base_manifest_policy.py
+          ruff format --check \
+            scripts/materialize_audited_suite_manifest.py \
+            scripts/test_suites.py \
+            scripts/test_inventory.py \
+            scripts/pytest_collect_ids.py \
+            scripts/test_collection_baseline.py \
+            tests/test_test_architecture_contract.py \
+            tests/test_audited_base_manifest_policy.py
+          python -m pytest -q tests/test_test_architecture_contract.py tests/test_audited_base_manifest_policy.py
+
+      - name: Build static inventory
+        run: |
+          set -euo pipefail
+          mkdir -p reports/test-architecture
+          python scripts/test_inventory.py \
+            --fail-on-unmapped \
+            --output reports/test-architecture/static-inventory.json
+
+      - name: Validate root profile without optional dependencies
+        run: |
+          set -euo pipefail
+          clean_venv="$RUNNER_TEMP/test-architecture-no-optional"
+          clean_python="$clean_venv/bin/python"
+          rm -rf "$clean_venv"
+          uv venv --python 3.12 --seed "$clean_venv"
+          uv pip install --python "$clean_python" -e . pytest
+          uv pip install --python "$clean_python" -e ./modules/session_range
+          uv pip install --python "$clean_python" -e ./modules/market_regime
+          uv pip install --python "$clean_python" -e ./modules/entry_model
+          uv pip install --python "$clean_python" -e ./modules/setup_adapter
+          uv pip install --python "$clean_python" -e ./modules/protection_target
+          uv pip install --python "$clean_python" -e ./modules/risk_sizing
+          uv pip install --python "$clean_python" -e ./modules/risk_request_composer
+          uv pip install --python "$clean_python" -e ./modules/position_scaling
+          uv pip install --python "$clean_python" -e ./modules/trade_plan_router
+          uv pip install --python "$clean_python" -e ./modules/paper_execution
+          uv pip install --python "$clean_python" -e ./modules/position_exit_management
+          uv pip install --python "$clean_python" -e ./plugins/fvg
+          uv pip install --python "$clean_python" -e ./modules/results_aggregator
+          uv pip install --python "$clean_python" -e ./research/experiment_runner
+          uv pip install --python "$clean_python" -e ./research/strategy_audit_validation
+          uv pip install --python "$clean_python" -e ./research/strategy_factory
+          "$clean_python" -m pip check
+          if "$clean_python" -c 'import hypothesis' 2>/dev/null; then
+            echo "hypothesis must not be installed in the optional-free environment" >&2
+            exit 1
+          fi
+          if "$clean_python" -c 'import pyarrow' 2>/dev/null; then
+            echo "pyarrow must not be installed in the optional-free environment" >&2
+            exit 1
+          fi
+          if "$clean_python" -c 'import matplotlib' 2>/dev/null; then
+            echo "matplotlib must not be installed in the optional-free environment" >&2
+            exit 1
+          fi
+
+          set +e
+          "$clean_python" scripts/test_suites.py check root \
+            >reports/test-architecture/root-full-missing-dependencies.txt 2>&1
+          preflight_status=$?
+          set -e
+          if [[ "$preflight_status" -ne 2 ]]; then
+            cat reports/test-architecture/root-full-missing-dependencies.txt >&2
+            echo "full root preflight must fail with exit code 2 without optional dependencies" >&2
+            exit 1
+          fi
+          grep -q hypothesis reports/test-architecture/root-full-missing-dependencies.txt
+          grep -q pyarrow reports/test-architecture/root-full-missing-dependencies.txt
+
+          "$clean_python" scripts/test_collection_baseline.py collect root-no-optional \
+            --timeout-seconds 1200 \
+            --output reports/test-architecture/collection-root-no-optional-py312.json
+          "$clean_python" scripts/test_suites.py run root-no-optional -- \
+            --junitxml=reports/test-architecture/root-no-optional-py312.xml
+
+      - name: Collect every declared suite twice
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
+          python scripts/test_collection_baseline.py collect all \
+            --keep-going \
+            --timeout-seconds 1200 \
+            --output reports/test-architecture/collection-py312.json
+          python scripts/test_collection_baseline.py collect all \
+            --keep-going \
+            --timeout-seconds 1200 \
+            --output reports/test-architecture/collection-repeat-py312.json
+          python scripts/test_collection_baseline.py compare \
+            reports/test-architecture/collection-py312.json \
+            reports/test-architecture/collection-repeat-py312.json \
+            --require-exact \
+            --output reports/test-architecture/collection-repeat-diff.json
+
+      - name: Collect audited base and prove no test IDs were lost
+        run: |
+          set -euo pipefail
+          audited_base="$(python -c 'import tomllib; print(tomllib.load(open("config/test_suites.toml", "rb"))["audited_base_sha"])')"
+          base_worktree="$RUNNER_TEMP/test-architecture-base"
+          base_venv="$RUNNER_TEMP/test-architecture-base-venv"
+          base_python="$base_venv/bin/python"
+          cleanup() {
+            git worktree remove --force "$base_worktree" >/dev/null 2>&1 || true
+            rm -rf "$base_venv"
+          }
+          trap cleanup EXIT
+          cleanup
+          git worktree prune
+          git worktree add --detach "$base_worktree" "$audited_base"
+          mkdir -p "$base_worktree/config" "$base_worktree/scripts"
+          python scripts/materialize_audited_suite_manifest.py \
+            --source config/test_suites.toml \
+            --base-root "$base_worktree" \
+            --output "$base_worktree/config/test_suites.toml"
+          cp "$base_worktree/config/test_suites.toml" \
+            reports/test-architecture/audited-base-projected-suites.toml
+          cp scripts/test_suites.py "$base_worktree/scripts/test_suites.py"
+          cp scripts/test_inventory.py "$base_worktree/scripts/test_inventory.py"
+          cp scripts/pytest_collect_ids.py "$base_worktree/scripts/pytest_collect_ids.py"
+          cp scripts/test_collection_baseline.py "$base_worktree/scripts/test_collection_baseline.py"
+
+          uv venv --python 3.12 --seed "$base_venv"
+          uv pip install --python "$base_python" --upgrade pip setuptools wheel
+          uv pip install --python "$base_python" -e "${base_worktree}[dev,backtest,signal-bot]"
+          uv pip install --python "$base_python" \
+            pytest-asyncio pytest-timeout httpx fastapi typer rich uvicorn jsonschema
+          uv pip install --python "$base_python" -e "$base_worktree/modules/session_range"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/market_regime"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/setup_adapter"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/entry_model"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/protection_target"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/risk_sizing"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/risk_request_composer"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/position_scaling"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/trade_plan_router"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/paper_execution"
+          uv pip install --python "$base_python" -e \
+            "$base_worktree/modules/position_exit_management"
+          uv pip install --python "$base_python" -e "$base_worktree/applications/trading_runner"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/wave_analysis"
+          uv pip install --python "$base_python" -e "$base_worktree/plugins/fibonacci"
+          uv pip install --python "$base_python" -e "$base_worktree/plugins/fvg"
+          uv pip install --python "$base_python" -e \
+            "${base_worktree}/modules/market_data_ingestion[parquet,interface]"
+          uv pip install --python "$base_python" -e "$base_worktree/modules/results_aggregator"
+          uv pip install --python "$base_python" -e "$base_worktree/research/experiment_runner"
+          uv pip install --python "$base_python" -e \
+            "$base_worktree/research/strategy_audit_validation"
+          uv pip install --python "$base_python" -e "$base_worktree/research/strategy_factory"
+          "$base_python" -m pip check
+
+          (
+            cd "$base_worktree"
+            export PYTHONPATH="$base_worktree${PYTHONPATH:+:$PYTHONPATH}"
+            "$base_python" scripts/test_inventory.py \
+              --fail-on-unmapped \
+              --output "$GITHUB_WORKSPACE/reports/test-architecture/static-inventory-base.json"
+            "$base_python" scripts/test_collection_baseline.py collect all \
+              --keep-going \
+              --timeout-seconds 1200 \
+              --output "$GITHUB_WORKSPACE/reports/test-architecture/collection-base-py312.json"
+          )
+          python scripts/test_collection_baseline.py compare \
+            reports/test-architecture/collection-base-py312.json \
+            reports/test-architecture/collection-py312.json \
+            --output reports/test-architecture/collection-base-head-diff.json
+
+      - name: Record test architecture evidence identity
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("reports/test-architecture")
+          if not root.is_dir():
+              raise SystemExit("test architecture evidence directory is missing")
+          files = sorted(path for path in root.rglob("*") if path.is_file())
+          if not files:
+              raise SystemExit("test architecture evidence directory is empty")
+
+          entries = []
+          for path in files:
+              data = path.read_bytes()
+              entries.append(
+                  {
+                      "bytes": len(data),
+                      "path": path.as_posix(),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": entries,
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          manifest = root / "evidence-manifest.json"
+          manifest.write_text(
+              json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+              + "\n",
+              encoding="utf-8",
+          )
+          manifest_bytes = manifest.read_bytes()
+          manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+
+          print(manifest.read_text(encoding="utf-8"), end="")
+          print(f"TEST_ARCHITECTURE_EVIDENCE_SHA256={manifest_sha}")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### Test architecture evidence identity\n\n")
+              handle.write(f"- exact head: `{payload['exact_head']}`\n")
+              handle.write(
+                  f"- workflow run: `{payload['run_id']}` attempt `{payload['run_attempt']}`\n"
+              )
+              handle.write(f"- report files hashed: `{len(entries)}`\n")
+              handle.write(f"- evidence manifest SHA-256: `{manifest_sha}`\n")
+              handle.write(
+                  "- immutable GitHub Release publication: required for successful acceptance; "
+                  "the manifest above is bound to this exact workflow run\n"
+              )
+          PY
+
+      - name: Publish exact test architecture evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: reports/test-architecture
+          asset_name: test-architecture-validation.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce test architecture publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success

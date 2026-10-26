@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-risk-sizing"
+version = "1.2.0"
+description = "Deterministic risk and position sizing module for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4.0,<1.0.0"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "coverage>=7.0",
+    "ruff>=0.8",
+    "mypy>=1.10",
+]
+
+[project.entry-points."modular_strategy.modules"]
+risk_sizing = "strategy_modules.risk_sizing:RiskSizingModule"
+
+[tool.setuptools]
+package-dir = {"" = "../../src"}
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["strategy_modules.risk_sizing*"]
+
+[tool.setuptools.package-data]
+"strategy_modules.risk_sizing" = ["py.typed"]

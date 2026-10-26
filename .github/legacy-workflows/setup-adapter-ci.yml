@@ -1,0 +1,262 @@
+name: setup-adapter-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-v0.5.0
+      - integration/modular-strategy-full-rc
+    paths:
+      - modules/setup_adapter/**
+      - src/modular_core/**
+      - src/strategy_modules/breakout_return/**
+      - src/strategy_modules/liquidity_sweep/**
+      - src/strategy_modules/fvg_rt/**
+      - modules/session_range/**
+      - pyproject.toml
+      - .github/workflows/setup-adapter-ci.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  release-gates:
+    name: Setup Adapter Release Gates / Python 3.12 and 3.13
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout exact Setup Adapter candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+          persist-credentials: false
+
+      - name: Verify exact Setup Adapter candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Checkout audited Entry Model dependency
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: modules/entry-model-hardening
+          path: .deps/entry-model-repo
+          persist-credentials: false
+
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "name=$RUNNER_NAME os=$RUNNER_OS arch=$RUNNER_ARCH temp=$RUNNER_TEMP"
+          uname -a
+          df -h . "$RUNNER_TEMP"
+          command -v python3.12 || true
+          command -v python3.13 || true
+          command -v uv || true
+
+      - name: Resolve Python 3.12
+        id: py312
+        run: bash modules/setup_adapter/scripts/resolve_ci_python.sh "3.12"
+
+      - name: Resolve Python 3.13
+        id: py313
+        run: bash modules/setup_adapter/scripts/resolve_ci_python.sh "3.13"
+
+      - name: Create isolated environments
+        id: venvs
+        env:
+          BASE_PYTHON_312: ${{ steps.py312.outputs.python }}
+          BASE_PYTHON_313: ${{ steps.py313.outputs.python }}
+        run: |
+          set -euo pipefail
+          VENV312="$RUNNER_TEMP/setup-adapter-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-py312"
+          VENV313="$RUNNER_TEMP/setup-adapter-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-py313"
+          rm -rf "$VENV312" "$VENV313"
+          "$BASE_PYTHON_312" -m venv "$VENV312"
+          "$BASE_PYTHON_313" -m venv "$VENV313"
+          echo "python312=$VENV312/bin/python" >> "$GITHUB_OUTPUT"
+          echo "python313=$VENV313/bin/python" >> "$GITHUB_OUTPUT"
+          "$VENV312/bin/python" --version
+          "$VENV313/bin/python" --version
+
+      - name: Install integration and test dependencies
+        env:
+          PYTHON312: ${{ steps.venvs.outputs.python312 }}
+          PYTHON313: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          for PYTHON in "$PYTHON312" "$PYTHON313"; do
+            "$PYTHON" -m pip install --upgrade pip
+            "$PYTHON" -m pip install -e .
+            "$PYTHON" -m pip install -e modules/session_range
+            "$PYTHON" -m pip install -e .deps/entry-model-repo/modules/entry_model
+            "$PYTHON" -m pip install -e 'modules/setup_adapter[dev]'
+            "$PYTHON" -m pip check
+          done
+
+      - name: Compile, lint, format, and strict type check
+        env:
+          PYTHON: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          "$PYTHON" -m compileall -q modules/setup_adapter/src modules/setup_adapter/tests
+          bash -n modules/setup_adapter/scripts/resolve_ci_python.sh
+          "$BIN_DIR/ruff" check modules/setup_adapter/src modules/setup_adapter/tests
+          "$BIN_DIR/ruff" format --check modules/setup_adapter/src modules/setup_adapter/tests
+          "$BIN_DIR/mypy" --strict modules/setup_adapter/src/modular_setup_adapter
+
+      - name: Python 3.12 and 3.13 coverage and optimized-runtime suites
+        env:
+          PYTHON312: ${{ steps.venvs.outputs.python312 }}
+          PYTHON313: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          mkdir -p modules/setup_adapter/reports
+          run_suite() {
+            local PYTHON="$1"
+            local VERSION="$2"
+            local BIN_DIR
+            BIN_DIR="$(dirname "$PYTHON")"
+            "$BIN_DIR/coverage" erase
+            "$BIN_DIR/coverage" run --branch --source=modular_setup_adapter -m pytest -q modules/setup_adapter/tests \
+              --junitxml="modules/setup_adapter/reports/tests-py${VERSION}.xml"
+            "$BIN_DIR/coverage" report --fail-under=90 | tee "modules/setup_adapter/reports/coverage-py${VERSION}.txt"
+            "$BIN_DIR/coverage" xml -o "modules/setup_adapter/reports/coverage-py${VERSION}.xml"
+            "$PYTHON" -O -m pytest -q modules/setup_adapter/tests
+          }
+          run_suite "$PYTHON312" "3.12"
+          run_suite "$PYTHON313" "3.13"
+
+      - name: Install build and audit tools
+        env:
+          PYTHON: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -m pip install build twine bandit detect-secrets pip-audit cyclonedx-bom
+          "$PYTHON" -m pip check
+
+      - name: Build and verify distributions
+        env:
+          PYTHON: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          rm -rf dist/setup_adapter dist/core dist/session_range dist/entry_model
+          "$PYTHON" -m build --wheel --outdir dist/core .
+          "$PYTHON" -m build --wheel --outdir dist/session_range modules/session_range
+          "$PYTHON" -m build --wheel --outdir dist/entry_model .deps/entry-model-repo/modules/entry_model
+          "$PYTHON" -m build --sdist --wheel --outdir dist/setup_adapter modules/setup_adapter
+          "$BIN_DIR/twine" check dist/setup_adapter/*.whl dist/setup_adapter/*.tar.gz
+          shasum -a 256 dist/setup_adapter/*.whl dist/setup_adapter/*.tar.gz > modules/setup_adapter/reports/distribution-checksums.sha256
+
+      - name: Clean wheel-only install and smoke
+        env:
+          PYTHON: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          CLEAN_DIR="$RUNNER_TEMP/setup-adapter-clean-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "$CLEAN_DIR"
+          "$PYTHON" -m venv "$CLEAN_DIR"
+          "$CLEAN_DIR/bin/python" -m pip install --upgrade pip
+          "$CLEAN_DIR/bin/pip" install \
+            dist/core/*.whl \
+            dist/session_range/*.whl \
+            dist/entry_model/*.whl \
+            dist/setup_adapter/*.whl
+          "$CLEAN_DIR/bin/python" -m pip check
+          "$CLEAN_DIR/bin/python" - <<'PY'
+          from importlib.metadata import entry_points
+          from modular_setup_adapter import CanonicalSetupAdapterModule
+
+          selected = [
+              item
+              for item in entry_points().select(group="modular_strategy.modules")
+              if item.name == "setup_adapter"
+          ]
+          assert len(selected) == 1
+          module = selected[0].load()()
+          assert isinstance(module, CanonicalSetupAdapterModule)
+          snapshot = module.snapshot_state()
+          restored = CanonicalSetupAdapterModule()
+          restored.restore_state(snapshot)
+          assert restored.snapshot_state() == snapshot
+          PY
+
+      - name: Static security, dependency audit, and SBOM
+        env:
+          PYTHON: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          "$BIN_DIR/bandit" -q -r modules/setup_adapter/src
+          "$BIN_DIR/detect-secrets" scan modules/setup_adapter/src modules/setup_adapter/tests > modules/setup_adapter/reports/detect-secrets.json
+          "$BIN_DIR/pip-audit" --local --format json -o modules/setup_adapter/reports/pip-audit.json
+          "$BIN_DIR/cyclonedx-py" environment --output-format JSON --output-file modules/setup_adapter/reports/sbom.json
+
+      - name: Stage bounded Setup Adapter evidence
+        if: success()
+        run: |
+          set -euo pipefail
+          stage="setup-adapter-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage/modules/setup_adapter/reports" "$stage/dist/setup_adapter"
+          for path in modules/setup_adapter/reports/*; do
+            test -f "$path"
+            cp "$path" "$stage/modules/setup_adapter/reports/"
+          done
+          for path in dist/setup_adapter/*.whl dist/setup_adapter/*.tar.gz; do
+            test -f "$path"
+            cp "$path" "$stage/dist/setup_adapter/"
+          done
+
+      - name: Publish exact Setup Adapter evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: setup-adapter-release-evidence
+          asset_name: setup-adapter-exact-head-evidence.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Setup Adapter publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Setup Adapter failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: setup-adapter-exact-head-evidence
+          path: |
+            modules/setup_adapter/reports/*
+            dist/setup_adapter/*.whl
+            dist/setup_adapter/*.tar.gz
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        env:
+          PYTHON312: ${{ steps.venvs.outputs.python312 }}
+          PYTHON313: ${{ steps.venvs.outputs.python313 }}
+        run: |
+          rm -rf setup-adapter-release-evidence
+          rm -rf "$RUNNER_TEMP/setup-adapter-clean-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for PYTHON in "${PYTHON312:-}" "${PYTHON313:-}"; do
+            if [[ -n "$PYTHON" ]]; then rm -rf "$(dirname "$(dirname "$PYTHON")")"; fi
+          done

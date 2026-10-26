@@ -1,0 +1,210 @@
+name: Historical strategy backtest
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to audit
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to audit
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: historical-backtest-${{ inputs.expected_sha }}
+  cancel-in-progress: true
+
+jobs:
+  historical-backtest:
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 720
+    env:
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.expected_sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.12"
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+          cache-suffix: historical-backtest
+
+      - name: Verify exact commit before audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/commit-sha.txt
+          python --version > evidence/python-version.txt
+
+      - name: Install exact Backtest Engine surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -e '.[dev,backtest]' 'types-psutil>=7.0'
+          uv pip install -e 'modules/market_data_ingestion[parquet]'
+          uv pip check | tee evidence/pip-check.txt
+
+      - name: Validate historical Backtest Engine suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q src/modular_backtest tests/backtest_engine
+          ruff check --output-format=concise \
+            src/modular_backtest tests/backtest_engine
+          ruff format --check \
+            src/modular_backtest tests/backtest_engine
+          mypy --strict src/modular_backtest
+          pytest -q tests/backtest_engine \
+            --junitxml=evidence/historical-backtest-tests.xml
+
+      - name: Verify deterministic restart paths under distinct hash seeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONHASHSEED=1 pytest -q \
+            tests/backtest_engine/test_recovery.py \
+            tests/backtest_engine/test_recovery_subprocess.py \
+            --junitxml=evidence/recovery-seed1.xml
+          PYTHONHASHSEED=9173 pytest -q \
+            tests/backtest_engine/test_recovery.py \
+            tests/backtest_engine/test_recovery_subprocess.py \
+            --junitxml=evidence/recovery-seed9173.xml
+
+      - name: Sanitize and verify historical evidence privacy
+        id: evidence_privacy
+        if: always()
+        run: python scripts/sanitize_ci_evidence.py evidence
+
+      - name: Record sanitized closed evidence inventory
+        id: evidence_inventory
+        if: always() && steps.evidence_privacy.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+
+          evidence = Path("evidence")
+          expected_sha = os.environ["EXPECTED_SHA"]
+          actual_sha = (evidence / "commit-sha.txt").read_text(encoding="utf-8").strip()
+          if actual_sha != expected_sha:
+              raise SystemExit("historical evidence commit identity mismatch")
+
+          privacy = json.loads(
+              (evidence / "privacy-status.json").read_text(encoding="utf-8")
+          )
+          if privacy.get("status") != "PASS":
+              raise SystemExit("historical evidence privacy status is not PASS")
+          if privacy.get("credential_findings") != 0:
+              raise SystemExit("historical evidence contains credential findings")
+
+          checksum_file = evidence / "SHA256SUMS"
+          checksum_file.unlink(missing_ok=True)
+          checksum_lines: list[str] = []
+          expected_paths: set[str] = set()
+          for path in sorted(evidence.rglob("*")):
+              if path.is_symlink():
+                  raise SystemExit(f"evidence symlink is forbidden: {path}")
+              if not path.is_file() or path == checksum_file:
+                  continue
+              relative = path.relative_to(evidence).as_posix()
+              parsed = PurePosixPath(relative)
+              if parsed.is_absolute() or ".." in parsed.parts or "\\" in relative:
+                  raise SystemExit(f"unsafe evidence path: {relative}")
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              checksum_lines.append(f"{digest}  {relative}")
+              expected_paths.add(relative)
+          if not checksum_lines:
+              raise SystemExit("historical evidence inventory is empty")
+          checksum_file.write_text(
+              "\n".join(checksum_lines) + "\n",
+              encoding="utf-8",
+          )
+
+          recorded_paths: set[str] = set()
+          for line in checksum_file.read_text(encoding="utf-8").splitlines():
+              digest, recorded = line.split("  ", 1)
+              parsed = PurePosixPath(recorded)
+              if parsed.is_absolute() or ".." in parsed.parts or "\\" in recorded:
+                  raise SystemExit(f"invalid checksum path: {recorded}")
+              if recorded in recorded_paths:
+                  raise SystemExit(f"duplicate checksum path: {recorded}")
+              target = evidence / recorded
+              if not target.is_file() or target.is_symlink():
+                  raise SystemExit(f"invalid checksum target: {recorded}")
+              actual = hashlib.sha256(target.read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f"checksum mismatch after sanitization: {recorded}")
+              recorded_paths.add(recorded)
+          if recorded_paths != expected_paths:
+              raise SystemExit("historical evidence checksum inventory is not closed")
+          PY
+
+      - name: Stage historical backtest release evidence
+        if: >-
+          ${{ success()
+              && steps.evidence_privacy.outcome == 'success'
+              && steps.evidence_inventory.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="reports/historical-backtest-release"
+          rm -rf "$bundle"
+          mkdir -p "$bundle"
+          cp -R evidence/. "$bundle/"
+
+      - name: Publish exact historical backtest evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: reports/historical-backtest-release
+          asset_name: historical-strategy-backtest.tar.gz
+          commit_sha: ${{ env.EXPECTED_SHA }}
+          draft: "true"
+
+      - name: Enforce historical evidence publication gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.evidence_privacy.outcome }}" = "success"
+          test "${{ steps.evidence_inventory.outcome }}" = "success"
+          test "${{ steps.evidence_publish.outcome }}" = "success"
+
+      - name: Upload historical backtest failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: >-
+            historical-strategy-backtest-${{ inputs.expected_sha }}-${{ github.run_id }}-attempt${{ github.run_attempt }}
+          path: evidence
+          if-no-files-found: warn
+          include-hidden-files: false

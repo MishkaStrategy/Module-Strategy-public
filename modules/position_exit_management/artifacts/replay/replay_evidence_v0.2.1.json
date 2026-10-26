@@ -1,0 +1,38 @@
+{
+  "digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd",
+  "hash_seeds": {
+    "1": {
+      "checkpoint_after_event": 2,
+      "checkpoint_bytes": 852,
+      "continuous_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd",
+      "deterministic": true,
+      "events": 4,
+      "restarted_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd"
+    },
+    "101": {
+      "checkpoint_after_event": 2,
+      "checkpoint_bytes": 852,
+      "continuous_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd",
+      "deterministic": true,
+      "events": 4,
+      "restarted_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd"
+    },
+    "7": {
+      "checkpoint_after_event": 2,
+      "checkpoint_bytes": 852,
+      "continuous_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd",
+      "deterministic": true,
+      "events": 4,
+      "restarted_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd"
+    },
+    "999": {
+      "checkpoint_after_event": 2,
+      "checkpoint_bytes": 852,
+      "continuous_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd",
+      "deterministic": true,
+      "events": 4,
+      "restarted_digest": "9b40f5a7aeda4a8edc1ac72ea38d3769df0a20eae3fe6a16bf694f4b155a5fdd"
+    }
+  },
+  "module_version": "0.2.1"
+}

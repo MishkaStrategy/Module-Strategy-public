@@ -1,0 +1,24 @@
+{
+  "core_version": "0.4.0",
+  "bars": 5000,
+  "first_open": "2026-05-28T05:00:00+00:00",
+  "last_open": "2026-07-19T06:45:00+00:00",
+  "elapsed_seconds": 3.6394617560001734,
+  "bars_per_second": 1373.8295207407482,
+  "modules": [
+    "fibonacci"
+  ],
+  "errors": [],
+  "published_features": {
+    "fibonacci.active_projection": 341,
+    "fibonacci.wave_completed": 25
+  },
+  "deleted_features": 340,
+  "orders": 0,
+  "trades": 0,
+  "checkpoint_modules": [
+    "fibonacci"
+  ],
+  "checkpoint_id": "checkpoint-8d7f6165ffa4ed0dd06e",
+  "run_id": "run-1daa98036fe83a1e"
+}

@@ -1,0 +1,137 @@
+name: market-regime-fast-ci
+
+on:
+  push:
+    branches:
+      - modules/market-regime-hardening
+    paths:
+      - "modules/market_regime/**"
+      - ".github/workflows/market-regime-ci.yml"
+      - "src/modular_core/**"
+      - "pyproject.toml"
+  pull_request:
+    paths:
+      - "modules/market_regime/**"
+      - ".github/workflows/market-regime-ci.yml"
+      - "src/modular_core/**"
+      - "pyproject.toml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fast-quality:
+    name: Fast quality (Python ${{ matrix.python-version }})
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "runner.name=$RUNNER_NAME runner.os=$RUNNER_OS runner.arch=$RUNNER_ARCH"
+          df -h .
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_regime/pyproject.toml
+          cache-suffix: market-regime
+
+      - name: Install fast dependencies
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e '.[dev]'
+          uv pip install -e './modules/market_regime[dev]'
+          uv pip install build
+          uv pip check
+
+      - name: Compile module sources and tests
+        run: |
+          python -m compileall -q \
+            modules/market_regime/src \
+            modules/market_regime/tests \
+            modules/market_regime/benchmarks \
+            modules/market_regime/examples
+
+      - name: Ruff lint
+        run: |
+          ruff check \
+            modules/market_regime/src \
+            modules/market_regime/tests \
+            modules/market_regime/benchmarks \
+            modules/market_regime/examples
+
+      - name: Ruff format check
+        run: |
+          ruff format --check \
+            modules/market_regime/src \
+            modules/market_regime/tests \
+            modules/market_regime/benchmarks \
+            modules/market_regime/examples
+
+      - name: Strict mypy
+        run: |
+          cd modules/market_regime
+          mypy --strict src/market_regime
+
+      - name: Fast pytest suite
+        run: |
+          mkdir -p reports
+          python -m pytest modules/market_regime/tests \
+            -m "not slow" \
+            --junitxml="reports/market-regime-fast-${{ matrix.python-version }}.xml"
+
+      - name: Public import and entry-point smoke
+        run: |
+          python - <<'PY'
+          from importlib.metadata import entry_points
+          from market_regime import MarketRegimeModule
+
+          points = {item.name: item for item in entry_points(group="modular_strategy.modules")}
+          assert points["market_regime"].load() is MarketRegimeModule
+          PY
+
+      - name: Fast wheel build and metadata check
+        run: |
+          mkdir -p dist/market-regime
+          python -m build --no-isolation modules/market_regime \
+            --wheel --outdir dist/market-regime
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        with:
+          name: market-regime-fast-${{ matrix.python-version }}
+          path: |
+            reports/*.xml
+            dist/market-regime/*.whl
+          if-no-files-found: warn
+
+      - name: Clean temporary state
+        if: always()
+        run: |
+          rm -rf reports dist .pytest_cache .mypy_cache .ruff_cache \
+            modules/market_regime/.pytest_cache

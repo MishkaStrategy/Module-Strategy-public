@@ -1,0 +1,268 @@
+name: breakout-return-hardening-ci
+
+on:
+  pull_request:
+    paths:
+      - "src/strategy_modules/breakout_return/**"
+      - "src/strategy_modules/py.typed"
+      - "tests/breakout_return/**"
+      - "benchmarks/breakout_return*.py"
+      - "docs/modules/breakout_return.md"
+      - "docs/ERROR_DISCOVERY_AUDIT.md"
+      - "docs/POST_ERROR_FIX_BASELINE.md"
+      - "docs/COMPLETENESS_REVIEW.md"
+      - "docs/OPTIMIZATION_AND_AUDIT_LOG.md"
+      - "docs/FINAL_AUDIT.md"
+      - "audits/breakout_return/**"
+      - "pyproject.toml"
+      - ".github/workflows/breakout-return-hardening-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  quality:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          echo "runner_name=${RUNNER_NAME:-unknown}"
+          echo "runner_os=${RUNNER_OS:-unknown}"
+          echo "runner_arch=${RUNNER_ARCH:-unknown}"
+          uname -a
+          df -h .
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          show-progress: false
+          fetch-depth: 0
+          clean: true
+          persist-credentials: false
+
+      - name: Verify exact Breakout Return hardening candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          enable-cache: false
+
+      - name: Install quality and security tools
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e '.[dev]'
+          uv pip install build bandit detect-secrets cyclonedx-bom pip-audit
+          uv pip check
+
+      - name: Compile source and tests
+        run: python -m compileall -q src/strategy_modules/breakout_return tests/breakout_return benchmarks/breakout_return_deep.py
+
+      - name: Ruff
+        run: ruff check src/strategy_modules/breakout_return tests/breakout_return benchmarks/breakout_return.py benchmarks/breakout_return_deep.py
+
+      - name: Strict mypy
+        shell: bash
+        run: |
+          set -o pipefail
+          mypy --strict src/strategy_modules/breakout_return 2>&1 | tee breakout-return-mypy.txt
+
+      - name: Public import smoke
+        run: |
+          python - <<'PY'
+          from strategy_modules.breakout_return import BreakoutReturnModule
+          assert BreakoutReturnModule().manifest.name == "breakout_return"
+          print("public-import=ok")
+          PY
+
+      - name: Module tests and coverage
+        run: |
+          coverage run --source=src/strategy_modules/breakout_return -m pytest tests/breakout_return --junitxml=breakout-return-junit.xml
+          coverage json -o breakout-return-coverage.json
+          coverage report --fail-under=90 | tee breakout-return-coverage.txt
+
+      - name: Install integrated public packages
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          uv pip install -e '.[dev,backtest,signal-bot]'
+          uv pip install -e './modules/session_range[dev]'
+          uv pip install -e ./modules/market_regime
+          uv pip install -e ./plugins/fvg
+          uv pip install -e ./modules/setup_adapter
+          uv pip install -e ./modules/entry_model
+          uv pip install -e './modules/protection_target[dev]' --no-deps
+          uv pip install -e ./modules/risk_sizing
+          uv pip install -e ./modules/position_scaling
+          uv pip install -e ./modules/trade_plan_router
+          uv pip install -e './modules/paper_execution[dev]'
+          uv pip install -e './modules/position_exit_management[dev]'
+          uv pip install -e './applications/trading_runner[dev]'
+          uv pip check
+
+      - name: Full repository suites in isolated pytest processes
+        if: matrix.python-version == '3.13'
+        run: |
+          set -euo pipefail
+          mkdir -p reports/breakout-return-repository
+          python -m pytest -q tests/test_*.py \
+            --junitxml=reports/breakout-return-repository/root.xml
+          python -m pytest -q tests/backtest_engine \
+            --junitxml=reports/breakout-return-repository/backtest.xml
+          python -m pytest -q tests/breakout_return \
+            --junitxml=reports/breakout-return-repository/breakout.xml
+          python -m pytest -q tests/integration \
+            --junitxml=reports/breakout-return-repository/integration.xml
+          python -m pytest -q tests/signal_bot \
+            --junitxml=reports/breakout-return-repository/signal-bot.xml
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Clean-wheel entry-point smoke
+        shell: bash
+        run: |
+          python -m venv .wheel-venv
+          .wheel-venv/bin/python -m pip install --upgrade pip
+          .wheel-venv/bin/python -m pip install dist/*.whl
+          .wheel-venv/bin/python -m pip check
+          .wheel-venv/bin/python - <<'PY'
+          from importlib.metadata import entry_points
+          from importlib.resources import files
+          from strategy_modules.breakout_return import BreakoutReturnModule
+
+          selected = {
+              item.name: item
+              for item in entry_points().select(group="modular_strategy.modules")
+          }
+          assert selected["breakout_return"].load() is BreakoutReturnModule
+          assert files("strategy_modules").joinpath("py.typed").is_file()
+          state = BreakoutReturnModule().snapshot_state()
+          restored = BreakoutReturnModule()
+          restored.restore_state(state)
+          assert restored.snapshot_state() == state
+          print("clean-wheel-smoke=ok")
+          PY
+
+      - name: Security scan and SBOM
+        if: matrix.python-version == '3.13'
+        run: |
+          bandit -q -r src/strategy_modules/breakout_return
+          detect-secrets scan \
+            src/strategy_modules/breakout_return \
+            tests/breakout_return \
+            benchmarks/breakout_return.py \
+            benchmarks/breakout_return_deep.py \
+            > breakout-return-secrets.json
+          python - <<'PY'
+          import json
+          with open("breakout-return-secrets.json", encoding="utf-8") as handle:
+              findings = json.load(handle).get("results", {})
+          if findings:
+              raise SystemExit(f"detect-secrets findings: {sorted(findings)}")
+          PY
+          pip-audit --format json --output breakout-return-pip-audit.json
+          cyclonedx-py environment "$(command -v python)" --output-format JSON --output-file breakout-return-sbom.cdx.json
+          shasum -a 256 dist/* > breakout-return-dist-checksums.sha256
+
+      - name: Benchmark smoke
+        if: matrix.python-version == '3.13'
+        run: |
+          python benchmarks/breakout_return_deep.py --events 1000 --runs 5 --restore-samples 100 --memory > breakout-return-benchmark.json
+
+      - name: Stage bounded Breakout Return hardening evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="breakout-return-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          common=(
+            breakout-return-mypy.txt
+            breakout-return-junit.xml
+            breakout-return-coverage.json
+            breakout-return-coverage.txt
+          )
+          for path in "${common[@]}"; do
+            test -f "$path"
+            cp "$path" "$stage/"
+          done
+          test -d dist
+          cp -R dist "$stage/"
+          if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+            py313=(
+              breakout-return-benchmark.json
+              breakout-return-secrets.json
+              breakout-return-pip-audit.json
+              breakout-return-sbom.cdx.json
+              breakout-return-dist-checksums.sha256
+            )
+            for path in "${py313[@]}"; do
+              test -f "$path"
+              cp "$path" "$stage/"
+            done
+            test -d reports/breakout-return-repository
+            mkdir -p "$stage/reports"
+            cp -R reports/breakout-return-repository "$stage/reports/"
+          fi
+
+      - name: Publish exact Breakout Return hardening evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: breakout-return-release-evidence
+          asset_name: breakout-return-hardening-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Breakout Return hardening publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Breakout Return hardening failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: breakout-return-evidence-py${{ matrix.python-version }}-${{ github.run_attempt }}
+          path: |
+            breakout-return-mypy.txt
+            breakout-return-junit.xml
+            reports/breakout-return-repository/**
+            breakout-return-coverage.json
+            breakout-return-coverage.txt
+            breakout-return-benchmark.json
+            breakout-return-secrets.json
+            breakout-return-pip-audit.json
+            breakout-return-sbom.cdx.json
+            breakout-return-dist-checksums.sha256
+            dist/*
+          if-no-files-found: warn
+
+      - name: Cleanup temporary environments
+        if: always()
+        shell: bash
+        run: rm -rf .wheel-venv build breakout-return-release-evidence

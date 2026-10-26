@@ -1,0 +1,77 @@
+.notifications-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.notifications-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.notifications-summary article {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d0d7de);
+  border-radius: 0.75rem;
+  background: var(--panel-background, #fff);
+}
+
+.notifications-summary span,
+.notifications-details dt {
+  font-size: 0.8rem;
+  opacity: 0.72;
+}
+
+.notifications-summary strong {
+  font-size: 1.05rem;
+}
+
+.notifications-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.notifications-details div {
+  min-width: 0;
+}
+
+.notifications-details dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.notifications-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.notifications-notice,
+.notifications-receipt,
+.notifications-error {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.65rem;
+}
+
+.notifications-notice {
+  border: 1px solid var(--border-color, #d0d7de);
+}
+
+.notifications-receipt {
+  border: 1px solid currentColor;
+}
+
+.notifications-error {
+  border: 1px solid currentColor;
+}
+
+.notifications-receipt small,
+.notifications-error small {
+  overflow-wrap: anywhere;
+}

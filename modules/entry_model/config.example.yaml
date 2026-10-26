@@ -1,0 +1,19 @@
+modules:
+  - plugin: entry_model
+    enabled: true
+    parameters:
+      default_entry_kind: limit_retracement
+      retracement_fraction: "0.382"
+      ttl_bars: 36
+      honor_setup_hint: true
+      post_only_limits: true
+      stop_limit_offset_bps: "0"
+      max_setup_age_seconds: "0"
+      max_processed_setups: 10000
+      allowed_entry_kinds:
+        - market
+        - limit_confirmation
+        - limit_retracement
+        - limit_explicit
+        - stop_market
+        - stop_limit

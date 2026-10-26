@@ -1,0 +1,430 @@
+name: strategy-factory-ci
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "pyproject.toml"
+      - "src/**"
+      - "!src/signal_bot/**"
+      - "research/strategy_factory/src/**"
+      - "research/strategy_factory/tests/**"
+      - "research/strategy_factory/pyproject.toml"
+      - "scripts/check_coverage_thresholds.py"
+      - "tests/ci_policy/test_coverage_policy.py"
+      - "research/strategy_audit_validation/src/**"
+      - "research/strategy_audit_validation/pyproject.toml"
+      - "modules/risk_request_composer/src/**"
+      - "modules/risk_request_composer/tests/**"
+      - "modules/risk_request_composer/pyproject.toml"
+      - "modules/risk_sizing/src/**"
+      - "modules/risk_sizing/pyproject.toml"
+      - "research/experiment_runner/src/**"
+      - "research/experiment_runner/pyproject.toml"
+      - "research/experiment_runner/tests/test_registry_package_engine_evidence.py"
+      - "modules/results_aggregator/src/**"
+      - "modules/results_aggregator/pyproject.toml"
+      - "modules/results_aggregator/tests/test_core_adapter_patch_version.py"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/strategy-factory-ci.yml"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - "research/strategy_factory/**"
+      - "scripts/check_coverage_thresholds.py"
+      - "tests/ci_policy/test_coverage_policy.py"
+      - "research/strategy_audit_validation/**"
+      - "modules/risk_request_composer/**"
+      - "modules/risk_sizing/**"
+      - "research/experiment_runner/**"
+      - "modules/results_aggregator/**"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/strategy-factory-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: strategy-factory-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Strategy Factory / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact Strategy Factory candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install exact local development surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[dev,security]"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./modules/protection_target"
+          uv pip install -e "./modules/entry_model"
+          uv pip install -e "./modules/setup_adapter"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation[dev]"
+          uv pip install -e "./modules/risk_request_composer" --no-deps
+          uv pip install -e "./research/strategy_factory[dev]"
+          uv pip check
+
+      - name: Compile source and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            research/strategy_factory/src \
+            research/strategy_factory/tests \
+            research/strategy_audit_validation/src \
+            modules/risk_request_composer/src \
+            modules/risk_request_composer/tests
+
+      - name: Ruff lint and format
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets=(
+            research/strategy_factory/src
+            research/strategy_factory/tests
+            modules/risk_request_composer/src
+            modules/risk_request_composer/tests
+            modules/results_aggregator/tests/test_core_adapter_patch_version.py
+            research/experiment_runner/tests/test_registry_package_engine_evidence.py
+          )
+          ruff check --output-format=concise "${targets[@]}" \
+            2>&1 | tee strategy-factory-ruff-${{ matrix.python-version }}.log
+          ruff format --check "${targets[@]}" \
+            2>&1 | tee strategy-factory-format-${{ matrix.python-version }}.log
+
+      - name: Strict MyPy
+        shell: bash
+        env:
+          MYPYPATH: src:research/strategy_factory/src:research/strategy_audit_validation/src:modules/risk_request_composer/src:research/experiment_runner/src:modules/results_aggregator/src
+        run: |
+          set -euo pipefail
+          mypy --strict research/strategy_factory/src/strategy_factory \
+            2>&1 | tee strategy-factory-mypy-${{ matrix.python-version }}.log
+          mypy --strict modules/risk_request_composer/src/modular_strategy_risk_request_composer \
+            2>&1 | tee risk-request-composer-mypy-${{ matrix.python-version }}.log
+
+      - name: Full correctness suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q research/strategy_factory/tests \
+            --junitxml=strategy-factory-tests-${{ matrix.python-version }}.xml \
+            2>&1 | tee strategy-factory-tests-${{ matrix.python-version }}.log
+          python -m pytest -q modules/risk_request_composer/tests \
+            --junitxml=risk-request-composer-tests-${{ matrix.python-version }}.xml \
+            2>&1 | tee risk-request-composer-tests-${{ matrix.python-version }}.log
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          expected = {
+              "strategy-factory-tests-${{ matrix.python-version }}.xml": 589,
+              "risk-request-composer-tests-${{ matrix.python-version }}.xml": 6,
+          }
+          for filename, floor in expected.items():
+              root = ElementTree.parse(Path(filename)).getroot()
+              suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+              tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+              failures = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
+              errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
+              skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+              if tests < floor or failures or errors or skipped:
+                  raise SystemExit(
+                      f"{filename}: tests={tests}, floor={floor}, failures={failures}, "
+                      f"errors={errors}, skipped={skipped}"
+                  )
+              print(f"{filename}: {tests} tests, no failures/errors/skips")
+          PY
+
+      - name: Acceptance scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            research/strategy_factory/tests/test_acceptance_scenarios.py \
+            --junitxml=strategy-factory-acceptance-${{ matrix.python-version }}.xml \
+            2>&1 | tee strategy-factory-acceptance-${{ matrix.python-version }}.log
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          path = Path("strategy-factory-acceptance-${{ matrix.python-version }}.xml")
+          root = ElementTree.parse(path).getroot()
+          suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+          tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+          failures = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
+          errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
+          if tests != 25 or failures or errors:
+              raise SystemExit(
+                  f"acceptance: tests={tests}, expected=25, failures={failures}, errors={errors}"
+              )
+          print("acceptance: 25 scenarios passed")
+          PY
+
+      - name: Branch-aware coverage gate
+        working-directory: research/strategy_factory
+        shell: bash
+        run: |
+          set -euo pipefail
+          coverage erase
+          coverage run --branch --source=strategy_factory -m pytest -q tests \
+            2>&1 | tee ../../strategy-factory-coverage-tests-${{ matrix.python-version }}.log
+          coverage report --show-missing \
+            2>&1 | tee ../../strategy-factory-coverage-${{ matrix.python-version }}.log
+          coverage json -o ../../strategy-factory-coverage-${{ matrix.python-version }}.json \
+            2>&1 | tee -a ../../strategy-factory-coverage-${{ matrix.python-version }}.log
+          python ../../scripts/check_coverage_thresholds.py \
+            ../../strategy-factory-coverage-${{ matrix.python-version }}.json \
+            --minimum-combined 90
+
+      - name: Bandit security gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          bandit -r -q -ll -ii \
+            research/strategy_factory/src \
+            modules/risk_request_composer/src \
+            2>&1 | tee strategy-factory-bandit-${{ matrix.python-version }}.log
+
+      - name: Deterministic source safety scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' 2>&1 | tee strategy-factory-security-${{ matrix.python-version }}.log
+          from pathlib import Path
+          import subprocess
+
+          roots = (
+              "research/strategy_factory",
+              "modules/risk_request_composer",
+          )
+          forbidden_parts = {
+              ".venv", "__pycache__", ".pytest_cache", ".mypy_cache",
+              ".ruff_cache", ".hypothesis", ".git", ".tox", ".nox",
+          }
+          forbidden_suffixes = {".pyc", ".pyo", ".pem", ".key", ".p12", ".pfx"}
+          raw = subprocess.check_output(
+              ["git", "ls-files", "-z", "--", *roots],
+          ).decode("utf-8")
+          tracked = tuple(Path(item) for item in raw.split("\0") if item)
+          problems: list[str] = []
+          for path in tracked:
+              if path.is_symlink():
+                  problems.append(f"symlink:{path}")
+              if forbidden_parts.intersection(path.parts):
+                  problems.append(f"generated:{path}")
+              if path.suffix.lower() in forbidden_suffixes:
+                  problems.append(f"forbidden-suffix:{path}")
+              if any(part.endswith(".egg-info") for part in path.parts):
+                  problems.append(f"egg-info:{path}")
+          if problems:
+              raise SystemExit("\n".join(sorted(set(problems))))
+          print(f"deterministic tracked-source safety scan: {len(tracked)} files ok")
+          PY
+
+      - name: Build local wheels
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip wheel . --no-deps --no-build-isolation -w dist/core
+          python -m pip wheel ./modules/risk_sizing --no-deps --no-build-isolation -w dist/risk-sizing
+          python -m pip wheel ./research/experiment_runner --no-deps --no-build-isolation -w dist/research-runner
+          python -m pip wheel ./modules/results_aggregator --no-deps --no-build-isolation -w dist/results-aggregator
+          python -m pip wheel ./research/strategy_audit_validation --no-deps --no-build-isolation -w dist/strategy-auditor
+          python -m pip wheel ./modules/risk_request_composer --no-deps --no-build-isolation -w dist/risk-request-composer
+          python -m pip wheel ./research/strategy_factory --no-deps --no-build-isolation -w dist/strategy-factory
+
+      - name: Clean wheel smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          clean="$RUNNER_TEMP/strategy-factory-wheel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python-version }}"
+          rm -rf "$clean"
+          uv venv --python "${{ matrix.python-version }}" --seed "$clean"
+          uv pip install --python "$clean/bin/python" \
+            PyYAML \
+            dist/core/*.whl \
+            dist/risk-sizing/*.whl \
+            dist/research-runner/*.whl \
+            dist/results-aggregator/*.whl \
+            dist/strategy-auditor/*.whl \
+            dist/risk-request-composer/*.whl \
+            dist/strategy-factory/*.whl
+          "$clean/bin/python" - <<'PY' \
+            2>&1 | tee strategy-factory-wheel-smoke-${{ matrix.python-version }}.log
+          import modular_results_registry
+          import modular_research_runner
+          import modular_strategy_risk_request_composer
+          import strategy_audit_validation
+          import strategy_factory
+          from importlib.metadata import version
+
+          assert strategy_factory.__all__
+          assert modular_strategy_risk_request_composer.RiskRequestComposerModule
+          assert strategy_audit_validation.CONTRACT_VERSION == "strategy-audit-port-v1"
+          assert strategy_factory.AUDIT_CONTRACT_VERSION == "strategy-audit-port-v1"
+          for distribution in (
+              "modular-strategy-core",
+              "modular-strategy-risk-sizing",
+              "modular-strategy-research-runner",
+              "modular-results-registry",
+              "modular-strategy-audit-validation",
+              "modular-strategy-risk-request-composer",
+              "modular-strategy-factory",
+          ):
+              print(distribution, version(distribution))
+          print("clean wheel smoke: ok")
+          PY
+          "$clean/bin/strategy-factory" --help >/dev/null
+
+      - name: Record Strategy Factory evidence identity
+        if: success()
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd()
+          patterns = (
+              f"strategy-factory-*-{os.environ['MATRIX_PYTHON_VERSION']}.log",
+              f"risk-request-composer-*-{os.environ['MATRIX_PYTHON_VERSION']}.log",
+              f"strategy-factory-tests-{os.environ['MATRIX_PYTHON_VERSION']}.xml",
+              f"risk-request-composer-tests-{os.environ['MATRIX_PYTHON_VERSION']}.xml",
+              f"strategy-factory-acceptance-{os.environ['MATRIX_PYTHON_VERSION']}.xml",
+              f"strategy-factory-coverage-{os.environ['MATRIX_PYTHON_VERSION']}.json",
+              "dist/**/*.whl",
+          )
+          candidates = set()
+          for pattern in patterns:
+              candidates.update(root.glob(pattern))
+          files = sorted(
+              (path for path in candidates if path.is_file()),
+              key=lambda path: path.as_posix(),
+          )
+          if not files:
+              raise SystemExit("Strategy Factory evidence set is empty")
+
+          entries = []
+          for path in files:
+              data = path.read_bytes()
+              entries.append(
+                  {
+                      "bytes": len(data),
+                      "path": path.relative_to(root).as_posix(),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": entries,
+              "python_version": os.environ["MATRIX_PYTHON_VERSION"],
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest = root / (
+              f"strategy-factory-evidence-{os.environ['MATRIX_PYTHON_VERSION']}.json"
+          )
+          manifest.write_text(canonical, encoding="utf-8")
+          manifest_sha = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+          print(canonical, end="")
+          print(f"STRATEGY_FACTORY_EVIDENCE_SHA256={manifest_sha}")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### Strategy Factory evidence identity\n\n")
+              handle.write(f"- exact head: `{payload['exact_head']}`\n")
+              handle.write(f"- Python: `{payload['python_version']}`\n")
+              handle.write(
+                  f"- workflow run: `{payload['run_id']}` attempt `{payload['run_attempt']}`\n"
+              )
+              handle.write(f"- evidence files hashed: `{len(entries)}`\n")
+              handle.write(f"- evidence manifest SHA-256: `{manifest_sha}`\n")
+              handle.write(
+                  "- immutable GitHub Release publication: required after substantive gates; "
+                  "typing, correctness, acceptance, coverage, security, wheel and smoke gates "
+                  "remain blocking\n"
+              )
+          PY
+
+      - name: Stage Strategy Factory release evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="reports/strategy-factory-release-${{ matrix.python-version }}"
+          rm -rf "$bundle"
+          mkdir -p "$bundle/dist"
+          cp strategy-factory-*-${{ matrix.python-version }}.log "$bundle/"
+          cp risk-request-composer-*-${{ matrix.python-version }}.log "$bundle/"
+          cp strategy-factory-tests-${{ matrix.python-version }}.xml "$bundle/"
+          cp risk-request-composer-tests-${{ matrix.python-version }}.xml "$bundle/"
+          cp strategy-factory-acceptance-${{ matrix.python-version }}.xml "$bundle/"
+          cp strategy-factory-coverage-${{ matrix.python-version }}.json "$bundle/"
+          cp strategy-factory-evidence-${{ matrix.python-version }}.json "$bundle/"
+          cp -R dist/. "$bundle/dist/"
+
+      - name: Publish exact Strategy Factory evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: reports/strategy-factory-release-${{ matrix.python-version }}
+          asset_name: strategy-factory-ci-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Strategy Factory publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success

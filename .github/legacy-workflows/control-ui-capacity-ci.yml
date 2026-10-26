@@ -1,0 +1,248 @@
+name: control-ui-capacity-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/src/modular_control_plane/system_capacity.py"
+      - "applications/control_plane/src/modular_control_plane/system_artifact_capacity.py"
+      - "applications/control_plane/src/modular_control_plane/system_capacity_client.py"
+      - "applications/control_plane/src/modular_control_plane/system_api.py"
+      - "applications/control_plane/src/modular_control_plane/cli_system.py"
+      - "applications/control_plane/tests/test_system_capacity*.py"
+      - "web/market-data-console/src/capacity/**"
+      - "web/market-data-console/src/dashboard/DashboardApp.tsx"
+      - "web/market-data-console/e2e/capacity.spec.ts"
+      - "docs/operations/STORAGE_PRESSURE_THRESHOLDS.json"
+      - ".github/workflows/control-ui-capacity-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-capacity-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capacity:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      MODULAR_CAPACITY_E2E: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact System Capacity candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-dependency-glob: applications/control_plane/pyproject.toml
+          cache-suffix: control-ui-capacity
+
+      - name: Install focused Control Plane dependencies
+        run: |
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e "./applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Ruff System Capacity lint
+        run: |
+          ruff check --output-format=concise \
+            applications/control_plane/src/modular_control_plane/system_capacity.py \
+            applications/control_plane/src/modular_control_plane/system_artifact_capacity.py \
+            applications/control_plane/src/modular_control_plane/system_capacity_client.py \
+            applications/control_plane/src/modular_control_plane/system_api.py \
+            applications/control_plane/src/modular_control_plane/cli_system.py \
+            applications/control_plane/tests/test_system_capacity.py \
+            applications/control_plane/tests/test_system_capacity_artifacts.py \
+            applications/control_plane/tests/test_system_capacity_api.py \
+            applications/control_plane/tests/test_system_capacity_client_cli.py
+
+      - name: Ruff System Capacity format
+        run: |
+          ruff format --check \
+            applications/control_plane/src/modular_control_plane/system_capacity.py \
+            applications/control_plane/src/modular_control_plane/system_artifact_capacity.py \
+            applications/control_plane/src/modular_control_plane/system_capacity_client.py \
+            applications/control_plane/src/modular_control_plane/system_api.py \
+            applications/control_plane/src/modular_control_plane/cli_system.py \
+            applications/control_plane/tests/test_system_capacity.py \
+            applications/control_plane/tests/test_system_capacity_artifacts.py \
+            applications/control_plane/tests/test_system_capacity_api.py \
+            applications/control_plane/tests/test_system_capacity_client_cli.py
+
+      - name: Strict MyPy System Capacity
+        run: |
+          mypy --strict \
+            applications/control_plane/src/modular_control_plane/system_capacity.py \
+            applications/control_plane/src/modular_control_plane/system_artifact_capacity.py \
+            applications/control_plane/src/modular_control_plane/system_capacity_client.py \
+            applications/control_plane/src/modular_control_plane/system_api.py \
+            applications/control_plane/src/modular_control_plane/cli_system.py
+
+      - name: Test System Capacity backend API and CLI
+        run: |
+          pytest -q \
+            applications/control_plane/tests/test_system_capacity.py \
+            applications/control_plane/tests/test_system_capacity_artifacts.py \
+            applications/control_plane/tests/test_system_capacity_api.py \
+            applications/control_plane/tests/test_system_capacity_client_cli.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.12.0"
+
+      - name: Install exact browser dependencies
+        working-directory: web/market-data-console
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Web System Capacity gates
+        working-directory: web/market-data-console
+        run: |
+          npm run typecheck
+          npm run e2e:typecheck
+          npm test -- --run src/capacity/client.test.ts
+          npm run build
+
+      - name: Generate masked reader token and loopback ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          reader_token=$(python -c 'import secrets; print("capacity-reader-" + secrets.token_hex(24))')
+          ports=$(python - <<'PY'
+          import socket
+          values = []
+          for _ in range(2):
+              with socket.socket() as current:
+                  current.bind(("127.0.0.1", 0))
+                  values.append(current.getsockname()[1])
+          print(*values)
+          PY
+          )
+          read -r control_port web_port <<< "$ports"
+          test "$control_port" != "$web_port"
+          echo "::add-mask::$reader_token"
+          {
+            echo "MODULAR_CAPACITY_E2E_READER_TOKEN=$reader_token"
+            echo "MODULAR_CONTROL_E2E_PORT=$control_port"
+            echo "MODULAR_CONTROL_PORT=$control_port"
+            echo "MDI_E2E_WEB_PORT=$web_port"
+            echo "MDI_E2E_BASE_URL=http://127.0.0.1:$web_port"
+          } >> "$GITHUB_ENV"
+
+      - name: Install isolated Chromium
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-capacity-playwright
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if npx playwright install chromium; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "Playwright browser installation failed after $attempt attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
+
+      - name: Run real System Capacity browser flow
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-capacity-playwright
+          MODULAR_CONTROL_STORAGE_PRESSURE_POLICY_PATH: ${{ github.workspace }}/docs/operations/STORAGE_PRESSURE_THRESHOLDS.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MODULAR_CONTROL_READER_TOKEN="$MODULAR_CAPACITY_E2E_READER_TOKEN"
+          root="$RUNNER_TEMP/control-ui-capacity-e2e"
+          rm -rf "$root"
+          mkdir -p "$root/logs"
+          modular-control-api --host 127.0.0.1 --port "$MODULAR_CONTROL_E2E_PORT" --log-level warning \
+            > "$root/logs/control.log" 2>&1 &
+          control_pid=$!
+          npm run preview -- --port "$MDI_E2E_WEB_PORT" > "$root/logs/web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" "$control_pid" 2>/dev/null || true
+            wait "$web_pid" "$control_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              cat "$root/logs/control.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              cat "$root/logs/web.log" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_CAPACITY_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/system/capacity" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CAPACITY_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/system/capacity/artifacts" >/dev/null \
+              && curl --fail --silent --show-error \
+                --header "Authorization: Bearer $MODULAR_CAPACITY_E2E_READER_TOKEN" \
+                "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/system/resources" >/dev/null \
+              && curl --fail --silent --show-error "$MDI_E2E_BASE_URL/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              cat "$root/logs/control.log" >&2 || true
+              cat "$root/logs/web.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          npx playwright test e2e/capacity.spec.ts
+
+      - name: Verify capacity E2E logs contain no generated credential
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "control-ui-capacity-e2e" / "logs"
+          secret = os.environ.get("MODULAR_CAPACITY_E2E_READER_TOKEN", "")
+          leaked = []
+          for path in sorted(root.glob("*.log")):
+              text = path.read_text(encoding="utf-8", errors="replace")
+              if secret and secret in text:
+                  leaked.append(path.name)
+                  path.write_text(text.replace(secret, "***REDACTED***"), encoding="utf-8")
+          if leaked:
+              raise SystemExit("generated System Capacity credential leaked into E2E logs")
+          print("PASS: generated System Capacity credential absent from E2E logs")
+          PY
+
+      - name: Record System Capacity evidence summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### System Capacity acceptance"
+            echo "- exact head: $EXPECTED_HEAD"
+            echo "- canonical policy projection: trusted server-side attachment"
+            echo "- external artifact quota: status only; no proactive usage or cleanup authority"
+            echo "- artifact upload: intentionally not required"
+            echo "- no pruning/deletion/backup authority introduced"
+          } >> "$GITHUB_STEP_SUMMARY"

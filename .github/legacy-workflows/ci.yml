@@ -1,0 +1,145 @@
+name: core-ci
+
+on:
+  push:
+    branches:
+      - main
+      - "integration/**"
+    paths:
+      - "src/modular_core/**"
+      - "src/strategy_modules/**"
+      - "tests/**"
+      - "scripts/**"
+      - "examples/**"
+      - "benchmarks/**"
+      - "configs/**"
+      - "config/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "src/modular_core/**"
+      - "src/strategy_modules/**"
+      - "tests/**"
+      - "!tests/signal_bot/**"
+      - "!tests/ci_policy/**"
+      - "scripts/**"
+      - "examples/**"
+      - "benchmarks/**"
+      - "configs/**"
+      - "config/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+          clean: true
+          persist-credentials: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-suffix: core-ci
+      - name: Install Core and integrated public packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv_install() {
+            local attempt
+            for attempt in 1 2 3; do
+              if uv pip install "$@"; then
+                return 0
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "uv install failed after $attempt attempts: $*" >&2
+                return 1
+              fi
+              sleep $((attempt * 10))
+            done
+          }
+
+          uv_install --upgrade pip setuptools wheel
+          uv_install -e '.[dev,backtest,signal-bot]'
+          uv_install -e './modules/session_range[dev]' --no-deps
+          uv_install -e ./modules/market_regime --no-deps
+          uv_install -e ./plugins/fvg --no-deps
+          uv_install -e ./modules/setup_adapter --no-deps
+          uv_install -e ./modules/entry_model --no-deps
+          uv_install -e './modules/protection_target[dev]' --no-deps
+          uv_install -e ./modules/risk_sizing --no-deps
+          uv_install -e ./modules/position_scaling --no-deps
+          uv_install -e ./modules/trade_plan_router --no-deps
+          uv_install -e './modules/paper_execution[dev]' --no-deps
+          uv_install -e './modules/position_exit_management[dev]' --no-deps
+          uv_install -e './applications/trading_runner[dev]' --no-deps
+          uv pip check
+      - name: Compile Core and root tests
+        run: python -m compileall -q src tests scripts
+      - name: Ruff lint and format
+        run: |
+          ruff check src tests scripts
+          ruff format --check src tests scripts
+      - name: Focused strict MyPy
+        run: mypy --strict scripts/audit_runner_routing.py scripts/check_coverage_thresholds.py
+      - name: Run root suites in isolated pytest processes
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/core-ci
+          coverage erase
+          coverage run --branch --source=src -m pytest -q tests/test_*.py             --junitxml=reports/core-ci/root-py${{ matrix.python-version }}.xml
+          coverage run --branch --append --source=src -m pytest -q tests/backtest_engine             --junitxml=reports/core-ci/backtest-py${{ matrix.python-version }}.xml
+          coverage run --branch --append --source=src -m pytest -q tests/breakout_return             --junitxml=reports/core-ci/breakout-py${{ matrix.python-version }}.xml
+          coverage run --branch --append --source=src -m pytest -q tests/integration             --ignore=tests/integration/test_system_acceptance_stage1_deployment.py             --ignore=tests/integration/test_system_acceptance_stage1_host.py             --ignore=tests/integration/test_system_acceptance_stage1_owner_reconnect.py             --ignore=tests/integration/test_system_acceptance_stage1_service_manager.py             --ignore=tests/integration/test_system_acceptance_stage1_launchd.py             --ignore=tests/integration/test_multi_family_technical_smoke.py             --junitxml=reports/core-ci/integration-py${{ matrix.python-version }}.xml
+          coverage run --branch --append --source=src -m pytest -q tests/signal_bot             --junitxml=reports/core-ci/signal-bot-py${{ matrix.python-version }}.xml
+          coverage json -o reports/core-ci/coverage-py${{ matrix.python-version }}.json
+          coverage report --show-missing | tee reports/core-ci/coverage-py${{ matrix.python-version }}.txt
+          python scripts/check_coverage_thresholds.py             reports/core-ci/coverage-py${{ matrix.python-version }}.json             --minimum-statement 85             --minimum-branch 75
+      - name: Build clean wheel
+        run: uv build --wheel --out-dir dist
+      - name: Verify installed wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          clean="$RUNNER_TEMP/core-wheel-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python-version }}"
+          rm -rf "$clean"
+          uv venv --python "${{ matrix.python-version }}" --seed "$clean"
+          uv pip install --python "$clean/bin/python" "$wheel"
+          "$clean/bin/python" -c "import modular_core; assert modular_core.__version__ == '0.4.2'"
+          "$clean/bin/python" -m pip check
+      - name: Upload Core CI diagnostics
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-ci-py${{ matrix.python-version }}-${{ github.run_attempt }}
+          path: |
+            reports/core-ci/**
+            dist/*.whl
+          if-no-files-found: warn
+          retention-days: 1

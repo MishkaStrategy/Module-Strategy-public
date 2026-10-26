@@ -1,0 +1,227 @@
+{
+  "after": {
+    "artifact_id": 8833297064,
+    "artifact_sha256": "d619172a9430c5dbf5535582f8be67913752fc97c0713df382242ad509cd25a6",
+    "benchmark_json_sha256": "ab818479d5913047ba1b9a23ec18e6184659f97ef43213ed809d2ccaa5fb0765",
+    "head_sha": "ffadc5829bcf747e842c7a97adfc0bbf33083dd7",
+    "workflow_run_id": 30746786825
+  },
+  "baseline": {
+    "artifact_id": 8832876395,
+    "artifact_sha256": "124b489a97c2c12fac5ffc0616e419943a01229b0efdd123d8b6f02e0a9ede07",
+    "benchmark_json_sha256": "d3e24ae9b9afe6d626d107b12821de4b79fabdb9f925d871053088c84b2e0f8e",
+    "head_sha": "57539351159a9d99ca90c47dc92785b69e2ad9d6",
+    "workflow_run_id": 30745424109
+  },
+  "branch": "optimization/wave2-routing-signal-slo",
+  "confirmed_bottleneck": {
+    "baseline_pending_retry_identities": 10000,
+    "baseline_persisted_bytes": 111746672,
+    "baseline_persisted_bytes_per_identity": 1117.46672,
+    "baseline_terminal_identities": 100000,
+    "class": "unbounded_persistent_identity_and_pending_state",
+    "finding": "recovery fetch was bounded, but new identity and pending admission were not",
+    "recovery_fetch_limit": 100
+  },
+  "environment": {
+    "implementation": "CPython",
+    "machine": "arm64",
+    "platform": "macOS-27.0-arm64-arm-64bit",
+    "python": "3.12.13",
+    "sqlite": "3.53.1"
+  },
+  "evidence_id": "wave2c-routing-signal-before-after-v1",
+  "headline_before_after": {
+    "peak_rss_bytes": {
+      "after": 190103552,
+      "before": 188579840
+    },
+    "queue_saturation_10000": {
+      "after": {
+        "p99_mean_ms": 0.9609166666666666,
+        "queue_depth": 10000,
+        "retry_state_size": 10000,
+        "throughput_mean_per_second": 2467.6011801969125
+      },
+      "before": {
+        "p99_mean_ms": 0.996486,
+        "throughput_mean_per_second": 2193.8026573808033
+      }
+    },
+    "restart_1000": {
+      "after_maximum_ms": 281.810542,
+      "after_recovery_ms": [
+        242.167833,
+        281.810542,
+        265.940833
+      ],
+      "before_recovery_ms": [
+        258.654459,
+        268.789833,
+        302.350917
+      ]
+    },
+    "router_burst_10000": {
+      "after": {
+        "p99_max_sample_ms": 6.477417,
+        "p99_mean_ms": 2.8130276666666667,
+        "throughput_cv": 0.22719051627803125,
+        "throughput_mean_per_second": 1077.5656520723815
+      },
+      "before": {
+        "p99_mean_ms": 1.1883613333333332,
+        "throughput_mean_per_second": 1231.587121094785
+      },
+      "warning": "one local runner outlier; Router production code unchanged"
+    },
+    "router_steady_100000": {
+      "after": {
+        "p99_max_sample_ms": 1.298417,
+        "p99_mean_ms": 1.2081806666666668,
+        "throughput_mean_per_second": 1196.9037781674185
+      },
+      "before": {
+        "p99_mean_ms": 1.1032366666666666,
+        "throughput_mean_per_second": 1237.8480711641575
+      }
+    },
+    "signal_burst_10000": {
+      "after": {
+        "p99_max_sample_ms": 2.022,
+        "p99_mean_ms": 1.1316803333333332,
+        "throughput_mean_per_second": 2402.654374757172
+      },
+      "before": {
+        "p99_mean_ms": 1.165097,
+        "throughput_mean_per_second": 2289.3708752597845
+      }
+    },
+    "signal_steady_100000": {
+      "after": {
+        "p99_max_sample_ms": 2.949,
+        "p99_mean_ms": 1.8137636666666668,
+        "persisted_bytes": 111849144,
+        "throughput_mean_per_second": 2303.8387252883495
+      },
+      "before": {
+        "p99_mean_ms": 1.314056,
+        "persisted_bytes": 111746672,
+        "throughput_mean_per_second": 2152.3544599966567
+      }
+    },
+    "soak_100000": {
+      "after": {
+        "p99_max_sample_ms": 1.889375,
+        "p99_mean_ms": 1.0184443333333333,
+        "persisted_bytes": 111849144,
+        "throughput_mean_per_second": 4142.962545946507
+      },
+      "before": {
+        "p99_mean_ms": 0.635278,
+        "persisted_bytes": 111746672,
+        "throughput_mean_per_second": 4452.768772441
+      },
+      "warning": "one local runner outlier; repeats 1 and 3 were faster than baseline"
+    }
+  },
+  "local_workload_slo": {
+    "peak_rss": {
+      "max_bytes": 209715200,
+      "verdict": "pass"
+    },
+    "persisted_100k": {
+      "max_bytes": 125829120,
+      "verdict": "pass"
+    },
+    "restart_1000": {
+      "recovery_max_ms": 350,
+      "verdict": "pass"
+    },
+    "router_burst_10k": {
+      "p99_max_sample_ms": 7.0,
+      "throughput_mean_min_per_second": 1000,
+      "verdict": "pass_with_variance_warning"
+    },
+    "router_steady_100k": {
+      "p99_max_sample_ms": 1.5,
+      "throughput_mean_min_per_second": 1000,
+      "verdict": "pass"
+    },
+    "signal_burst_10k": {
+      "p99_max_sample_ms": 2.5,
+      "throughput_mean_min_per_second": 1800,
+      "verdict": "pass"
+    },
+    "signal_steady_100k": {
+      "p99_max_sample_ms": 3.0,
+      "throughput_mean_min_per_second": 1900,
+      "verdict": "pass"
+    },
+    "state_capacity": {
+      "overflow": "fail_closed",
+      "pending_retry": 10000,
+      "total": 100000,
+      "verdict": "pass"
+    }
+  },
+  "measurement_contract": {
+    "benchmark_schema_version": 2,
+    "live_trading_used": false,
+    "network_used": false,
+    "production_capacity_claim": false,
+    "profile": "full",
+    "records_per_capture": 102,
+    "repeats_per_group": 3,
+    "telegram_production_api_used": false,
+    "workload_groups": 34
+  },
+  "minimal_change": {
+    "admission": "fail_closed",
+    "counter_reconciliation_on_restart": true,
+    "cross_connection_serialization": "BEGIN IMMEDIATE",
+    "duplicate_lookup_precedes_capacity_rejection": true,
+    "pending_retry_capacity": 10000,
+    "public_error": "StateCapacityError",
+    "recovery_fetch_limit": 100,
+    "terminal_evidence_evicted": false,
+    "total_identity_capacity": 100000
+  },
+  "pull_request": 309,
+  "repository": "MishkaStrategy/Module-Strategy",
+  "schema_version": 1,
+  "semantic_parity": {
+    "after": {
+      "acknowledged_loss_count": 0,
+      "duplicate_delivery_count": 0,
+      "invalid_admission_success_count": 0,
+      "ordering_violation_count": 0,
+      "passed": true,
+      "private_payload_leakage_count": 0
+    },
+    "before": {
+      "acknowledged_loss_count": 0,
+      "duplicate_delivery_count": 0,
+      "invalid_admission_success_count": 0,
+      "ordering_violation_count": 0,
+      "passed": true,
+      "private_payload_leakage_count": 0
+    }
+  },
+  "test_evidence": {
+    "cross_connection_capacity_tests": 2,
+    "python_3_12_signal_bot_tests": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 87
+    },
+    "semantic_capacity_tests": 4
+  },
+  "verdict": {
+    "additional_production_optimization": "not_authorized",
+    "bounded_state_slo": "pass_after_remediation",
+    "performance_slo": "pass_for_recorded_local_workloads",
+    "production_claim": false,
+    "semantic_slo": "pass"
+  }
+}

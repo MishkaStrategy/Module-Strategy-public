@@ -1,0 +1,112 @@
+{
+  "contract_version": 1,
+  "source_catalog_path": "modules/results_aggregator/schemas/catalog.json",
+  "package_catalog_path": "modules/results_aggregator/src/modular_results_registry/schemas/catalog.json",
+  "catalog_hash": "3e755b5888c8df3c727c2d82a420bb0cb75a865dad5c8e1ff832cc6e36dfb482",
+  "schema_set_sha256": "d551bd534e54876671c1769464199f9203240d6a03b6d0ea49e551a922b796b4",
+  "schemas": [
+    {
+      "id": "urn:modular-results-registry:artifact-package:1",
+      "path": "modules/results_aggregator/schemas/artifact-package.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/artifact-package.schema.json",
+      "content_sha256": "dd9c8fc97b8bc4585d2eb60c0da1a261856b6f4559b03b5af4f2bea128a28d08"
+    },
+    {
+      "id": "urn:modular-results-registry:artifact-record:1",
+      "path": "modules/results_aggregator/schemas/artifact-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/artifact-record.schema.json",
+      "content_sha256": "e3b9d770f61fcbe5de355d989f2c6a2e55b0474ccd7e909d0591e0c6c8f23f06"
+    },
+    {
+      "id": "urn:modular-results-registry:audit-evidence-record:1",
+      "path": "modules/results_aggregator/schemas/audit-evidence-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/audit-evidence-record.schema.json",
+      "content_sha256": "c91ac3c4949708889f35e8243e68c604feec191dbf5f34c04d319171e0d83c5f"
+    },
+    {
+      "id": "urn:modular-results-registry:audit-log-event:1",
+      "path": "modules/results_aggregator/schemas/audit-log-event.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/audit-log-event.schema.json",
+      "content_sha256": "a892b3e5ece36a3e9dd9b358438d198fa16c9772eeaf87d340dd1f132d96b89f"
+    },
+    {
+      "id": "urn:modular-results-registry:backup-manifest:1",
+      "path": "modules/results_aggregator/schemas/backup-manifest.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/backup-manifest.schema.json",
+      "content_sha256": "29ecdaebc8d7b25965f811843e84a508c7697e04a74d6b39e4a7ae922944d2e7"
+    },
+    {
+      "id": "urn:modular-results-registry:configuration-record:1",
+      "path": "modules/results_aggregator/schemas/configuration-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/configuration-record.schema.json",
+      "content_sha256": "8534af92bcf2e08e9875eb11fb680118b7f7afe392e4b5130036ae255fb2d056"
+    },
+    {
+      "id": "urn:modular-results-registry:dataset-record:1",
+      "path": "modules/results_aggregator/schemas/dataset-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/dataset-record.schema.json",
+      "content_sha256": "b508a16690cb91a4a3fa679cce847fd2c7901d14ee31e0763ca13a8e66a4bcb3"
+    },
+    {
+      "id": "urn:modular-results-registry:experiment-record:1",
+      "path": "modules/results_aggregator/schemas/experiment-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/experiment-record.schema.json",
+      "content_sha256": "a0e9ab2d7c977355b0091bdf131e89576090848a3456d8a1dc08942453c6033a"
+    },
+    {
+      "id": "urn:modular-results-registry:metric-definition-record:1",
+      "path": "modules/results_aggregator/schemas/metric-definition-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/metric-definition-record.schema.json",
+      "content_sha256": "0d16d223f5464417c5d812919fef467aba970793b6d6bd25c1083b1f9acbe6b4"
+    },
+    {
+      "id": "urn:modular-results-registry:metric-snapshot:1",
+      "path": "modules/results_aggregator/schemas/metric-snapshot.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/metric-snapshot.schema.json",
+      "content_sha256": "4d963706165c3634035374da5cd700d382c80f1452e13d165d6594ef11cab555"
+    },
+    {
+      "id": "urn:modular-results-registry:rebuild-bundle:4",
+      "path": "modules/results_aggregator/schemas/rebuild-bundle.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/rebuild-bundle.schema.json",
+      "content_sha256": "deb31205e98fe83294fd26aed2f5c213ae153e4247a70fe4409a3b13ad4e0d05"
+    },
+    {
+      "id": "urn:modular-results-registry:registration-package:2",
+      "path": "modules/results_aggregator/schemas/registration-package.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/registration-package.schema.json",
+      "content_sha256": "f23b2ce2521ade91dc9647cd9706cefe04f46e76cd5e49443fc3f9ec4ded6219"
+    },
+    {
+      "id": "urn:modular-results-registry:role-decision:1",
+      "path": "modules/results_aggregator/schemas/role-decision.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/role-decision.schema.json",
+      "content_sha256": "b689a94ec6857287be4bf561fcb9db843c47055592cb0b6fb616eaf743da5848"
+    },
+    {
+      "id": "urn:modular-results-registry:run-record:1",
+      "path": "modules/results_aggregator/schemas/run-record.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/run-record.schema.json",
+      "content_sha256": "068a065fc474452c082dd5ae0d708116ed1bad3e23d115eeb768f00601a2e6d1"
+    },
+    {
+      "id": "urn:modular-results-registry:strategy-audit-evidence-package:2",
+      "path": "modules/results_aggregator/schemas/strategy-audit-evidence-package.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/strategy-audit-evidence-package.schema.json",
+      "content_sha256": "4cc5962175a517f1488dbff9efa0c95e39a0abe94497e73a511fffc626c9d725"
+    },
+    {
+      "id": "urn:modular-results-registry:structured-log-event:1",
+      "path": "modules/results_aggregator/schemas/structured-log-event.schema.json",
+      "package_path": "modules/results_aggregator/src/modular_results_registry/schemas/structured-log-event.schema.json",
+      "content_sha256": "3d3c57309bc9dfcef40fa65c8fbcf3220033bebaf568dc29302898b4705b924d"
+    }
+  ],
+  "contract_type": "results_registry_schema_binding",
+  "component_id": "modular-results-registry",
+  "required_obligation": {
+    "compatibility_id": "compat-v1",
+    "contract_type": "results_registry_schema_binding",
+    "component_id": "modular-results-registry"
+  }
+}

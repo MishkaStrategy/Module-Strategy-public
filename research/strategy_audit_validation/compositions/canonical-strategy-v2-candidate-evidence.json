@@ -1,0 +1,12 @@
+{
+  "candidate_id": "strategy-candidate-51659c6ed582f2843357bd33",
+  "canonical_load_required": true,
+  "composition_hash": "51659c6ed582f2843357bd33fbff35059f9a535dd27f05a585a9e7dfa78365c9",
+  "composition_path": "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.v2.json",
+  "composition_version": "2.0.0",
+  "contract_registry": "module-contracts-v2.json",
+  "historical_counts_mandatory": false,
+  "owner_decision": "STRATEGY-312-VARIANT-2",
+  "schema_version": 1,
+  "state": "CANDIDATE"
+}

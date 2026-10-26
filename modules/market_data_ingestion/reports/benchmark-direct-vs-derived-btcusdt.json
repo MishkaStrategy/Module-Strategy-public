@@ -1,0 +1,147 @@
+{
+  "benchmark_kind": "real_direct_vs_derived_timeframe_crosscheck",
+  "benchmark_version": 1,
+  "completed_at": "2026-07-27T19:00:19.278114+00:00",
+  "inputs": {
+    "15m": {
+      "rows": 240532,
+      "sha256": "05d8dbe7c8f71383171dd01a635f8c0cfad8e498d2043f5825715a3600fa116f"
+    },
+    "1h": {
+      "rows": 60133,
+      "sha256": "ed51fd133eaf7d318959dcd21de68c67c02901ab911c02077a30c913d7bbc067"
+    },
+    "5m": {
+      "rows": 721597,
+      "sha256": "2b8a20ef09e1c292abbbee4a6963a1cedb7904cfc4340c9de72d0d2cd0b87ed1"
+    }
+  },
+  "package_version": "0.4.0",
+  "passed": true,
+  "peak_rss_bytes": 350576640,
+  "platform": "Linux-6.12.13-x86_64-with-glibc2.41",
+  "pyarrow": "25.0.0",
+  "python": "3.13.5",
+  "results": [
+    {
+      "compared_rows": 240532,
+      "criteria": {
+        "close_times_exact": true,
+        "price_within_tolerance": true,
+        "row_count_matches_metadata": true,
+        "sums_within_float_tolerance": true,
+        "timestamps_exact": true,
+        "trades_exact": true
+      },
+      "derived_digest_sha256": "3d5db130379bcbb6d451a480be74a1d73416be448510449979396a0c37930e2f",
+      "direct_rows": 240532,
+      "elapsed_seconds": 29.869361,
+      "max_absolute_error": {
+        "close": "0",
+        "high": "0",
+        "low": "0",
+        "open": "0",
+        "quote_volume": "0.000001",
+        "taker_buy_base": "0.000000000005",
+        "taker_buy_quote": "0.0000003",
+        "volume": "0.00000000001"
+      },
+      "max_relative_error": {
+        "close": "0e+0",
+        "high": "0e+0",
+        "low": "0e+0",
+        "open": "0e+0",
+        "quote_volume": "2.977565654303380135927111853e-16",
+        "taker_buy_base": "2.915145932205367050439584243e-16",
+        "taker_buy_quote": "2.947197675750931979186868072e-16",
+        "volume": "2.949128361519726822572640724e-16"
+      },
+      "mismatches": {
+        "close_times": 0,
+        "exact_price": {
+          "close": 0,
+          "high": 0,
+          "low": 0,
+          "open": 0
+        },
+        "exact_sums": {
+          "quote_volume": 46664,
+          "taker_buy_base": 46826,
+          "taker_buy_quote": 47065,
+          "volume": 46292
+        },
+        "timestamps": 0,
+        "trades": 0
+      },
+      "passed": true,
+      "range": {
+        "last_open": "2026-07-19T06:45:00+00:00",
+        "start": "2019-09-08T18:00:00+00:00"
+      },
+      "timeframe": "15m"
+    },
+    {
+      "compared_rows": 60133,
+      "criteria": {
+        "close_times_exact": true,
+        "price_within_tolerance": true,
+        "row_count_matches_metadata": true,
+        "sums_within_float_tolerance": true,
+        "timestamps_exact": true,
+        "trades_exact": true
+      },
+      "derived_digest_sha256": "54e69ca0e3ffab1eb0e41be0e857fdc14defe1b0aad455631346a191c4d36786",
+      "direct_rows": 60133,
+      "elapsed_seconds": 22.7894,
+      "max_absolute_error": {
+        "close": "0",
+        "high": "0",
+        "low": "0",
+        "open": "0",
+        "quote_volume": "0.000001",
+        "taker_buy_base": "0.00000000001",
+        "taker_buy_quote": "0.000001",
+        "volume": "0.00000000003"
+      },
+      "max_relative_error": {
+        "close": "0e+0",
+        "high": "0e+0",
+        "low": "0e+0",
+        "open": "0e+0",
+        "quote_volume": "2.247263672675868327374947481e-16",
+        "taker_buy_base": "2.433747313751403039202147965e-16",
+        "taker_buy_quote": "2.607068548343477844553165714e-16",
+        "volume": "2.463872180618782887026010586e-16"
+      },
+      "mismatches": {
+        "close_times": 0,
+        "exact_price": {
+          "close": 0,
+          "high": 0,
+          "low": 0,
+          "open": 0
+        },
+        "exact_sums": {
+          "quote_volume": 6879,
+          "taker_buy_base": 6896,
+          "taker_buy_quote": 6978,
+          "volume": 6637
+        },
+        "timestamps": 0,
+        "trades": 0
+      },
+      "passed": true,
+      "range": {
+        "last_open": "2026-07-19T06:00:00+00:00",
+        "start": "2019-09-08T18:00:00+00:00"
+      },
+      "timeframe": "1h"
+    }
+  ],
+  "tolerances": {
+    "price_absolute": "1e-12",
+    "sum_absolute": "1e-8",
+    "sum_relative": "1e-12"
+  },
+  "total_seconds": 52.70401
+}

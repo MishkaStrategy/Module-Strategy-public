@@ -1,0 +1,50 @@
+name: research-runner-validation
+
+on:
+  pull_request:
+    types: [labeled, synchronize]
+    paths:
+      - "research/experiment_runner/**"
+      - "docs/research_runner/**"
+      - "scripts/sanitize_ci_evidence.py"
+      - "tests/test_research_runner_heavy_evidence_privacy.py"
+      - "tests/test_research_runner_release_evidence_scope.py"
+      - ".github/workflows/research-runner-full.yml"
+      - ".github/workflows/research-runner-heavy.yml"
+      - ".github/workflows/research-runner-release.yml"
+      - ".github/workflows/research-runner-security.yml"
+      - ".github/workflows/research-runner-validation.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-runner-validation-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.event.label.name || github.event.action }}
+  cancel-in-progress: true
+
+jobs:
+  full:
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'full-integration') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'full-integration'))
+    uses: ./.github/workflows/research-runner-full.yml
+
+  heavy:
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'heavy-validation') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'heavy-validation'))
+    uses: ./.github/workflows/research-runner-heavy.yml
+    with:
+      scale: "5"
+
+  release:
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'release-validation') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'release-validation'))
+    uses: ./.github/workflows/research-runner-release.yml
+
+  security:
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'security-validation') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'security-validation'))
+    uses: ./.github/workflows/research-runner-security.yml

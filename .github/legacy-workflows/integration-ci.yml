@@ -1,0 +1,406 @@
+name: v0.6-executable-acceptance-ci
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/integration-ci.yml"
+      - ".github/workflows/signal-bot-v0-6-integration.yml"
+      - "docs/integration/V0_6_EXECUTABLE_ACCEPTANCE_MATRIX.md"
+      - "tests/integration/test_v0_6_executable_acceptance.py"
+      - "tests/integration/test_v0_6_intrabar_acceptance.py"
+      - "tests/integration/test_v0_6_position_exit_manifest_compatibility.py"
+      - "tests/integration/test_v0_6_evidence_privacy.py"
+      - "scripts/sanitize_ci_evidence.py"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "modules/setup_adapter/**"
+      - "modules/entry_model/**"
+      - "modules/protection_target/**"
+      - "modules/risk_sizing/**"
+      - "src/strategy_modules/risk_sizing/**"
+      - "modules/position_scaling/**"
+      - "modules/trade_plan_router/**"
+      - "modules/position_exit_management/**"
+      - "src/modular_core/**"
+      - "src/signal_bot/**"
+      - "tests/signal_bot/**"
+      - "configs/signal_bot.example.yaml"
+      - "benchmarks/signal_bot_orchestrator.py"
+      - "scripts/signal_bot_identity_smoke.py"
+      - "pyproject.toml"
+      - "tests/test_core_contract_freeze.py"
+      - "tests/test_core_module_integration_harness.py"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - ".github/workflows/integration-ci.yml"
+      - ".github/workflows/signal-bot-v0-6-integration.yml"
+      - "docs/integration/V0_6_EXECUTABLE_ACCEPTANCE_MATRIX.md"
+      - "tests/integration/test_v0_6_executable_acceptance.py"
+      - "tests/integration/test_v0_6_intrabar_acceptance.py"
+      - "tests/integration/test_v0_6_position_exit_manifest_compatibility.py"
+      - "tests/integration/test_v0_6_evidence_privacy.py"
+      - "scripts/sanitize_ci_evidence.py"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "modules/setup_adapter/**"
+      - "modules/entry_model/**"
+      - "modules/protection_target/**"
+      - "modules/risk_sizing/**"
+      - "src/strategy_modules/risk_sizing/**"
+      - "modules/position_scaling/**"
+      - "modules/trade_plan_router/**"
+      - "modules/position_exit_management/**"
+      - "src/modular_core/**"
+      - "src/signal_bot/**"
+      - "tests/signal_bot/**"
+      - "configs/signal_bot.example.yaml"
+      - "benchmarks/signal_bot_orchestrator.py"
+      - "scripts/signal_bot_identity_smoke.py"
+      - "pyproject.toml"
+      - "tests/test_core_contract_freeze.py"
+      - "tests/test_core_module_integration_harness.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v0-6-executable-acceptance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  executable-acceptance:
+    name: v0.6 executable acceptance / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      FROZEN_CORE_SHA: cc7eb494c27eb0fc48dd16026b704bade9f6de3e
+      ACCEPTANCE_BASE_SHA: 807a555de993503cd446caca538708343f1120b8
+      SIGNAL_BOT_REMEDIATION_SHA: c32f5f64ba0d4ec7b8d984760fef2fa4acbbf6ec
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "946684800"
+    steps:
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "runner.name=$RUNNER_NAME runner.os=$RUNNER_OS runner.arch=$RUNNER_ARCH"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          fetch-depth: 0
+          clean: true
+          # Keep checkout auth only for the Git-only verification below. Reused
+          # self-hosted workspaces can retain promisor metadata and lazily need
+          # historical objects while computing the acceptance diff.
+          persist-credentials: true
+          show-progress: false
+
+      - name: Verify exact candidate ancestry and clean diff
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$FROZEN_CORE_SHA" HEAD
+          git merge-base --is-ancestor "$ACCEPTANCE_BASE_SHA" HEAD
+          if [[ -d src/signal_bot ]]; then
+            git merge-base --is-ancestor "$SIGNAL_BOT_REMEDIATION_SHA" HEAD
+          fi
+          git diff --check
+          mkdir -p reports/v0-6-executable-acceptance
+          git rev-parse HEAD > reports/v0-6-executable-acceptance/commit-sha.txt
+          git rev-list --parents -n 1 HEAD > reports/v0-6-executable-acceptance/head-parents.txt
+          git diff --name-status "$ACCEPTANCE_BASE_SHA"...HEAD > reports/v0-6-executable-acceptance/changed-files.txt
+
+      - name: Remove checkout credentials before repository code executes
+        if: always()
+        run: |
+          set -euo pipefail
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          test -z "$(git config --local --get-all http.https://github.com/.extraheader || true)"
+
+      - name: Set up pinned uv and isolated Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          enable-cache: false
+
+      - name: Install executable-chain packages
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel
+          if [[ -d src/signal_bot ]]; then
+            uv pip install -e '.[dev,signal-bot]'
+          else
+            uv pip install -e '.[dev]'
+          fi
+          uv pip install -e ./modules/session_range
+          uv pip install -e ./modules/setup_adapter
+          uv pip install -e ./modules/entry_model
+          uv pip install -e ./modules/protection_target
+          uv pip install -e ./modules/risk_sizing
+          uv pip install -e ./modules/position_scaling
+          uv pip install -e ./modules/trade_plan_router
+          uv pip install -e './modules/paper_execution[dev]'
+          uv pip install -e './modules/position_exit_management[dev]'
+          uv pip install -e './applications/trading_runner[dev]'
+          uv pip install bandit build twine
+          uv pip check | tee reports/v0-6-executable-acceptance/pip-check.txt
+          python -VV > reports/v0-6-executable-acceptance/python.txt
+          python -m pip freeze > reports/v0-6-executable-acceptance/pip-freeze.txt
+          python - <<'PY' > reports/v0-6-executable-acceptance/public-imports.txt
+          import modular_core
+          import modular_trading_runner
+
+          print(modular_core.__version__)
+          print(modular_trading_runner.TradingRunnerConfig.__name__)
+          print(modular_trading_runner.MarketCycleCoordinator.__name__)
+          try:
+              import signal_bot
+              import signal_bot.cli
+          except ModuleNotFoundError:
+              print("signal_bot:not-present")
+          else:
+              print(signal_bot.__name__)
+          PY
+
+      - name: Compile executable integration surface
+        run: |
+          set -euo pipefail
+          paths=(
+            src/modular_core
+            src/strategy_modules/risk_sizing
+            modules/setup_adapter/src
+            modules/entry_model/src
+            modules/protection_target/src
+            modules/position_scaling/src
+            modules/trade_plan_router/src
+            modules/paper_execution/src
+            modules/position_exit_management/src
+            applications/trading_runner/src
+            applications/trading_runner/tests
+            tests/integration/test_v0_6_executable_acceptance.py
+            tests/integration/test_v0_6_intrabar_acceptance.py
+            tests/integration/test_v0_6_position_exit_manifest_compatibility.py
+            tests/integration/test_v0_6_evidence_privacy.py
+          )
+          if [[ -d src/signal_bot ]]; then
+            paths+=(src/signal_bot tests/signal_bot)
+          fi
+          python -m compileall -q "${paths[@]}"
+
+      - name: Lint and type-check executable acceptance surface
+        run: |
+          set -euo pipefail
+          paths=(
+            tests/integration/test_v0_6_executable_acceptance.py
+            tests/integration/test_v0_6_intrabar_acceptance.py
+            tests/integration/test_v0_6_position_exit_manifest_compatibility.py
+            tests/integration/test_v0_6_evidence_privacy.py
+            applications/trading_runner/src
+            applications/trading_runner/tests
+          )
+          if [[ -d src/signal_bot ]]; then
+            paths+=(src/signal_bot tests/signal_bot)
+          fi
+          ruff check "${paths[@]}"
+          ruff format --check "${paths[@]}"
+          mypy applications/trading_runner/src \
+            | tee reports/v0-6-executable-acceptance/trading-runner-mypy.txt
+          if [[ -d src/signal_bot ]]; then
+            mypy src/signal_bot \
+              | tee reports/v0-6-executable-acceptance/signal-bot-mypy.txt
+          fi
+
+      - name: Verify frozen Core contracts and integration harness
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_core_contract_freeze.py \
+            tests/test_core_module_integration_harness.py \
+            --junitxml=reports/v0-6-executable-acceptance/core-contracts.xml
+
+      - name: Verify closed-bar Setup to deterministic Entry chain
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            modules/setup_adapter/tests/test_core_integration.py \
+            --junitxml=reports/v0-6-executable-acceptance/setup-entry.xml
+
+      - name: Run exact v0.6 cross-layer acceptance tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/integration/test_v0_6_executable_acceptance.py \
+            tests/integration/test_v0_6_intrabar_acceptance.py \
+            tests/integration/test_v0_6_position_exit_manifest_compatibility.py \
+            tests/integration/test_v0_6_evidence_privacy.py \
+            --junitxml=reports/v0-6-executable-acceptance/cross-layer.xml
+
+      - name: Run Signal Bot component and package acceptance
+        if: ${{ hashFiles('src/signal_bot/**/*.py') != '' }}
+        run: |
+          set -euo pipefail
+          coverage erase
+          coverage run --branch --source=src/signal_bot -m pytest -m "not slow" tests/signal_bot \
+            --junitxml=reports/v0-6-executable-acceptance/signal-bot.xml
+          coverage report --fail-under=90 \
+            | tee reports/v0-6-executable-acceptance/signal-bot-coverage.txt
+          coverage json -o reports/v0-6-executable-acceptance/signal-bot-coverage.json
+          python benchmarks/signal_bot_orchestrator.py --pairs 50 --cycles 1000 \
+            | tee reports/v0-6-executable-acceptance/signal-bot-benchmark.json
+          rm -rf dist/signal-bot-root
+          python -m build --wheel --outdir dist/signal-bot-root
+          twine check dist/signal-bot-root/* \
+            | tee reports/v0-6-executable-acceptance/signal-bot-package-check.txt
+          wheel="$(find dist/signal-bot-root -maxdepth 1 -type f -name '*.whl' -print)"
+          test "$(printf '%s\n' "$wheel" | sed '/^$/d' | wc -l | tr -d ' ')" = "1"
+          uv venv --python "${{ matrix.python-version }}" .signal-bot-clean
+          uv pip install --python .signal-bot-clean/bin/python "${wheel}[signal-bot]"
+          uv pip check --python .signal-bot-clean/bin/python
+          .signal-bot-clean/bin/python - <<'PY'
+          import modular_core
+          import signal_bot
+          import signal_bot.cli
+          from signal_bot.config import load_config
+
+          assert modular_core.__version__ == "0.4.2"
+          load_config("configs/signal_bot.example.yaml")
+          print(signal_bot.__name__)
+          PY
+
+      - name: Run Trading Runner central executable acceptance
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            applications/trading_runner/tests \
+            --junitxml=reports/v0-6-executable-acceptance/trading-runner.xml
+          rm -rf applications/trading_runner/dist
+          python -m build applications/trading_runner \
+            --outdir applications/trading_runner/dist
+          twine check applications/trading_runner/dist/* \
+            | tee reports/v0-6-executable-acceptance/trading-runner-package-check.txt
+
+      - name: Run complete Paper Execution component gate
+        run: python scripts/paper_execution_component_gate.py
+
+      - name: Verify Position and Exit frozen-Core profile
+        run: |
+          set -euo pipefail
+          excluded=(
+            test_invalid_position_snapshot_is_rejected_before_cursor_mutation
+            test_naive_position_time_is_rejected_before_cursor_mutation
+            test_malformed_position_fields_fail_before_state_mutation
+            test_malformed_view_fields_fail_before_state_mutation
+            test_non_sequence_market_bars_fail_before_state_mutation
+            test_non_candle_current_value_fails_before_state_mutation
+            test_position_values_must_fit_public_float_transport_before_state_mutation
+          )
+          {
+            echo "Excluded only because frozen Core rejects these malformed DTOs during construction, before Position & Exit can be invoked:"
+            printf '%s\n' "${excluded[@]}"
+            echo "Equivalent constructor and contract enforcement is covered by the frozen Core tests above."
+          } > reports/v0-6-executable-acceptance/position-exit-frozen-core-profile.txt
+          expression=""
+          for test_name in "${excluded[@]}"; do
+            if [[ -n "$expression" ]]; then
+              expression+=" and "
+            fi
+            expression+="not ${test_name}"
+          done
+          python -m pytest -q \
+            modules/position_exit_management/tests \
+            tests/integration/test_v0_6_position_exit_manifest_compatibility.py \
+            -k "$expression" \
+            --junitxml=reports/v0-6-executable-acceptance/position-exit.xml
+
+      - name: Sanitize and verify exact acceptance evidence privacy
+        id: evidence_privacy
+        if: always()
+        run: python3 scripts/sanitize_ci_evidence.py reports/v0-6-executable-acceptance
+
+      - name: Record sanitized evidence hashes
+        if: always() && steps.evidence_privacy.outcome == 'success'
+        run: |
+          set -euo pipefail
+          rm -f \
+            reports/v0-6-executable-acceptance/evidence-sha256.txt \
+            reports/v0-6-executable-acceptance/package-sha256.txt
+          find reports/v0-6-executable-acceptance reports/paper_execution \
+            -type f \
+            ! -path '*/evidence-sha256.txt' \
+            ! -path '*/package-sha256.txt' \
+            -print0 2>/dev/null \
+            | sort -z \
+            | xargs -0 shasum -a 256 \
+            > reports/v0-6-executable-acceptance/evidence-sha256.txt || true
+          find dist/paper_execution-component applications/trading_runner/dist dist/signal-bot-root \
+            -type f -print0 2>/dev/null \
+            | sort -z \
+            | xargs -0 shasum -a 256 \
+            > reports/v0-6-executable-acceptance/package-sha256.txt || true
+
+      - name: Assemble exact acceptance release evidence
+        if: success() && steps.evidence_privacy.outcome == 'success'
+        run: |
+          set -euo pipefail
+          bundle="reports/v0-6-executable-release"
+          rm -rf "$bundle"
+          mkdir -p "$bundle"
+          sources=(
+            reports/v0-6-executable-acceptance
+            reports/paper_execution
+            dist/paper_execution-component
+            applications/trading_runner/dist
+            dist/signal-bot-root
+          )
+          copied=0
+          for source in "${sources[@]}"; do
+            if [[ -e "$source" ]]; then
+              target="$bundle/$source"
+              mkdir -p "$(dirname "$target")"
+              cp -R "$source" "$target"
+              copied=$((copied + 1))
+            fi
+          done
+          test "$copied" -gt 0
+
+      - name: Publish exact v0.6 acceptance evidence
+        if: success() && steps.evidence_privacy.outcome == 'success'
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: reports/v0-6-executable-release
+          asset_name: v0-6-executable-acceptance-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce v0.6 acceptance publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload v0.6 acceptance failure diagnostics
+        if: ${{ (failure() || cancelled()) && steps.evidence_privacy.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: v0-6-executable-acceptance-diagnostics-py${{ matrix.python-version }}-${{ env.EXPECTED_HEAD }}-attempt${{ github.run_attempt }}
+          if-no-files-found: error
+          path: |
+            reports/v0-6-executable-acceptance/**
+            reports/paper_execution/**
+            dist/paper_execution-component/**
+            applications/trading_runner/dist/**
+            dist/signal-bot-root/**

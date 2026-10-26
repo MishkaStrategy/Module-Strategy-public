@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "media_type": {"minLength": 1, "type": "string"},
+        "relative_path": {
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+          "type": "string"
+        },
+        "schema_id": {"minLength": 1, "type": "string"},
+        "schema_version": {"minLength": 1, "type": "string"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "relative_path", "sha256", "size_bytes", "media_type", "schema_id", "schema_version"
+      ],
+      "type": "object"
+    },
+    "nullable_id": {
+      "oneOf": [
+        {"minLength": 3, "type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "nullable_path": {
+      "oneOf": [
+        {"pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$", "type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "nullable_sha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
+  },
+  "$id": "urn:modular-results-registry:artifact-package:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_inventory": {
+      "items": {"$ref": "#/$defs/artifact"},
+      "minItems": 1,
+      "type": "array"
+    },
+    "audit_evidence": {
+      "items": {"minLength": 3, "type": "string"},
+      "type": "array",
+      "uniqueItems": true
+    },
+    "backtest_engine_version": {"minLength": 1, "type": "string"},
+    "branch": {"minLength": 1, "type": "string"},
+    "commit_sha": {"pattern": "^[0-9a-f]{7,64}$", "type": "string"},
+    "completion_status": {"minLength": 1, "type": "string"},
+    "configuration_hash": {"$ref": "#/$defs/sha256"},
+    "created_at": {"format": "date-time", "type": "string"},
+    "dataset_hashes": {
+      "items": {"$ref": "#/$defs/sha256"},
+      "minItems": 1,
+      "type": "array"
+    },
+    "dataset_ids": {
+      "items": {"minLength": 3, "type": "string"},
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "dependency_lock_hash": {"$ref": "#/$defs/sha256"},
+    "diff_hash": {"$ref": "#/$defs/nullable_sha256"},
+    "environment_manifest": {"type": "object"},
+    "expected_references": {
+      "additionalProperties": {
+        "items": {"type": "string"},
+        "type": "array",
+        "uniqueItems": true
+      },
+      "type": "object"
+    },
+    "experiment_id": {"minLength": 3, "type": "string"},
+    "integrity_checksum": {"$ref": "#/$defs/sha256"},
+    "metric_schema_version": {"minLength": 1, "type": "string"},
+    "module_api_version": {"minLength": 1, "type": "string"},
+    "package_id": {"maxLength": 192, "minLength": 3, "type": "string"},
+    "package_version": {"minLength": 1, "type": "string"},
+    "parent_experiment_id": {"$ref": "#/$defs/nullable_id"},
+    "patch_artifact_path": {"$ref": "#/$defs/nullable_path"},
+    "producer_module_id": {"minLength": 1, "type": "string"},
+    "producer_module_version": {"minLength": 1, "type": "string"},
+    "producer_schema_version": {"minLength": 1, "type": "string"},
+    "research_id": {"minLength": 3, "type": "string"},
+    "run_id": {"minLength": 3, "type": "string"},
+    "scenario_id": {"minLength": 3, "type": "string"},
+    "schema_id": {"const": "modular-results-registry.artifact-package"},
+    "schema_version": {"const": "1"},
+    "seed": {"type": "integer"},
+    "split_information": {"type": "object"},
+    "stage_id": {"minLength": 3, "type": "string"},
+    "strategy_id": {"minLength": 3, "type": "string"},
+    "strategy_version": {"minLength": 1, "type": "string"},
+    "working_tree_status": {"minLength": 1, "type": "string"}
+  },
+  "required": [
+    "schema_id", "schema_version", "package_id", "package_version",
+    "producer_module_id", "producer_module_version", "producer_schema_version",
+    "experiment_id", "research_id", "stage_id", "run_id", "parent_experiment_id",
+    "strategy_id", "strategy_version", "module_api_version", "backtest_engine_version",
+    "metric_schema_version", "configuration_hash", "dataset_ids", "dataset_hashes",
+    "commit_sha", "branch", "working_tree_status", "diff_hash", "patch_artifact_path",
+    "dependency_lock_hash", "environment_manifest", "split_information", "seed",
+    "scenario_id", "created_at", "artifact_inventory", "expected_references",
+    "audit_evidence", "completion_status", "integrity_checksum"
+  ],
+  "title": "ArtifactPackageManifest",
+  "type": "object"
+}

@@ -1,0 +1,124 @@
+{
+  "benchmark": {
+    "before_after_report": "reports/optimization/wave2/stream-c-before-after.json",
+    "full_profile_policy": "evidence-only; do not leave a normal full CI gate",
+    "generator_path": "tests/signal_bot/wave2_slo_benchmark.py",
+    "profiles": [
+      "smoke",
+      "full"
+    ],
+    "schema_version": 2
+  },
+  "change_control": {
+    "coordinator_handoff_required": true,
+    "stream_b_must_handle_capacity_error": true,
+    "stream_b_must_not_assume_async_delivery": true,
+    "version_bump_required_for_semantic_change": true
+  },
+  "consumer_stream": "Optimization Wave 2B",
+  "contract_version": "wave2c-routing-signal-v2",
+  "dedup_identity": {
+    "duplicate_at_capacity": "suppressed before capacity rejection",
+    "router": "existing deterministic decision and plan identities",
+    "signal_bot": "canonical signal_id and SQLite primary key"
+  },
+  "delivery_acknowledgment": {
+    "acknowledged_state": "sent with persisted message_id",
+    "non_acknowledged_states": [
+      "send_failed",
+      "cancelled",
+      "expired"
+    ],
+    "timeout_or_exception_can_be_success": false
+  },
+  "error_taxonomy": {
+    "capacity": "StateCapacityError(resource, current, limit)",
+    "corrupt_persistence": "invalid_persisted_signal_payload and cancelled",
+    "delivery": "notifier exception class persisted as send_failed",
+    "persistence_transition": "StateTransitionError",
+    "unsupported_contract": "ValueError before registration",
+    "validation": [
+      "ValueError",
+      "SignalValidationError",
+      "typed Router reason codes"
+    ]
+  },
+  "known_capacity_limits": {
+    "event_loop_lag_metric": "not_applicable",
+    "pending_retry_capacity": 10000,
+    "recovery_batch_limit": 100,
+    "sqlite_mutations_serialized": true,
+    "synchronous_notifier_blocks_current_pair": true,
+    "total_identity_capacity": 100000
+  },
+  "local_slo_summary": {
+    "peak_rss_max_bytes": 209715200,
+    "persisted_100k_max_bytes": 125829120,
+    "production_claim": false,
+    "restart_1000_max_ms": 350,
+    "router_steady_100k": {
+      "p99_max_sample_ms": 1.5,
+      "throughput_mean_min_per_second": 1000
+    },
+    "semantic_zero_tolerance": {
+      "acknowledged_loss": 0,
+      "duplicate_delivery": 0,
+      "invalid_admission_success": 0,
+      "ordering_violations": 0,
+      "private_payload_leakage": 0
+    },
+    "signal_steady_100k": {
+      "p99_max_sample_ms": 3.0,
+      "throughput_mean_min_per_second": 1900
+    }
+  },
+  "ordering": {
+    "router": "deterministic configuration-driven candidate order",
+    "signal_live_path": "sequential synchronous processing",
+    "signal_recovery": "created_at order in batches up to 100",
+    "strict_cross_process_total_order_for_equal_timestamps": false
+  },
+  "queue_backpressure": {
+    "asyncio_queue": false,
+    "in_memory_queue": false,
+    "natural_backpressure": "synchronous notifier duration blocks producer",
+    "overflow": "StateCapacityError and fail-closed admission",
+    "pending_retry_capacity": 10000,
+    "persistent_outbox": "SQLite non-terminal signal rows",
+    "recovery_batch_limit": 100,
+    "terminal_evidence_eviction": false,
+    "total_identity_capacity": 100000
+  },
+  "repository": "MishkaStrategy/Module-Strategy",
+  "restart": {
+    "acknowledged_state_survives": true,
+    "capacity_counters_reconciled_on_open": true,
+    "corrupt_payload": "cancelled fail-closed",
+    "dedup_identity_survives": true,
+    "eligible_non_terminal_recovered": true,
+    "terminal_redelivery": false
+  },
+  "retry_semantics": {
+    "retry_creates_new_identity": false,
+    "revalidation_before_recovery_delivery": true,
+    "semantic_identity": "signal_id",
+    "terminal_rows_retried": false
+  },
+  "router_result_contract": {
+    "accepted": "exactly one immutable executable plan",
+    "deterministic_equal_input": true,
+    "queue_owned_by_router": false,
+    "rejected": "no executable plan and typed reason codes",
+    "retry_owned_by_router": false,
+    "type": "RoutingResult"
+  },
+  "schema_version": 1,
+  "source_branch": "optimization/wave2-routing-signal-slo",
+  "source_pr": 309,
+  "trade_plan_input_contract": {
+    "shared_dto_changes": false,
+    "timestamps_and_ownership_links_authoritative": true,
+    "trade_plan_content_changed": false,
+    "type": "RouterInputPackage"
+  }
+}

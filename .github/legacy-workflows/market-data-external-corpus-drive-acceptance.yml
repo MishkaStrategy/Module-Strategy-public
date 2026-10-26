@@ -1,0 +1,324 @@
+name: market-data-external-corpus-drive-acceptance
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - ".github/workflows/market-data-external-corpus-drive-acceptance.yml"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to validate against the synced Google Drive corpus
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-external-corpus-drive-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify-synced-drive-corpus:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.ref == 'integration/historical-data-lineage'
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 240
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      DRIVE_INDEX: modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+          clean: true
+
+      - name: Verify exact requested commit
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+
+      - name: Install exact Parquet verification surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[parquet]"
+          uv pip check
+
+      - name: Discover one approved synced corpus root
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import glob
+          import os
+          from pathlib import Path
+
+          home = Path.home().resolve()
+          patterns = (
+              home / "Library/CloudStorage/GoogleDrive-*/My Drive/binance_usdtm_futures_history",
+              home / "Library/CloudStorage/GoogleDrive-*/Мой диск/binance_usdtm_futures_history",
+              home / "Google Drive/My Drive/binance_usdtm_futures_history",
+              home / "Google Диск/Мой диск/binance_usdtm_futures_history",
+          )
+          allowed_roots = tuple(
+              path.resolve()
+              for path in (
+                  home / "Library/CloudStorage",
+                  home / "Google Drive",
+                  home / "Google Диск",
+              )
+              if path.exists()
+          )
+          candidates: set[Path] = set()
+          for pattern in patterns:
+              for value in glob.glob(str(pattern)):
+                  candidate = Path(value)
+                  if candidate.is_symlink() or not candidate.is_dir():
+                      continue
+                  resolved = candidate.resolve(strict=True)
+                  if not any(root == resolved or root in resolved.parents for root in allowed_roots):
+                      raise SystemExit("discovered corpus root escaped approved sync locations")
+                  candidates.add(resolved)
+          if len(candidates) != 1:
+              raise SystemExit(
+                  f"expected exactly one synced baseline corpus root, found {len(candidates)}"
+              )
+          root = next(iter(candidates))
+          required = {
+              "BTCUSDT",
+              "ETHUSDT",
+              "BNBUSDT",
+              "XRPUSDT",
+              "SOLUSDT",
+              "DOGEUSDT",
+              "ADAUSDT",
+              "TRXUSDT",
+              "LINKUSDT",
+              "AVAXUSDT",
+          }
+          observed = {
+              item.name
+              for item in root.iterdir()
+              if item.is_dir() and not item.is_symlink() and item.name != "XAUUSDT"
+          }
+          if observed != required:
+              raise SystemExit(
+                  f"baseline symbol folders mismatch; missing={sorted(required - observed)}, "
+                  f"extra={sorted(observed - required)}"
+              )
+          destination = Path(os.environ["RUNNER_TEMP"]) / "market-data-corpus-root.txt"
+          destination.write_text(str(root), encoding="utf-8")
+          destination.chmod(0o600)
+          print("synced corpus root discovered and baseline symbol matrix verified")
+          PY
+
+      - name: Build private strict corpus spec
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .acceptance
+          mkdir -p .acceptance/evidence
+          corpus_root="$(cat "$RUNNER_TEMP/market-data-corpus-root.txt")"
+          python -m market_data_ingestion.drive_corpus \
+            --corpus-root "$corpus_root" \
+            --drive-index "$GITHUB_WORKSPACE/$DRIVE_INDEX" \
+            --output "$RUNNER_TEMP/external-corpus-spec.json" \
+            --report .acceptance/evidence/drive-inventory.json \
+            > "$RUNNER_TEMP/drive-spec-output.json"
+
+      - name: Deep-verify all 50 Parquet files
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          market-data verify-external-corpus \
+            --spec "$RUNNER_TEMP/external-corpus-spec.json" \
+            --output .acceptance/evidence/corpus-manifest.json \
+            > "$RUNNER_TEMP/external-corpus-command.json" 2>&1
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = Path(os.environ["RUNNER_TEMP"]) / "external-corpus-command.json"
+          text = source.read_text(encoding="utf-8", errors="replace")
+          print(text.replace(str(Path.home()), "<HOME>"))
+          PY
+          exit "$status"
+
+      - name: Verify sanitized acceptance evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urlsplit
+
+          expected_sha = os.environ["EXPECTED_SHA"]
+          index_path = Path(os.environ["GITHUB_WORKSPACE"]) / os.environ["DRIVE_INDEX"]
+          index = json.loads(index_path.read_text(encoding="utf-8"))
+          inventory_path = Path(".acceptance/evidence/drive-inventory.json")
+          manifest_path = Path(".acceptance/evidence/corpus-manifest.json")
+          inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+          indexed = {
+              (item["symbol"], item["timeframe"]): item
+              for item in index["files"]
+          }
+          files = manifest.get("files")
+          if not isinstance(files, list) or len(files) != 50:
+              raise SystemExit("verified manifest must contain exactly 50 files")
+          if manifest.get("required_timeframes") != ["5m", "10m", "15m", "1h", "4h"]:
+              raise SystemExit("verified manifest timeframe order mismatch")
+          if len({item["symbol"] for item in files}) != 10:
+              raise SystemExit("verified manifest must contain exactly 10 symbols")
+          corpus_hash = manifest.get("corpus_hash")
+          if not isinstance(corpus_hash, str) or len(corpus_hash) != 64:
+              raise SystemExit("verified corpus hash is invalid")
+
+          total_bytes = 0
+          total_rows = 0
+          schema_fingerprints: set[str] = set()
+          for item in files:
+              key = (item["symbol"], item["timeframe"])
+              expected = indexed.get(key)
+              if expected is None:
+                  raise SystemExit(f"manifest contains unindexed stream: {key}")
+              uri = urlsplit(item["source_uri"])
+              if (
+                  uri.scheme != "gdrive"
+                  or uri.netloc != expected["drive_file_id"]
+                  or uri.path != f"/{expected['filename']}"
+                  or uri.query
+                  or uri.fragment
+              ):
+                  raise SystemExit(f"manifest source URI mismatch: {key}")
+              if item["byte_size"] != expected["byte_size"]:
+                  raise SystemExit(f"manifest byte size mismatch: {key}")
+              if item["gap_events"] != 0 or item["duplicate_events"] != 0:
+                  raise SystemExit(f"manifest continuity mismatch: {key}")
+              fingerprint = item["schema_fingerprint"]
+              if not isinstance(fingerprint, str) or len(fingerprint) != 64:
+                  raise SystemExit(f"manifest schema fingerprint invalid: {key}")
+              schema_fingerprints.add(fingerprint)
+              total_bytes += item["byte_size"]
+              total_rows += item["rows"]
+
+          expected_total_bytes = sum(item["byte_size"] for item in index["files"])
+          if total_bytes != expected_total_bytes or total_bytes != 615_395_637:
+              raise SystemExit("verified total byte size mismatch")
+          if inventory["total_bytes"] != total_bytes or inventory["file_count"] != 50:
+              raise SystemExit("inventory and manifest evidence disagree")
+          acceptance = {
+              "schema_version": 1,
+              "status": "PASS",
+              "validated_commit": expected_sha,
+              "corpus_hash": corpus_hash,
+              "summary_sha256": inventory["summary_sha256"],
+              "drive_index_sha256": inventory["drive_index_sha256"],
+              "file_count": 50,
+              "symbol_count": 10,
+              "timeframe_count": 5,
+              "total_bytes": total_bytes,
+              "total_rows": total_rows,
+              "schema_fingerprint_count": len(schema_fingerprints),
+              "gap_events": 0,
+              "duplicate_events": 0,
+              "raw_market_data_uploaded": False,
+          }
+          Path(".acceptance/evidence/acceptance.json").write_text(
+              json.dumps(acceptance, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          forbidden_keys = {"path", "spec_path", "report_path", "manifest_path"}
+
+          def walk(value: object) -> None:
+              if isinstance(value, dict):
+                  if forbidden_keys.intersection(value):
+                      raise SystemExit("evidence contains a local-path field")
+                  for nested in value.values():
+                      walk(nested)
+              elif isinstance(value, list):
+                  for nested in value:
+                      walk(nested)
+
+          for payload in (inventory, manifest, acceptance):
+              walk(payload)
+          forbidden_text = (
+              str(Path.home()),
+              "/Users/",
+              "/Library/CloudStorage/",
+              "\\Users\\",
+          )
+          for path in Path(".acceptance/evidence").glob("*.json"):
+              text = path.read_text(encoding="utf-8")
+              if any(marker and marker in text for marker in forbidden_text):
+                  raise SystemExit(f"evidence leaks a local path: {path.name}")
+          PY
+
+      - name: Enforce closed evidence inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(find .acceptance/evidence -type l -print -quit)"
+          actual="$(find .acceptance/evidence -maxdepth 1 -type f -print \
+            | sed 's#^.acceptance/evidence/##' | LC_ALL=C sort)"
+          expected="$(printf '%s\n' \
+            acceptance.json \
+            corpus-manifest.json \
+            drive-inventory.json | LC_ALL=C sort)"
+          test "$actual" = "$expected"
+          test -z "$(find .acceptance/evidence -type f \
+            \( -name '*.parquet' -o -name '*.csv' -o -name '*.db' -o -name '*.sqlite*' \) \
+            -print -quit)"
+
+      - name: Upload hash-only corpus evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-external-corpus-drive-${{ github.run_id }}
+          path: modules/market_data_ingestion/.acceptance/evidence
+          if-no-files-found: error
+          include-hidden-files: false
+          compression-level: 9
+
+      - name: Remove private local-path inputs
+        if: always()
+        shell: bash
+        run: |
+          rm -f \
+            "$RUNNER_TEMP/market-data-corpus-root.txt" \
+            "$RUNNER_TEMP/external-corpus-spec.json" \
+            "$RUNNER_TEMP/drive-spec-output.json" \
+            "$RUNNER_TEMP/external-corpus-command.json"

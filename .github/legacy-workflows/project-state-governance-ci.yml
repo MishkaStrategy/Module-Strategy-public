@@ -1,0 +1,95 @@
+name: project-state-governance-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - "PROJECT_STATE.yaml"
+      - "scripts/project_state.py"
+      - "tests/test_project_state.py"
+      - "docs/hq/PROJECT_STATE.generated.md"
+      - "docs/hq/PROJECT_STATE_GOVERNANCE.md"
+      - "docs/integration/PROJECT_STATE_SNAPSHOT_SEMANTICS.md"
+      - "docs/hq/ROADMAP_2026-08-12.md"
+      - "docs/integration/FULL_PROJECT_INTEGRATION_LEDGER.md"
+      - ".github/workflows/project-state-governance-ci.yml"
+  push:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - "PROJECT_STATE.yaml"
+      - "scripts/project_state.py"
+      - "tests/test_project_state.py"
+      - "docs/hq/PROJECT_STATE.generated.md"
+      - "docs/hq/PROJECT_STATE_GOVERNANCE.md"
+      - "docs/integration/PROJECT_STATE_SNAPSHOT_SEMANTICS.md"
+      - ".github/workflows/project-state-governance-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-state-governance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Project state / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact governance candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: pyproject.toml
+          cache-suffix: project-state-governance
+
+      - name: Install governance toolchain
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev]"
+          uv pip check
+
+      - name: Compile, format, lint, and strict type validation
+        run: |
+          python -m compileall -q scripts/project_state.py tests/test_project_state.py
+          ruff format --check scripts/project_state.py tests/test_project_state.py
+          ruff check scripts/project_state.py tests/test_project_state.py
+          mypy --strict --explicit-package-bases scripts/project_state.py
+
+      - name: Validate canonical state and generated projection
+        run: |
+          python scripts/project_state.py validate
+          python scripts/project_state.py check-generated
+
+      - name: Validator unit and negative contract tests
+        run: python -m pytest -o addopts="" -q tests/test_project_state.py
+
+      - name: Verify source tree remains clean
+        run: test -z "$(git status --porcelain)"

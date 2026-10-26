@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-paper-execution"
+version = "0.1.0"
+description = "Deterministic paper execution and venue reconciliation for Modular Strategy"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "coverage>=7,<8", "mypy>=1.11,<2"]
+
+[project.entry-points."modular_strategy.modules"]
+paper_execution = "paper_execution:PaperExecutionCoordinator"
+
+[tool.setuptools.package-data]
+paper_execution = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "../../src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+packages = ["paper_execution"]
+mypy_path = ["src", "../../src"]

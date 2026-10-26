@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-fibonacci"
+version = "0.4.0"
+description = "Sequential full-endpoint and regime-aware Fibonacci feature producer for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "modular-strategy-core>=0.4,<0.5",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.0.2",
+  "coverage==7.13.3",
+  "ruff==0.12.0",
+  "mypy==1.16.1",
+  "types-PyYAML>=6.0",
+]
+
+[project.entry-points."modular_strategy.modules"]
+fibonacci = "modular_strategy_fibonacci:FibonacciModule"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+modular_strategy_fibonacci = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["modular_strategy_fibonacci"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+disallow_subclassing_any = false
+disallow_any_unimported = false
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+  "modular_strategy_fibonacci.core_adapter",
+  "modular_strategy_fibonacci.core_adapter_v4",
+]
+disable_error_code = ["import-untyped"]

@@ -1,0 +1,122 @@
+name: Decision Router final gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "modules/trade_plan_router/**"
+      - ".github/workflows/decision-router-final-gate.yml"
+
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_DEFAULT_TIMEOUT: "60"
+  PIP_RETRIES: "2"
+
+concurrency:
+  group: decision-router-final-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  final-router-gate:
+    if: github.event.pull_request.head.ref == 'modules/trade-plan-router-v0.5'
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: router-worktree
+
+    steps:
+      - name: Remove prior isolated Router checkout on Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        working-directory: .
+        run: rm -rf router-worktree
+
+      - name: Remove prior isolated Router checkout on Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        working-directory: .
+        run: if (Test-Path router-worktree) { Remove-Item -Recurse -Force router-worktree }
+
+      - name: Check out exact Router head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: router-worktree
+          persist-credentials: false
+          show-progress: false
+
+      - name: Bootstrap Windows Python 3.12+
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./modules/trade_plan_router/scripts/bootstrap_windows_python.ps1
+
+      - name: Select Linux Python 3.12+ and create environment
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          selected=''
+          candidates=(python3.14 python3.13 python3.12 python3 python)
+          if [[ -n "${RUNNER_TOOL_CACHE:-}" && -d "${RUNNER_TOOL_CACHE}" ]]; then
+            while IFS= read -r candidate; do candidates+=("$candidate"); done < <(find "$RUNNER_TOOL_CACHE" -type f -path '*/bin/python' 2>/dev/null | sort -Vr)
+          fi
+          if [[ -n "${RUNNER_TEMP:-}" && -d "${RUNNER_TEMP}" ]]; then
+            while IFS= read -r candidate; do candidates+=("$candidate"); done < <(find "$RUNNER_TEMP" -type f -path '*/bin/python' 2>/dev/null | sort -Vr)
+          fi
+          for candidate in "${candidates[@]}"; do
+            resolved=''
+            if [[ -x "$candidate" ]]; then resolved="$candidate"; else resolved="$(command -v "$candidate" 2>/dev/null || true)"; fi
+            [[ -n "$resolved" ]] || continue
+            "$resolved" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)' || continue
+            selected="$resolved"
+            break
+          done
+          [[ -n "$selected" ]] || { echo 'Python 3.12+ not found' >&2; exit 1; }
+          "$selected" -m venv .venv-router-final
+          echo "$PWD/.venv-router-final/bin" >> "$GITHUB_PATH"
+
+      - name: Select macOS Python 3.12+ and create environment
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          selected=''
+          for candidate in /opt/homebrew/bin/python3.14 /opt/homebrew/bin/python3.13 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3 /usr/local/bin/python3.14 /usr/local/bin/python3.13 /usr/local/bin/python3.12 /usr/local/bin/python3 python3.14 python3.13 python3.12 python3; do
+            if [[ -x "$candidate" ]]; then selected="$candidate"; break; fi
+            resolved="$(command -v "$candidate" 2>/dev/null || true)"
+            if [[ -n "$resolved" ]]; then selected="$resolved"; break; fi
+          done
+          [[ -n "$selected" ]] || { echo 'Python 3.12+ not found' >&2; exit 1; }
+          "$selected" -m venv .venv-router-final
+          echo "$PWD/.venv-router-final/bin" >> "$GITHUB_PATH"
+
+      - name: Install Router and Core runtime dependencies
+        timeout-minutes: 8
+        run: |
+          python -m pip install --retries 2 --timeout 60 -e "."
+          python -m pip install --retries 2 --timeout 60 -e "modules/trade_plan_router"
+          python -m pip check
+
+      - name: Install final audit and build tooling
+        timeout-minutes: 8
+        run: python -m pip install --retries 2 --timeout 60 "setuptools>=69" build wheel bandit pip-audit
+
+      - name: Compile final-gate driver
+        run: python -m compileall -q modules/trade_plan_router/scripts/run_final_validation.py
+
+      - name: Run Router final validation
+        run: python modules/trade_plan_router/scripts/run_final_validation.py
+
+      - name: Upload Router final-gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: decision-router-final-${{ github.run_id }}
+          path: |
+            router-worktree/reports/trade_plan_router/final_gate/*.json
+            router-worktree/reports/trade_plan_router/final_gate/*.txt
+          if-no-files-found: warn

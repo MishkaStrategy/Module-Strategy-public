@@ -1,0 +1,112 @@
+name: runner-routing-policy
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/**"
+      - ".github/workflows/**"
+      - ".github/actionlint.yaml"
+      - ".github/action-pinning-baseline.json"
+      - ".github/RUNNER_LABELS.md"
+      - ".github/WORKFLOW_RULES.md"
+      - "AGENTS.md"
+      - "scripts/audit_action_pinning.py"
+      - "scripts/audit_artifact_retention.py"
+      - "scripts/audit_runner_routing.py"
+      - "scripts/audit_setup_uv_manifest.py"
+      - "scripts/check_coverage_thresholds.py"
+      - "scripts/install_actionlint.sh"
+      - "scripts/run_physical_mac_historical_acceptance.sh"
+      - "scripts/runner_preflight.sh"
+      - "tests/ci_policy/**"
+  push:
+    branches:
+      - main
+      - "integration/**"
+    paths:
+      - ".github/actions/**"
+      - ".github/workflows/**"
+      - ".github/actionlint.yaml"
+      - ".github/action-pinning-baseline.json"
+      - ".github/RUNNER_LABELS.md"
+      - ".github/WORKFLOW_RULES.md"
+      - "AGENTS.md"
+      - "scripts/audit_action_pinning.py"
+      - "scripts/audit_artifact_retention.py"
+      - "scripts/audit_runner_routing.py"
+      - "scripts/audit_setup_uv_manifest.py"
+      - "scripts/check_coverage_thresholds.py"
+      - "scripts/install_actionlint.sh"
+      - "scripts/run_physical_mac_historical_acceptance.sh"
+      - "scripts/runner_preflight.sh"
+      - "tests/ci_policy/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.12"
+          cache-suffix: runner-policy
+      - name: Install pinned policy test dependency
+        run: uv pip install 'pytest==9.1.1'
+      - name: Audit immutable Action policy
+        run: python scripts/audit_action_pinning.py
+      - name: Audit setup-uv immutable manifest policy
+        run: python scripts/audit_setup_uv_manifest.py
+      - name: Audit artifact retention and upload classification
+        run: python scripts/audit_artifact_retention.py --report-classification
+      - name: Audit workflow runner routing
+        run: python scripts/audit_runner_routing.py
+      - name: Enforce mandatory workflow policy gates on self-hosted fast
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          expected = "    runs-on: [self-hosted, fast]"
+          workflows = (
+              Path(".github/workflows/actionlint.yml"),
+              Path(".github/workflows/runner-routing-policy.yml"),
+          )
+          for path in workflows:
+              lines = path.read_text(encoding="utf-8").splitlines()
+              matches = [line for line in lines if line.lstrip().startswith("runs-on:")]
+              if matches != [expected]:
+                  raise SystemExit(
+                      f"{path} must have exactly one mandatory selector {expected.strip()!r}; "
+                      f"found {matches!r}"
+                  )
+          print("MANDATORY_POLICY_RUNNERS=self-hosted,fast")
+          PY
+      - name: Test routing, coverage and setup-uv policies
+        run: >-
+          python -m pytest -q
+          tests/ci_policy/test_runner_routing_policy.py
+          tests/ci_policy/test_coverage_policy.py
+          tests/ci_policy/test_setup_uv_manifest_policy.py
+          tests/ci_policy/test_artifact_retention_policy.py
+          tests/ci_policy/test_pr_lifecycle_trigger_scope.py
+          tests/ci_policy/test_external_corpus_trigger_scope.py
+          tests/ci_policy/test_research_validation_dispatcher.py
+          tests/ci_policy/test_physical_mac_acceptance_policy.py
+      - name: Check provisioning shell syntax
+        run: |
+          bash -n scripts/runner_preflight.sh
+          bash -n scripts/install_actionlint.sh
+          bash -n scripts/run_physical_mac_historical_acceptance.sh

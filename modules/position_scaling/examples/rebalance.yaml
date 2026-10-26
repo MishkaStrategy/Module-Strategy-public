@@ -1,0 +1,12 @@
+enabled: true
+allow_rebalance: true
+rules:
+  - stage: 1
+    mode: rebalance
+    action: rebalance
+    trigger_kind: always
+    trigger_value: 0
+    quantity_kind: target_notional
+    quantity_value: 1000
+    cooldown_bars: 5
+    expires_bars: 1

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-research-runner"
+version = "0.3.0"
+description = "Deterministic experiment orchestration for Modular Strategy"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "modular-strategy-core>=0.4,<0.5",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+modular-research-runner = "modular_research_runner.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "coverage>=7",
+  "mypy>=1.10",
+  "pytest>=8",
+  "ruff>=0.8",
+  "types-PyYAML>=6.0.12",
+]
+
+[tool.setuptools.package-data]
+modular_research_runner = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["modular_research_runner"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["modular_research_runner"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["modular_research_runner"]

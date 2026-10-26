@@ -1,0 +1,35 @@
+name: Prepare bounded release evidence handoff
+description: Encode sanitized release evidence as a size-bounded GitHub job output for a downstream job.
+inputs:
+  source_path:
+    description: Sanitized evidence directory; the action re-runs the privacy gate before encoding.
+    required: true
+outputs:
+  payload:
+    description: Base64 deterministic tar.gz payload for a downstream job.
+    value: ${{ steps.prepare.outputs.payload }}
+  sha256:
+    description: SHA-256 of the deterministic tar.gz payload.
+    value: ${{ steps.prepare.outputs.sha256 }}
+  encoded_chars:
+    description: ASCII character count of the job-output payload.
+    value: ${{ steps.prepare.outputs.encoded_chars }}
+runs:
+  using: composite
+  steps:
+    - name: Enforce evidence privacy gate
+      shell: bash
+      env:
+        EVIDENCE_ROOT: ${{ inputs.source_path }}
+      run: |
+        set -euo pipefail
+        test -d "${EVIDENCE_ROOT}"
+        python3 scripts/sanitize_ci_evidence.py "${EVIDENCE_ROOT}"
+    - name: Prepare bounded sanitized handoff
+      id: prepare
+      shell: bash
+      env:
+        SOURCE_PATHS: ${{ inputs.source_path }}
+      run: |
+        set -euo pipefail
+        python3 scripts/release_evidence_handoff.py pack-output

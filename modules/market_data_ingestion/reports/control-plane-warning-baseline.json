@@ -1,0 +1,42 @@
+{
+  "classification": {
+    "false_positive_unclosed_database": 0,
+    "production_store_lifecycle": 111,
+    "resource_warning_unclosed_database": 117,
+    "starlette_deprecation_warning": 1,
+    "test_fixture_cleanup": 6
+  },
+  "confirmation": {
+    "exact_head_ci_job_id": 91503552537,
+    "exact_head_ci_run_id": 30750480736,
+    "local_resource_warning_as_error_tests": 31,
+    "local_resource_warning_as_error_verdict": "pass"
+  },
+  "note": "The upstream handoff described 118 warning groups. Exact artifact parsing found 117 unclosed-database ResourceWarnings plus one unrelated Starlette TestClient deprecation warning. The first remediation removed 111 warnings from SQLiteControlPlaneStore lifetime mismatch; exact-head CI then isolated the remaining six to raw sqlite3 tamper fixtures in security-core and security-edge tests.",
+  "post_fix": {
+    "resource_warning_gate": "pass",
+    "resource_warning_unclosed_database": 0
+  },
+  "pytest_warning_summary_total": 118,
+  "remediation": [
+    "SQLiteControlPlaneStore uses an explicit contextmanager with connection.close() in finally.",
+    "Six test-owned raw sqlite3 tamper connections use contextlib.closing.",
+    "No warning filters, ResourceWarning suppression or durability PRAGMA changes were used."
+  ],
+  "root_causes": {
+    "production_store_lifecycle": "SQLiteControlPlaneStore._connect returned a raw sqlite3.Connection used as a transaction context manager; sqlite3.Connection.__exit__ commits or rolls back but does not close.",
+    "test_fixture_cleanup": "Six corruption/tamper fixtures in test_control_plane_security_core.py and test_control_plane_security_edges.py used the same raw sqlite3 context-manager pattern."
+  },
+  "schema_version": 1,
+  "source_artifact": {
+    "file": "reports/pytest-3.13.log",
+    "workflow_artifact_id": 8833087110
+  },
+  "unclosed_database_groups": {
+    "control_plane_api_integration": 18,
+    "control_plane_security_core": 47,
+    "control_plane_server_integration": 51,
+    "dataset_operations_attribution": 1
+  },
+  "upstream_head": "2d1268040295a894168ac8564f3d38d83746961e"
+}

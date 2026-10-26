@@ -1,0 +1,80 @@
+{
+  "$id": "urn:modular-results-registry:metric-snapshot:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "type": "object"
+    },
+    "definition_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "metric_name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "period": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "precision": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "producer": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "scenario": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "split": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "unit": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "value": {
+      "type": [
+        "integer",
+        "number",
+        "string",
+        "boolean",
+        "null"
+      ]
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "run_id",
+    "metric_name",
+    "value",
+    "unit",
+    "precision",
+    "definition_version",
+    "producer",
+    "split",
+    "period",
+    "scenario",
+    "warnings",
+    "confidence"
+  ],
+  "type": "object"
+}

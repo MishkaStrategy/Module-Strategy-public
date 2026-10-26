@@ -1,0 +1,12 @@
+Branch-aware coverage summary, local Python 3.13.5:
+
+canonical.py 98%
+config.py 95%
+decimal_utils.py 92%
+engine.py 92%
+enums.py 100%
+models.py 89%
+module.py 89%
+state.py 82%
+TOTAL: 1747 statements, 133 missed, 738 branches, 114 partial branches, 90%.
+Configured gate: fail_under=90. Result: PASS.

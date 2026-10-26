@@ -1,0 +1,65 @@
+{
+  "audited_code_commit": "75d2688840e003925d699555aa28739d9713bad7",
+  "base_commit": "5e03b933207a99940244634f49a756d27888a5c3",
+  "benchmark_artifact": "artifacts/benchmark_results_v0.2.1.json",
+  "current_exact_head_release": {
+    "status": "pending_connector_authored_head_validation",
+    "required_profiles": [
+      "python_3_12_vds_fast",
+      "python_3_13_vds_fast",
+      "macos_arm64_heavy_release"
+    ]
+  },
+  "module": "position_exit_management",
+  "one_shot_runtime_validation": {
+    "artifact_digest": "sha256:5dc0587b658aaf9344833b009d6708cab2644824ac213d70568f5f5b648700fe",
+    "artifact_name": "position-exit-partial-transport-mac-validation",
+    "branch_coverage_percent": 92,
+    "module_scenarios": 288,
+    "mypy_strict": "pass",
+    "ruff_format": "pass",
+    "ruff_lint": "pass",
+    "workflow_run_id": 29908705479
+  },
+  "previous_complete_remote_baseline": {
+    "commit": "599ca262e83ef9953f48550b4bb12b21b47e84e9",
+    "github_ci": {
+      "pull_request_run": {
+        "id": 29895841117,
+        "conclusion": "success"
+      },
+      "push_release_run": {
+        "id": 29895838773,
+        "conclusion": "success"
+      }
+    },
+    "packaging": {
+      "clean_wheel_install": "pass",
+      "pip_check": "pass",
+      "sdist": "pass",
+      "sdist_rebuild": "pass",
+      "twine": "pass",
+      "wheel": "pass"
+    },
+    "quality": {
+      "bandit": "pass",
+      "compileall": "pass",
+      "detect_secrets_findings": 0,
+      "mypy_strict": "pass",
+      "pip_audit_known_vulnerabilities": 0,
+      "ruff_format": "pass",
+      "ruff_lint": "pass",
+      "sbom": "pass"
+    },
+    "replay": "pass",
+    "tests": {
+      "module": 268,
+      "repository": 244,
+      "sdist_installed": 267
+    }
+  },
+  "regression_scenarios_added_after_inherited_baseline": 65,
+  "state_schema": "2",
+  "unresolved_critical_high_medium": 0,
+  "version": "0.2.1"
+}

@@ -1,0 +1,106 @@
+name: Market Data registered funding CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/market-data-registered-funding-ci.yml"
+      - "modules/market_data_ingestion/pyproject.toml"
+      - "modules/market_data_ingestion/src/market_data_ingestion/funding_dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/__init__.py"
+      - "modules/market_data_ingestion/tests/test_funding_dataset_reader.py"
+      - "modules/market_data_ingestion/tests/test_funding_dataset_reader_acceptance.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-registered-funding-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Registered funding / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact funding-reader candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: modules/market_data_ingestion/pyproject.toml
+          cache-suffix: market-data-registered-funding
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Compile
+        working-directory: modules/market_data_ingestion
+        run: >-
+          python -m compileall -q
+          src/market_data_ingestion/funding_dataset_reader.py
+          src/market_data_ingestion/__init__.py
+          tests/test_funding_dataset_reader.py
+          tests/test_funding_dataset_reader_acceptance.py
+
+      - name: Ruff format
+        working-directory: modules/market_data_ingestion
+        run: >-
+          ruff format --check
+          src/market_data_ingestion/funding_dataset_reader.py
+          src/market_data_ingestion/__init__.py
+          tests/test_funding_dataset_reader.py
+          tests/test_funding_dataset_reader_acceptance.py
+
+      - name: Ruff lint
+        working-directory: modules/market_data_ingestion
+        run: >-
+          ruff check
+          src/market_data_ingestion/funding_dataset_reader.py
+          src/market_data_ingestion/__init__.py
+          tests/test_funding_dataset_reader.py
+          tests/test_funding_dataset_reader_acceptance.py
+
+      - name: Strict MyPy
+        working-directory: modules/market_data_ingestion
+        run: mypy --strict src/market_data_ingestion/funding_dataset_reader.py src/market_data_ingestion/__init__.py
+
+      - name: Focused tests
+        working-directory: modules/market_data_ingestion
+        run: >-
+          python -m pytest -q
+          tests/test_funding_dataset_reader.py
+          tests/test_funding_dataset_reader_acceptance.py
+          tests/test_dataset_reader.py
+
+      - name: Public import smoke
+        run: >-
+          python -c
+          "from market_data_ingestion import RegisteredFundingSelection, iter_registered_funding, resolve_registered_funding_dataset; assert RegisteredFundingSelection and iter_registered_funding and resolve_registered_funding_dataset"

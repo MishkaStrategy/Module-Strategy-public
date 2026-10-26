@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-factory"
+version = "0.1.0"
+description = "Deterministic strategy research planning and admission orchestration"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "modular-strategy-core>=0.4,<0.5",
+  "modular-strategy-research-runner>=0.3,<0.4",
+  "modular-results-registry>=0.1.0.dev0,<0.2",
+  "modular-strategy-audit-validation>=0.1,<0.2",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+strategy-factory = "strategy_factory.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "coverage>=7",
+  "hypothesis>=6.100",
+  "mypy>=1.10",
+  "pytest>=8",
+  "ruff>=0.8",
+  "types-PyYAML>=6.0",
+]
+
+[tool.setuptools.package-data]
+strategy_factory = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["strategy_factory"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["strategy_factory"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["strategy_factory"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/strategy_factory/__init__.py" = ["F401"]

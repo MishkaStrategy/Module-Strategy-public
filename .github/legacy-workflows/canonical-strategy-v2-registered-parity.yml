@@ -1,0 +1,341 @@
+name: canonical-strategy-v2-registered-parity
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/canonical-strategy-v2-registered-parity.yml"
+      - "research/strategy_audit_validation/benchmarks/**"
+      - "scripts/run_persistent_registration_smoke.py"
+      - "scripts/run_persistent_registration_smoke_v2.py"
+      - "src/modular_backtest/config.py"
+      - "src/modular_backtest/registered_data.py"
+      - "modules/market_data_ingestion/configs/market_data/binance_usdtm_baseline_drive_index.json"
+      - "modules/market_data_ingestion/src/market_data_ingestion/dataset_reader.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/external_registration.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/integrity.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/registry.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/storage.py"
+      - "modules/market_data_ingestion/src/market_data_ingestion/streaming_dataset_reader.py"
+      - "tests/backtest_engine/test_registered_config.py"
+      - "tests/backtest_engine/test_registered_data.py"
+      - "tests/backtest_engine/test_registered_streaming_*.py"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact integration candidate commit SHA
+        required: true
+        type: string
+      candidate_branch:
+        description: Live integration branch whose head must equal expected_sha
+        required: true
+        default: integration/optimization-wave-1
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  registered-canonical-parity:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.ref == 'integration/optimization-wave-1'
+    runs-on: [self-hosted, macos]
+    timeout-minutes: 480
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      CANDIDATE_BRANCH: ${{ github.event.pull_request.head.ref || inputs.candidate_branch }}
+      GH_TOKEN: ${{ github.token }}
+      PYTHONHASHSEED: "0"
+      PYTHONPATH: research/strategy_audit_validation
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+    steps:
+      - name: Checkout exact integration candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+          clean: true
+
+      - name: Verify exact requested commit and live branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          case "$CANDIDATE_BRANCH" in
+            integration/optimization-wave-1|integration/modular-strategy-full-rc) ;;
+            *)
+              echo "unsupported canonical parity branch: $CANDIDATE_BRANCH" >&2
+              exit 1
+              ;;
+          esac
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected_sha = os.environ["EXPECTED_SHA"]
+          candidate_branch = os.environ["CANDIDATE_BRANCH"]
+          token = os.environ["GH_TOKEN"]
+          branch = urllib.parse.quote(candidate_branch, safe="")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/branches/{branch}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "module-strategy-registered-canonical-parity",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          commit = payload.get("commit")
+          live_sha = commit.get("sha") if isinstance(commit, dict) else None
+          if live_sha != expected_sha:
+              raise SystemExit(
+                  f"live integration head moved: expected {expected_sha}, got {live_sha!r}"
+              )
+          PY
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: macos
+          python-version: "3.13"
+          cache-suffix: canonical-strategy-v2-registered-parity
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+
+      - name: Install exact registration, bridge and strategy surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install \
+            -e ".[dev,backtest]" \
+            -e "modules/market_data_ingestion[dev,parquet]" \
+            -e "research/strategy_audit_validation[dev]" \
+            -r research/strategy_audit_validation/benchmarks/requirements-v2.lock.txt
+          uv pip check
+
+      - name: Validate workflow, architecture and parity code
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install_actionlint.sh "$RUNNER_TEMP/actionlint-bin"
+          "$RUNNER_TEMP/actionlint-bin/actionlint" \
+            .github/workflows/canonical-strategy-v2-registered-parity.yml
+          python scripts/audit_runner_routing.py
+          pytest -q tests/test_test_architecture_contract.py
+          python -m compileall -q \
+            research/strategy_audit_validation/benchmarks/registered_canonical_parity.py \
+            research/strategy_audit_validation/benchmarks/tests/test_registered_canonical_parity.py
+          ruff check --output-format=concise \
+            research/strategy_audit_validation/benchmarks/registered_canonical_parity.py \
+            research/strategy_audit_validation/benchmarks/tests/test_registered_canonical_parity.py
+          ruff format --check \
+            research/strategy_audit_validation/benchmarks/registered_canonical_parity.py \
+            research/strategy_audit_validation/benchmarks/tests/test_registered_canonical_parity.py
+          pytest -q \
+            research/strategy_audit_validation/benchmarks/tests/test_registered_canonical_parity.py \
+            tests/backtest_engine/test_registered_config.py \
+            tests/backtest_engine/test_registered_data.py \
+            tests/backtest_engine/test_registered_streaming_boundaries.py \
+            tests/backtest_engine/test_registered_streaming_configuration.py \
+            tests/backtest_engine/test_registered_streaming_cursor.py \
+            tests/backtest_engine/test_registered_streaming_fail_closed_coverage.py \
+            tests/backtest_engine/test_registered_streaming_integration.py \
+            tests/backtest_engine/test_registered_streaming_recovery.py \
+            tests/backtest_engine/test_registered_streaming_source.py \
+            modules/market_data_ingestion/tests/test_dataset_reader.py \
+            modules/market_data_ingestion/tests/test_streaming_dataset_reader.py
+
+      - name: Ensure durable registered BTCUSDT dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/run_persistent_registration_smoke_v2.py \
+            > "$RUNNER_TEMP/persistent-registration-command.json"
+
+      - name: Materialize exact official Binance comparison corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          official="$RUNNER_TEMP/registered-parity-official"
+          api_error="$RUNNER_TEMP/registered-parity-api-error.txt"
+          rm -rf "$official"
+          mkdir -p "$official"
+          set +e
+          python -m benchmarks.official_usdtm_dataset \
+            --output "$official/BTCUSDT_5m.parquet" \
+            --provenance "$official/dataset-provenance.json" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            > "$RUNNER_TEMP/registered-parity-dataset-command.json" \
+            2> "$api_error"
+          api_status=$?
+          set -e
+          if [[ "$api_status" -ne 0 ]]; then
+            if ! grep -q "Binance endpoint HTTP 451" "$api_error"; then
+              cat "$api_error" >&2
+              exit "$api_status"
+            fi
+            python -m benchmarks.official_archive_dataset \
+              --output "$official/BTCUSDT_5m.parquet" \
+              --provenance "$official/dataset-provenance.json" \
+              --generated-from-commit "$EXPECTED_SHA" \
+              > "$RUNNER_TEMP/registered-parity-dataset-command.json"
+          fi
+
+      - name: Execute Variant 2 through registered Backtest bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          official="$RUNNER_TEMP/registered-parity-official"
+          evidence="$RUNNER_TEMP/registered-canonical-parity"
+          storage="$HOME/ModuleStrategyData/market_data"
+          rm -rf "$evidence"
+          python -m benchmarks.registered_canonical_parity \
+            --storage-root "$storage" \
+            --dataset-id binance_usdt-m-perpetual_btcusdt_5m \
+            --dataset-version 1 \
+            --official-input "$official/BTCUSDT_5m.parquet" \
+            --dataset-provenance "$official/dataset-provenance.json" \
+            --output "$evidence" \
+            --generated-from-commit "$EXPECTED_SHA" \
+            --batch-size 8192 \
+            --restart-at-row 300000 \
+            > "$RUNNER_TEMP/registered-canonical-parity-command.json"
+
+      - name: Enforce closed parity evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "registered-canonical-parity"
+          report = json.loads((root / "registered-parity.json").read_text(encoding="utf-8"))
+          if report["status"] != "REGISTERED_DATASET_CANONICAL_VARIANT2_PARITY_PASS":
+              raise SystemExit("registered canonical parity status mismatch")
+          if report["generated_from_commit"] != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("registered canonical parity commit mismatch")
+          registered = report["registered_dataset"]
+          if registered["dataset_id"] != "binance_usdt-m-perpetual_btcusdt_5m":
+              raise SystemExit("registered dataset ID mismatch")
+          if registered["dataset_version"] != 1:
+              raise SystemExit("registered dataset version mismatch")
+          if registered["dataset_hash"] != (
+              "49ee948c7c22dc3c552bf6a96d2fdce9c5bba97662a694ae98ab85fc521c04f5"
+          ):
+              raise SystemExit("registered dataset hash mismatch")
+          if registered["row_count"] != 721597:
+              raise SystemExit("registered dataset row count mismatch")
+          if registered["source_uri"] != (
+              "dataset://binance_usdt-m-perpetual_btcusdt_5m/v1"
+          ):
+              raise SystemExit("registered dataset source URI mismatch")
+          expected_negative = {
+              "checkpoint_dataset_hash_mismatch",
+              "checkpoint_manifest_checksum_mismatch",
+              "checkpoint_schema_fingerprint_mismatch",
+              "checkpoint_source_version_mismatch",
+              "missing_version",
+              "wrong_symbol",
+              "wrong_timeframe",
+          }
+          if set(registered["negative_checks"]) != expected_negative:
+              raise SystemExit("registered fail-closed negative checks mismatch")
+          parity = report["parity"]
+          if parity != {
+              "canonical_ledgers_match_accepted_baseline": True,
+              "canonical_metrics_match_accepted_baseline": True,
+              "canonical_semantic_digest_match": True,
+              "frame_exact": True,
+              "registered_dataset_relation": "PROVEN_BY_EXACT_FRAME_AND_RESULT_PARITY",
+              "restart_exact": True,
+          }:
+              raise SystemExit("registered canonical parity claims mismatch")
+          if report["canonical_result"]["semantic_digest"] != (
+              "63a2c102601cec5a613ff3749754d31955d6513c654c73cd3dd7e09bbc5cefdb"
+          ):
+              raise SystemExit("registered canonical semantic digest mismatch")
+          safety = report["safety"]
+          if safety != {
+              "live_trading": False,
+              "local_storage_path_published": False,
+              "private_credentials_used": False,
+              "production_dataset_mutated": False,
+              "raw_market_data_published": False,
+              "research_paper_only": True,
+          }:
+              raise SystemExit("registered parity safety boundary mismatch")
+          expected_files = {
+              "combined-ledger.csv",
+              "frozen_1h_short-ledger.csv",
+              "frozen_4h_short-ledger.csv",
+              "fvg_rt_final_15m-ledger.csv",
+              "registered-parity.json",
+              "summary.json",
+          }
+          files = {path.name for path in root.iterdir()}
+          if files != expected_files:
+              raise SystemExit(f"registered parity inventory mismatch: {sorted(files)}")
+          forbidden = ("/Users/", "/home/", "GoogleDrive-", "My Drive", "Мой диск")
+          for path in root.iterdir():
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit("registered parity evidence must contain regular files only")
+              text = path.read_text(encoding="utf-8")
+              if any(marker in text for marker in forbidden):
+                  raise SystemExit(f"private path marker leaked into {path.name}")
+          PY
+
+      - name: Upload sanitized persistent registration evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: registered-dataset-acceptance-${{ github.run_id }}
+          path: ${{ runner.temp }}/persistent-acceptance
+          if-no-files-found: error
+          include-hidden-files: false
+
+      - name: Upload registered canonical parity evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canonical-strategy-v2-registered-parity-${{ github.run_id }}
+          path: ${{ runner.temp }}/registered-canonical-parity
+          if-no-files-found: error
+          include-hidden-files: false
+
+      - name: Remove transient official corpus and commands
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf \
+            "$RUNNER_TEMP/registered-parity-official" \
+            "$RUNNER_TEMP/registered-canonical-parity"
+          rm -f \
+            "$RUNNER_TEMP/persistent-registration-command.json" \
+            "$RUNNER_TEMP/registered-parity-api-error.txt" \
+            "$RUNNER_TEMP/registered-parity-dataset-command.json" \
+            "$RUNNER_TEMP/registered-canonical-parity-command.json"

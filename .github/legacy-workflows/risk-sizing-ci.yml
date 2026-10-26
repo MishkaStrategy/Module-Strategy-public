@@ -1,0 +1,260 @@
+name: risk-sizing-position-adjustments-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-v0.5.0
+      - integration/modular-strategy-full-rc
+    paths:
+      - "src/strategy_modules/risk_sizing/**"
+      - "modules/risk_sizing/**"
+      - "tests/test_risk_sizing_*.py"
+      - "docs/PS-CCR-001.md"
+      - ".github/workflows/risk-sizing-ci.yml"
+  push:
+    branches:
+      - modules/risk-sizing-position-adjustments
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  quality:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          echo "runner.name=$RUNNER_NAME runner.os=$RUNNER_OS runner.arch=$RUNNER_ARCH"
+          uname -a
+          df -h .
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+          persist-credentials: false
+
+      - name: Verify exact Risk Sizing candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/risk_sizing/pyproject.toml
+          cache-suffix: risk-sizing-${{ matrix.python-version }}
+
+      - name: Install isolated Python
+        shell: bash
+        run: |
+          uv python install "${{ matrix.python-version }}"
+          uv venv --python "${{ matrix.python-version }}" --seed .ci-venv
+          echo "$PWD/.ci-venv/bin" >> "$GITHUB_PATH"
+          .ci-venv/bin/python --version
+
+      - name: Install Core, module and quality tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' hypothesis build bandit detect-secrets pip-audit cyclonedx-bom
+          python -m pip install -e ./modules/risk_sizing --no-deps
+          python -m pip check
+
+      - name: Static quality
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            echo "== compileall =="
+            python -m compileall -q src/strategy_modules/risk_sizing tests/test_risk_sizing_*.py
+            echo "== ruff check =="
+            ruff check src/strategy_modules/risk_sizing tests/test_risk_sizing_*.py
+            echo "== ruff format =="
+            ruff format --check src/strategy_modules/risk_sizing tests/test_risk_sizing_*.py
+            echo "== mypy =="
+            mypy --strict src/strategy_modules/risk_sizing
+            echo "== public contract =="
+            python - <<'PY'
+          from strategy_modules.risk_sizing import RiskSizingModule, __version__
+          assert __version__ == "1.2.0"
+          assert RiskSizingModule.manifest.version == "1.2.0"
+          assert RiskSizingModule.manifest.api_version == "1.0"
+          print("public-contract=ok")
+          PY
+          } 2>&1 | tee static-quality.log
+
+      - name: Full risk sizing suite and coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            coverage run --branch --source=src/strategy_modules/risk_sizing -m pytest -q tests/test_risk_sizing_*.py --junitxml=risk-sizing-junit.xml
+            coverage json -o risk-sizing-coverage.json
+            coverage report -m --fail-under=95
+          } 2>&1 | tee risk-sizing-coverage.txt
+
+      - name: Build and clean-wheel smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf core-dist risk-dist risk-sdist-wheel risk-package-stage .wheel-venv
+          {
+            python -m build --outdir core-dist .
+
+            mkdir -p risk-package-stage/src/strategy_modules
+            cp -R src/strategy_modules/risk_sizing risk-package-stage/src/strategy_modules/
+            cp modules/risk_sizing/README.md risk-package-stage/README.md
+            cp modules/risk_sizing/pyproject.toml risk-package-stage/pyproject.toml
+            python - <<'PY'
+          from pathlib import Path
+
+          path = Path("risk-package-stage/pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              'package-dir = {"" = "../../src"}',
+              'package-dir = {"" = "src"}',
+          ).replace(
+              'where = ["../../src"]',
+              'where = ["src"]',
+          )
+          if '../../src' in text:
+              raise SystemExit("release staging still references repository-external source")
+          path.write_text(text, encoding="utf-8")
+          PY
+
+            python -m build --outdir risk-dist risk-package-stage
+            python -m pip wheel --no-deps --wheel-dir risk-sdist-wheel risk-dist/*.tar.gz
+
+            python -m venv .wheel-venv
+            .wheel-venv/bin/python -m pip install --upgrade pip
+            .wheel-venv/bin/python -m pip install core-dist/*.whl risk-dist/*.whl
+            .wheel-venv/bin/python -m pip check
+            .wheel-venv/bin/python - <<'PY'
+          from importlib.metadata import entry_points, version
+          from modular_core import ModuleRegistry
+          from strategy_modules.risk_sizing import RiskSizingModule
+
+          assert version("modular-strategy-risk-sizing") == "1.2.0"
+          selected = {
+              item.name: item
+              for item in entry_points().select(group="modular_strategy.modules")
+          }
+          assert selected["risk_sizing"].load() is RiskSizingModule
+          assert "risk_sizing" in ModuleRegistry().discover_entry_points()
+          module = RiskSizingModule()
+          module.restore_state(module.snapshot_state())
+          print("clean-wheel-smoke=ok")
+          PY
+            shasum -a 256 core-dist/* risk-dist/* risk-sdist-wheel/* > distribution-checksums.sha256
+          } 2>&1 | tee packaging.log
+
+      - name: Security and SBOM
+        if: matrix.python-version == '3.13'
+        shell: bash
+        run: |
+          bandit -q -r src/strategy_modules/risk_sizing -f json -o bandit.json
+          detect-secrets scan src/strategy_modules/risk_sizing tests/test_risk_sizing_*.py > detect-secrets.json
+          python - <<'PY'
+          import json
+          findings = json.load(open("detect-secrets.json", encoding="utf-8")).get("results", {})
+          if findings:
+              raise SystemExit(f"detect-secrets findings: {sorted(findings)}")
+          PY
+          pip-audit --format json --output pip-audit.json
+          cyclonedx-py environment "$(command -v python)" --pyproject modules/risk_sizing/pyproject.toml --mc-type library --output-reproducible --of JSON -o sbom.cdx.json
+
+      - name: Stage bounded Risk Sizing evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="risk-sizing-release-evidence"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          common=(
+            static-quality.log
+            risk-sizing-junit.xml
+            risk-sizing-coverage.txt
+            risk-sizing-coverage.json
+            packaging.log
+            distribution-checksums.sha256
+          )
+          for path in "${common[@]}"; do
+            test -f "$path"
+            cp "$path" "$stage/"
+          done
+          for directory in core-dist risk-dist risk-sdist-wheel; do
+            test -d "$directory"
+            cp -R "$directory" "$stage/"
+          done
+          if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+            security=(bandit.json detect-secrets.json pip-audit.json sbom.cdx.json)
+            for path in "${security[@]}"; do
+              test -f "$path"
+              cp "$path" "$stage/"
+            done
+          fi
+
+      - name: Publish exact Risk Sizing evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: risk-sizing-release-evidence
+          asset_name: risk-sizing-position-adjustments-py${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Risk Sizing publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Risk Sizing failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: risk-sizing-position-adjustments-py${{ matrix.python-version }}
+          if-no-files-found: warn
+          path: |
+            static-quality.log
+            risk-sizing-junit.xml
+            risk-sizing-coverage.txt
+            risk-sizing-coverage.json
+            packaging.log
+            distribution-checksums.sha256
+            bandit.json
+            detect-secrets.json
+            pip-audit.json
+            sbom.cdx.json
+            core-dist/*
+            risk-dist/*
+            risk-sdist-wheel/*
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: rm -rf .ci-venv .wheel-venv core-dist risk-dist risk-sdist-wheel risk-package-stage risk-sizing-release-evidence

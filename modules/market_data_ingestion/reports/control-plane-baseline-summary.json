@@ -1,0 +1,110 @@
+{
+  "api_dataset_scales": {
+    "1": {
+      "concurrent_availability": 1.0,
+      "concurrent_latency": {"count": 20, "p50_ms": 23.270785, "p95_ms": 139.808487, "p99_ms": 153.321936},
+      "detail_latency": {"count": 10, "p50_ms": 1.318548, "p95_ms": 1.838279, "p99_ms": 1.838279},
+      "list_latency": {"count": 10, "p50_ms": 24.636047, "p95_ms": 35.876466, "p99_ms": 35.876466}
+    },
+    "100": {
+      "concurrent_availability": 1.0,
+      "concurrent_latency": {"count": 20, "p50_ms": 16.217788, "p95_ms": 96.838525, "p99_ms": 106.513179},
+      "detail_latency": {"count": 10, "p50_ms": 1.368341, "p95_ms": 1.653565, "p99_ms": 1.653565},
+      "list_latency": {"count": 10, "p50_ms": 25.090692, "p95_ms": 25.730677, "p99_ms": 25.730677}
+    },
+    "1000": {
+      "concurrent_availability": 1.0,
+      "concurrent_latency": {"count": 20, "p50_ms": 12.066775, "p95_ms": 99.176521, "p99_ms": 103.775499},
+      "detail_latency": {"count": 10, "p50_ms": 1.139983, "p95_ms": 1.438856, "p99_ms": 1.438856},
+      "list_latency": {"count": 10, "p50_ms": 24.732811, "p95_ms": 27.35255, "p99_ms": 27.35255}
+    },
+    "10000": {
+      "concurrent_availability": 1.0,
+      "concurrent_latency": {"count": 20, "p50_ms": 18.266089, "p95_ms": 165.79248, "p99_ms": 169.612361},
+      "detail_latency": {"count": 10, "p50_ms": 1.337836, "p95_ms": 1.692643, "p99_ms": 1.692643},
+      "list_latency": {"count": 10, "p50_ms": 32.01993, "p95_ms": 35.17894, "p99_ms": 35.17894}
+    }
+  },
+  "benchmark": {
+    "command": "python scripts/benchmark_control_plane_slo.py --dataset-counts 1,100,1000,10000 --job-counts 1,100,1000 --samples 10",
+    "environment": {
+      "cpu_count": 5,
+      "dataset_counts": [1, 100, 1000, 10000],
+      "job_counts": [1, 100, 1000],
+      "localhost_test_client_only": true,
+      "machine": "x86_64",
+      "no_network": true,
+      "platform": "Linux-6.12.13-x86_64-with-glibc2.41",
+      "processor": "",
+      "python": "3.13.5",
+      "samples_per_workload": 10
+    },
+    "raw_output_sha256": "f370d51937ac01475f7f1634de056b9fff1766872e5c5a555fe602f51485c9b6",
+    "script": "modules/market_data_ingestion/scripts/benchmark_control_plane_slo.py"
+  },
+  "cli": {
+    "dataset_detail": {"count": 5, "p50_ms": 9.453485, "p95_ms": 9.655636, "p99_ms": 9.655636},
+    "dataset_list": {"count": 5, "p50_ms": 30.594944, "p95_ms": 32.897853, "p99_ms": 32.897853},
+    "failure_path": {"count": 5, "p50_ms": 9.299707, "p95_ms": 9.672791, "p99_ms": 9.672791},
+    "job_events": {"count": 5, "p50_ms": 11.466665, "p95_ms": 13.654773, "p99_ms": 13.654773},
+    "job_list": {"count": 5, "p50_ms": 12.012565, "p95_ms": 12.46675, "p99_ms": 12.46675},
+    "job_start_and_run": {"count": 1, "p50_ms": 179.639238, "p95_ms": 179.639238, "p99_ms": 179.639238},
+    "job_status": {"count": 5, "p50_ms": 9.984204, "p95_ms": 10.873374, "p99_ms": 10.873374}
+  },
+  "event_replay": {
+    "cursor": 14,
+    "event_count": 12,
+    "ordered": true,
+    "rest": {"failure_count": 0, "latency": {"count": 10, "p50_ms": 1.354872, "p95_ms": 2.365742, "p99_ms": 2.365742}, "requests_per_second": 656.1548042408073},
+    "sse": {"failure_count": 0, "latency": {"count": 3, "p50_ms": 2.944001, "p95_ms": 4.57341, "p99_ms": 4.57341}, "requests_per_second": 287.92693566080675},
+    "strict_cursor": true
+  },
+  "job_scales": {
+    "1": {
+      "detail_latency": {"count": 10, "p50_ms": 1.099633, "p95_ms": 1.271017, "p99_ms": 1.271017},
+      "jobs_per_second": 278.5398938763004,
+      "list_latency": {"count": 10, "p50_ms": 1.110258, "p95_ms": 1.97386, "p99_ms": 1.97386},
+      "submission_latency": {"count": 1, "p50_ms": 3.59015, "p95_ms": 3.59015, "p99_ms": 3.59015}
+    },
+    "100": {
+      "detail_latency": {"count": 10, "p50_ms": 1.102927, "p95_ms": 1.246671, "p99_ms": 1.246671},
+      "jobs_per_second": 304.98103659937436,
+      "list_latency": {"count": 10, "p50_ms": 2.514563, "p95_ms": 3.408621, "p99_ms": 3.408621},
+      "submission_latency": {"count": 100, "p50_ms": 2.930742, "p95_ms": 5.445294, "p99_ms": 6.407098}
+    },
+    "1000": {
+      "detail_latency": {"count": 10, "p50_ms": 1.361792, "p95_ms": 1.629239, "p99_ms": 1.629239},
+      "jobs_per_second": 293.5173689898124,
+      "list_latency": {"count": 10, "p50_ms": 6.939353, "p95_ms": 7.606814, "p99_ms": 7.606814},
+      "submission_latency": {"count": 1000, "p50_ms": 3.093352, "p95_ms": 5.697489, "p99_ms": 7.535012}
+    }
+  },
+  "progress": {"count": 20, "latency": {"count": 20, "p50_ms": 3.012217, "p95_ms": 5.660184, "p99_ms": 6.194026}, "monotonic": true, "updates_per_second": 299.22072002948045},
+  "resources": {
+    "audit": {"database_bytes": 28672, "shm_bytes": 0, "wal_bytes": 0},
+    "bytes_per_job": 1268.780876494024,
+    "elapsed_seconds": 20.54843294,
+    "event_journal_bytes_per_event": 1205.1617786187323,
+    "fd_after": 4,
+    "fd_before": 4,
+    "fd_growth": 0,
+    "jobs": {"database_bytes": 1273856, "shm_bytes": 0, "wal_bytes": 0},
+    "orphan_connection_count": 0,
+    "peak_rss_growth_mib": 41.703125,
+    "peak_rss_mib_after": 172.83984375,
+    "peak_rss_mib_before": 131.13671875,
+    "registry": {"database_bytes": 11505664, "shm_bytes": 0, "wal_bytes": 0},
+    "resource_warning_count": 0,
+    "shutdown_ms": 0.008693,
+    "temporary_bytes": 0,
+    "thread_after": 1,
+    "thread_before": 1,
+    "thread_growth": 0
+  },
+  "restart_recovery": {"orphan_job_count": 0, "recover_call_ms": 1.615108, "recovered_job_count": 1, "recovered_job_id": "mdi_job_51b385360d5349ee9c33", "shutdown_ms": 0.0806, "startup_ms": 2.536526, "terminal_state": "COMPLETED", "time_to_terminal_ms": 180.594662},
+  "schema_version": 1,
+  "semantic_verdict": {"concurrent_reader_availability": 1.0, "credential_leakage_count": 0, "cursor_violation_count": 0, "fd_stable": true, "orphan_job_count": 0, "path_leakage_count": 0, "resource_warning_zero": true, "sse_ordering_violation_count": 0, "thread_stable": true},
+  "stream": "Optimization Wave 2E — Market Data Control Plane SLO",
+  "terminal_jobs": {"cancel_latency_ms": 11.22122, "cancel_state": "CANCELLED", "failure_latency_ms": 3.564692, "failure_state": "FAILED", "terminal_event_type": "error"},
+  "upstream_head": "2d1268040295a894168ac8564f3d38d83746961e"
+}

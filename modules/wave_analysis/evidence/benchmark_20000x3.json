@@ -1,0 +1,36 @@
+{
+  "bars": 20000,
+  "digests_equal": true,
+  "elapsed_median": 7.9517347030000565,
+  "elapsed_seconds": [
+    7.9517347030000565,
+    8.263256744000046,
+    7.938665957000012
+  ],
+  "environment_note": "The constrained execution environment throttled before runs four and five; five-run evidence is provided separately at 5000 bars.",
+  "restore_digest_equal": true,
+  "runs_completed": 3,
+  "runs_requested": 5,
+  "sample": {
+    "bars": 20000,
+    "checkpoint_size_bytes": 337961,
+    "elapsed_seconds": 7.9517347030000565,
+    "hypotheses": 1,
+    "peak_memory_bytes": 0,
+    "pivots": 128,
+    "published_features": 13000,
+    "restore_digest_equal": true,
+    "restore_latency_seconds": 0.0114816619998237,
+    "result_digest": "ece61e8b3d18a9e733bc3b337a3afd35602ffe6551eaf1be42034276581f185a",
+    "state_digest": "5071d9303d60e52b162cca5a8932484b0ce6393b5426177c2a322fe8c5d1f7b0",
+    "throughput_bars_per_second": 2515.1744552612317,
+    "timeframes": 1,
+    "wave_legs": 127
+  },
+  "throughput_bars_per_second": [
+    2515.1744552612317,
+    2420.353211767504,
+    2519.314971599827
+  ],
+  "throughput_median": 2515.1744552612317
+}

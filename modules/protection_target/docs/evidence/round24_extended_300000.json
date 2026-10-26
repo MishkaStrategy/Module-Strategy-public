@@ -1,0 +1,14 @@
+{
+  "aggregate_events_per_second": 7779.553659135007,
+  "aggregate_seconds": 38.5626236600001,
+  "events": 300000,
+  "final_processed_state": 4096,
+  "final_state_digest": "cd942a201aa9a2fcc42a2f9469138164175cbcb76edbd67dff881be35edbece7",
+  "kind": "multiprocess_restart_extended",
+  "maximum_checkpoint_bytes": 492185,
+  "median_restore_ms": 9.880858999622433,
+  "module_version": "1.1.1",
+  "output_digest": "9a3e58f434725997913446de2dbf4b9a7041815476ae2e89804163608589779a",
+  "python": "3.13.5",
+  "segments": 3
+}

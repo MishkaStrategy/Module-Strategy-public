@@ -1,0 +1,16 @@
+modules:
+  - class: strategy_modules.risk_sizing:RiskSizingModule
+    enabled: true
+    parameters:
+      default_risk_fraction: 0.005
+      min_risk_fraction: 0.0001
+      max_risk_fraction: 0.02
+      max_trade_notional_multiple: 3.0
+      max_portfolio_notional_multiple: 5.0
+      max_symbol_notional_multiple: 3.0
+      max_portfolio_risk_fraction: 0.03
+      max_leverage: 3.0
+      max_positions: 10
+      allow_risk_reduction: true
+      require_price_alignment: true
+      max_processed_requests: 2048

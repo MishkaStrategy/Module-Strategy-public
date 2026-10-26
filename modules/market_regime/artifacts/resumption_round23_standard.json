@@ -1,0 +1,41 @@
+{
+  "deterministic_outputs": true,
+  "deterministic_states": true,
+  "events": 50000,
+  "maximum_checkpoint_bytes": 3511,
+  "maximum_peak_traced_bytes": null,
+  "maximum_seconds": 4.729888842000037,
+  "median_restore_seconds": 0.00020429599999260972,
+  "median_seconds": 4.633243556000025,
+  "median_throughput": 10796.273488703919,
+  "minimum_seconds": 4.536598270000013,
+  "python_version": "3.13.5",
+  "restart_at": null,
+  "runs": 2,
+  "samples": [
+    {
+      "checkpoint_bytes": 3511,
+      "elapsed_seconds": 4.729888842000037,
+      "feature_count": 149808,
+      "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+      "peak_traced_bytes": null,
+      "publications": 49936,
+      "restore_seconds": 0.00021683900013158564,
+      "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668",
+      "throughput_events_per_second": 10571.072951231867
+    },
+    {
+      "checkpoint_bytes": 3511,
+      "elapsed_seconds": 4.536598270000013,
+      "feature_count": 149808,
+      "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+      "peak_traced_bytes": null,
+      "publications": 49936,
+      "restore_seconds": 0.0001917529998536338,
+      "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668",
+      "throughput_events_per_second": 11021.474026175973
+    }
+  ],
+  "timeframe": "1h",
+  "trace_memory": false
+}

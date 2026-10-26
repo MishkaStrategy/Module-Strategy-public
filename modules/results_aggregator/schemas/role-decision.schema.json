@@ -1,0 +1,41 @@
+{
+  "$id": "urn:modular-results-registry:role-decision:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "configuration_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "experiment_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "reason": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "BASELINE",
+        "CANDIDATE",
+        "CONTROL",
+        "ABLATION",
+        "REFERENCE",
+        "FINALIST"
+      ]
+    }
+  },
+  "required": [
+    "experiment_id",
+    "configuration_id",
+    "role",
+    "reason",
+    "actor"
+  ],
+  "type": "object"
+}

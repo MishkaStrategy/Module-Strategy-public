@@ -1,0 +1,70 @@
+{
+  "catalog_hash": "3e755b5888c8df3c727c2d82a420bb0cb75a865dad5c8e1ff832cc6e36dfb482",
+  "schema_version": "1",
+  "schemas": [
+    {
+      "id": "urn:modular-results-registry:artifact-package:1",
+      "path": "artifact-package.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:artifact-record:1",
+      "path": "artifact-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:audit-evidence-record:1",
+      "path": "audit-evidence-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:audit-log-event:1",
+      "path": "audit-log-event.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:backup-manifest:1",
+      "path": "backup-manifest.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:configuration-record:1",
+      "path": "configuration-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:dataset-record:1",
+      "path": "dataset-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:experiment-record:1",
+      "path": "experiment-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:metric-definition-record:1",
+      "path": "metric-definition-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:metric-snapshot:1",
+      "path": "metric-snapshot.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:rebuild-bundle:4",
+      "path": "rebuild-bundle.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:registration-package:2",
+      "path": "registration-package.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:role-decision:1",
+      "path": "role-decision.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:run-record:1",
+      "path": "run-record.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:strategy-audit-evidence-package:2",
+      "path": "strategy-audit-evidence-package.schema.json"
+    },
+    {
+      "id": "urn:modular-results-registry:structured-log-event:1",
+      "path": "structured-log-event.schema.json"
+    }
+  ]
+}

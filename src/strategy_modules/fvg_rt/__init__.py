@@ -1,0 +1,53 @@
+"""Owner-bound canonical FVG-RT runtime modules."""
+
+from .composite import (
+    COMPOSITE_CONTRACT,
+    COMPOSITE_MODULE_NAME,
+    COMPOSITE_MODULE_VERSION,
+    FvgRtCompositeModule,
+)
+from .frozen import (
+    FROZEN_1H_CONDITIONS,
+    FROZEN_1H_FEATURE_CONTRACT,
+    FROZEN_1H_FEATURE_KEY,
+    FROZEN_1H_MODULE_NAME,
+    FROZEN_1H_MODULE_VERSION,
+    FROZEN_4H_CONDITIONS,
+    FROZEN_4H_FEATURE_CONTRACT,
+    FROZEN_4H_FEATURE_KEY,
+    FROZEN_4H_MODULE_NAME,
+    FROZEN_4H_MODULE_VERSION,
+    Frozen1hShortModule,
+    Frozen4hShortModule,
+)
+from .module import (
+    CONDITIONS_BY_SETUP,
+    FEATURE_KEY,
+    MODULE_NAME,
+    MODULE_VERSION,
+    FvgRtFinal15mModule,
+)
+
+__all__ = [
+    "COMPOSITE_CONTRACT",
+    "COMPOSITE_MODULE_NAME",
+    "COMPOSITE_MODULE_VERSION",
+    "CONDITIONS_BY_SETUP",
+    "FEATURE_KEY",
+    "MODULE_NAME",
+    "MODULE_VERSION",
+    "FROZEN_1H_CONDITIONS",
+    "FROZEN_1H_FEATURE_CONTRACT",
+    "FROZEN_1H_FEATURE_KEY",
+    "FROZEN_1H_MODULE_NAME",
+    "FROZEN_1H_MODULE_VERSION",
+    "FROZEN_4H_CONDITIONS",
+    "FROZEN_4H_FEATURE_CONTRACT",
+    "FROZEN_4H_FEATURE_KEY",
+    "FROZEN_4H_MODULE_NAME",
+    "FROZEN_4H_MODULE_VERSION",
+    "FvgRtCompositeModule",
+    "FvgRtFinal15mModule",
+    "Frozen1hShortModule",
+    "Frozen4hShortModule",
+]

@@ -1,0 +1,13 @@
+enabled: true
+allow_pyramiding: true
+max_scale_in_count: 2
+rules:
+  - stage: 1
+    mode: pyramiding
+    action: add
+    trigger_kind: r_multiple
+    trigger_value: 1
+    quantity_kind: initial_fraction
+    quantity_value: 0.25
+    cooldown_bars: 3
+    expires_bars: 1

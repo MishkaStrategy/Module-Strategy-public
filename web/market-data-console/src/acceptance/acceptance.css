@@ -1,0 +1,186 @@
+.acceptance-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.acceptance-health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.acceptance-health-grid article,
+.acceptance-receipt,
+.acceptance-notice,
+.acceptance-error {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--surface-raised);
+  padding: 0.9rem 1rem;
+}
+
+.acceptance-health-grid article {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.acceptance-health-grid article > span,
+.acceptance-health-grid article > small {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.acceptance-health-grid article.attention {
+  border-color: var(--status-warning-border, var(--border-strong));
+}
+
+.acceptance-grid-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.acceptance-details-grid,
+.acceptance-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.acceptance-details-grid.single {
+  grid-template-columns: 1fr;
+}
+
+.acceptance-details-grid > div,
+.acceptance-resource-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.acceptance-details-grid dt,
+.acceptance-resource-grid dt {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.acceptance-details-grid dd,
+.acceptance-resource-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.acceptance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.acceptance-actions .danger-action:not(:disabled) {
+  border-color: var(--status-error-border, var(--border-strong));
+}
+
+.acceptance-start-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.acceptance-start-form label:not(.acceptance-check) {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.acceptance-start-form input[type="text"],
+.acceptance-start-form input:not([type]) {
+  width: 100%;
+}
+
+.acceptance-start-form button[type="submit"] {
+  justify-self: start;
+}
+
+.acceptance-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.4rem;
+}
+
+.mono-input,
+.acceptance-page code,
+.acceptance-page .mono-wrap {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  overflow-wrap: anywhere;
+}
+
+.acceptance-warning-list {
+  margin: 0.8rem 0;
+  padding-left: 1.25rem;
+}
+
+.acceptance-evidence-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.acceptance-evidence-list article {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.6rem;
+}
+
+.acceptance-evidence-list small {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.acceptance-receipt,
+.acceptance-notice,
+.acceptance-error {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.acceptance-error {
+  border-color: var(--status-error-border, var(--border-strong));
+}
+
+.acceptance-error span,
+.acceptance-error small,
+.acceptance-notice span,
+.acceptance-receipt span,
+.acceptance-receipt small {
+  color: var(--text-muted);
+}
+
+.acceptance-status {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.acceptance-status-blocked,
+.acceptance-status-failed {
+  border-color: var(--status-error-border, var(--border-strong));
+}
+
+@media (max-width: 900px) {
+  .acceptance-health-grid,
+  .acceptance-grid-two,
+  .acceptance-start-form,
+  .acceptance-details-grid,
+  .acceptance-resource-grid {
+    grid-template-columns: 1fr;
+  }
+}

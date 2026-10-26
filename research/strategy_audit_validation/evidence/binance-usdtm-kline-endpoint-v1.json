@@ -1,0 +1,24 @@
+{
+  "base_url": "https://fapi.binance.com",
+  "endpoint": {
+    "method": "GET",
+    "path": "/fapi/v1/klines",
+    "security": "NONE"
+  },
+  "market": "Binance USDⓈ-M Futures perpetual",
+  "parameters": {
+    "endTime": "optional inclusive Unix epoch milliseconds",
+    "interval": "5m",
+    "limit": "1..1000",
+    "startTime": "optional inclusive Unix epoch milliseconds",
+    "symbol": "BTCUSDT"
+  },
+  "provenance_status": "APPROVED_FOR_NEW_DATASET_GENERATION_ONLY",
+  "schema_version": 1,
+  "sources": [
+    "https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api",
+    "https://github.com/binance/binance-futures-connector-python/blob/main/binance/um_futures/market.py",
+    "https://github.com/binance/binance-public-data"
+  ],
+  "trust_boundary": "This contract proves the approved endpoint for a new download. It does not retroactively prove the origin of the retained Drive bytes."
+}

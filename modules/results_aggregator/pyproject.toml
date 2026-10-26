@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-results-registry"
+version = "0.1.0.dev0"
+description = "Immutable experiment registry and results aggregation candidate for Modular Strategy"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+classifiers = [
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "coverage>=7", "jsonschema>=4.23"]
+
+[project.scripts]
+results-registry = "modular_results_registry.cli:main"
+
+[tool.setuptools.package-data]
+modular_results_registry = ["py.typed", "schemas/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["modular_results_registry"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = false

@@ -1,0 +1,9 @@
+{
+  "files_checked": 34,
+  "finding_count": 0,
+  "finding_counts": {},
+  "findings": [],
+  "line_length": 100,
+  "root": "/mnt/data/mdi_github_bundle/root/modules/market_data_ingestion/src/market_data_ingestion",
+  "status": "ok"
+}

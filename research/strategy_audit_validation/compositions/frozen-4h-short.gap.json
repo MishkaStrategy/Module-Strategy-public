@@ -1,0 +1,55 @@
+{
+  "approvable": false,
+  "contract_status": "MISSING_AUTHORITATIVE_CONTRACT",
+  "executable": false,
+  "identity": {
+    "direction": "short",
+    "module_id": "frozen_4h_short",
+    "name": "Frozen 4H Short",
+    "module_version": "missing-contract",
+    "signal_timeframe": "4h"
+  },
+  "recovered_facts": {
+    "distinct_from_pr_298_first_retest_baseline": true,
+    "lookahead_allowed": false,
+    "requires_completed_4h_candles": true,
+    "role": "separate component of the named canonical composition",
+    "unfinished_htf_allowed": false
+  },
+  "missing_for_complete_contract": [
+    "FVG or setup definition",
+    "all signal thresholds and equality conventions",
+    "indicator definitions and warmup",
+    "entry boundary and formula",
+    "first eligible execution bar",
+    "limit TTL and cancellation semantics",
+    "stop formula and maximum distance",
+    "target formula",
+    "maximum hold",
+    "no-progress check and MFE formula",
+    "same-bar and gap-through-stop behavior",
+    "cost and sizing overrides or inheritance declaration",
+    "runtime package and stable module version",
+    "feature identities and executable setup adapter",
+    "checkpoint and restart schema",
+    "priority relative to Final 15m and Frozen 1H",
+    "control signal and trade ledger"
+  ],
+  "non_substitution": {
+    "draft_pr": 298,
+    "reason": "PR #298 is a separate 4h first-retest research baseline with different entry, stop, target, and expiry semantics. Issue #312 forbids using it as Frozen 4H Short."
+  },
+  "schema_version": 1,
+  "source_provenance": {
+    "base_commit_sha": "c3eea068ff1d04c569ac28807102fc4f7918d610",
+    "issue": 312,
+    "recovery_audit": "docs/strategy-contracts/CANONICAL_STRATEGY_RECOVERY_AUDIT.md",
+    "search_scope": [
+      "repository files and history",
+      "pull requests and commits",
+      "project File Library strategy artifacts",
+      "retained approved project decisions"
+    ],
+    "search_verdict": "No complete authoritative Frozen 4H Short specification was found."
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+coverage/
+test-results/
+playwright-report/
+*.local
+.env
+.env.*
+!.env.example

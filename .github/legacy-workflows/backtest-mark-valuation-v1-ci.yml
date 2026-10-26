@@ -1,0 +1,140 @@
+name: Backtest mark valuation V1 CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/backtest-mark-valuation-v1-ci.yml"
+      - "src/modular_backtest/__init__.py"
+      - "src/modular_backtest/valuation.py"
+      - "src/modular_backtest/runner.py"
+      - "tests/backtest_engine/test_mark_valuation_v1.py"
+      - "tests/backtest_engine/test_mark_valuation_runner_v1.py"
+      - "tests/backtest_engine/test_mark_valuation_contract_edges_v1.py"
+      - "tests/backtest_engine/test_mark_valuation_risk_reference_v1.py"
+      - "tests/backtest_engine/test_mark_owner_error_privacy_v1.py"
+      - "docs/backtest/MARK_VALUATION_POLICY_V1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backtest-mark-valuation-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Mark valuation V1 / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact mark valuation candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+          cache-suffix: backtest-mark-valuation-v1
+
+      - name: Install focused dependency surface
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,backtest]"
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip check
+
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          src/modular_backtest/valuation.py
+          src/modular_backtest/runner.py
+          src/modular_backtest/__init__.py
+          tests/backtest_engine/test_mark_valuation_v1.py
+          tests/backtest_engine/test_mark_valuation_runner_v1.py
+          tests/backtest_engine/test_mark_valuation_contract_edges_v1.py
+          tests/backtest_engine/test_mark_valuation_risk_reference_v1.py
+          tests/backtest_engine/test_mark_owner_error_privacy_v1.py
+
+      - name: Ruff format
+        run: >-
+          ruff format --check
+          src/modular_backtest/valuation.py
+          src/modular_backtest/runner.py
+          src/modular_backtest/__init__.py
+          tests/backtest_engine/test_mark_valuation_v1.py
+          tests/backtest_engine/test_mark_valuation_runner_v1.py
+          tests/backtest_engine/test_mark_valuation_contract_edges_v1.py
+          tests/backtest_engine/test_mark_valuation_risk_reference_v1.py
+          tests/backtest_engine/test_mark_owner_error_privacy_v1.py
+
+      - name: Ruff lint
+        run: >-
+          ruff check
+          src/modular_backtest/valuation.py
+          src/modular_backtest/runner.py
+          src/modular_backtest/__init__.py
+          tests/backtest_engine/test_mark_valuation_v1.py
+          tests/backtest_engine/test_mark_valuation_runner_v1.py
+          tests/backtest_engine/test_mark_valuation_contract_edges_v1.py
+          tests/backtest_engine/test_mark_valuation_risk_reference_v1.py
+          tests/backtest_engine/test_mark_owner_error_privacy_v1.py
+
+      - name: Strict MyPy mark valuation
+        run: >-
+          mypy --strict
+          src/modular_backtest/valuation.py
+          src/modular_backtest/runner.py
+          src/modular_backtest/__init__.py
+
+      - name: Mark valuation and runner acceptance
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_mark_valuation_v1.py
+          tests/backtest_engine/test_mark_valuation_runner_v1.py
+          tests/backtest_engine/test_mark_valuation_contract_edges_v1.py
+          tests/backtest_engine/test_mark_valuation_risk_reference_v1.py
+          tests/backtest_engine/test_mark_owner_error_privacy_v1.py
+          tests/backtest_engine/test_runner.py
+          tests/backtest_engine/test_results.py
+
+      - name: Funding composition regression
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_funding_runtime_v2.py
+          tests/backtest_engine/test_funding_application.py
+          tests/backtest_engine/test_funding_runner_v3.py
+
+      - name: Real recovery regression
+        run: >-
+          pytest -o addopts="" -q
+          tests/backtest_engine/test_recovery.py
+
+      - name: Public import smoke
+        run: >-
+          python -c
+          "from modular_backtest import RegisteredMarkPriceSource, VALUATION_POLICY_LAST, VALUATION_POLICY_MARK, open_registered_mark_price_source; assert RegisteredMarkPriceSource and VALUATION_POLICY_LAST == 'last' and VALUATION_POLICY_MARK == 'mark' and open_registered_mark_price_source"

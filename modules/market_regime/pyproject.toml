@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-market-regime"
+version = "1.2.0"
+description = "Deterministic Market Regime feature producer for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+  "coverage>=7,<8",
+  "mypy>=1.11,<2",
+  "ruff>=0.12,<0.13",
+  "build>=1.2,<2",
+  "setuptools>=68",
+]
+
+[project.entry-points."modular_strategy.modules"]
+market_regime = "market_regime:MarketRegimeModule"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+market_regime = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+markers = [
+  "slow: long-running stress, extended replay, and benchmark evidence tests",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+packages = ["market_regime"]
+mypy_path = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests", "benchmarks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B"]
+ignore = ["E501"]

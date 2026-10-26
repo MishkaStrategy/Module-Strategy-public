@@ -1,0 +1,1517 @@
+{
+  "classification_notes": [
+    "Open is GitHub lifecycle state, not permission to execute or merge.",
+    "Retained classes for still-open pre-existing surfaces; new unaccepted technical follow-ups conservatively active.",
+    "Stopped #250/#938 and consumed successor SEARCH surfaces are frozen history under #1190 Option 2.",
+    "Draft #1247/#1266 are superseded by accepted #1248/#1267; they are not merged.",
+    "Closed #963 cancels the old replication plan; no v3 replication is claimed.",
+    "#1351 implementation handoff is present, but latest producer failure skipped evidence; acceptance remains open.",
+    "Audit PR #1366 is included. PR heads are observed checkpoint identities, not self-referential SHAs of the commit writing this snapshot."
+  ],
+  "last_search": {
+    "attempt": 1,
+    "authority_comment": 5924164077,
+    "authority_consumed": true,
+    "caller_sha": "eb4ef89a3c477e689e689da75cb3fd9ad94c7b4b",
+    "completed_at": "2026-10-02T03:39:35Z",
+    "conclusion": "failure",
+    "downstream_authority": "none",
+    "executor_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+    "jobs": [
+      {
+        "conclusion": "success",
+        "name": "owner_gate",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job"
+          },
+          {
+            "conclusion": "success",
+            "name": "Set up runner"
+          },
+          {
+            "conclusion": "success",
+            "name": "Validate preparation or durable one-shot owner gate"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete runner"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job"
+          }
+        ],
+        "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36810932751/job/110205605173"
+      },
+      {
+        "conclusion": "failure",
+        "name": "execute_one_search / ms5a_search",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job"
+          },
+          {
+            "conclusion": "success",
+            "name": "Set up runner"
+          },
+          {
+            "conclusion": "success",
+            "name": "Checkout exact bound MS5A source"
+          },
+          {
+            "conclusion": "success",
+            "name": "Verify immutable source and prepare private roots"
+          },
+          {
+            "conclusion": "success",
+            "name": "Validate local MS5A Backtester runtime"
+          },
+          {
+            "conclusion": "success",
+            "name": "Provision pinned uv and Python 3.13"
+          },
+          {
+            "conclusion": "success",
+            "name": "Verify exact MS5A Python runtime"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install exact owner-backed MS5A surface"
+          },
+          {
+            "conclusion": "success",
+            "name": "Deep-verify frozen request without execution"
+          },
+          {
+            "conclusion": "success",
+            "name": "Final live host-maintenance preflight"
+          },
+          {
+            "conclusion": "success",
+            "name": "Enforce exact frozen bindings and timeout geometry"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Preparation boundary — stop before Research"
+          },
+          {
+            "conclusion": "failure",
+            "name": "Execute exactly one separately authorized SEARCH"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Enforce SEARCH-only terminal boundary"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Assemble sanitized SEARCH evidence"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Prepare sanitized integrity-checked evidence outputs"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Post Provision pinned uv and Python 3.13"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Checkout exact bound MS5A source"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete runner"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job"
+          }
+        ],
+        "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36810932751/job/110205659711"
+      },
+      {
+        "conclusion": "skipped",
+        "name": "exact_source_preflight",
+        "steps": [],
+        "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36810932751/job/110205660580"
+      },
+      {
+        "conclusion": "skipped",
+        "name": "execute_one_search / heavy-audit",
+        "steps": [],
+        "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36810932751/job/110205660664"
+      },
+      {
+        "conclusion": "skipped",
+        "name": "publish_search_evidence",
+        "steps": [],
+        "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36810932751/job/110694850444"
+      }
+    ],
+    "research_source_sha": "653b1ba67d8986072c0f9b0621277977b54b8054",
+    "run_id": 36810932751,
+    "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36810932751"
+  },
+  "limits": [
+    "No graphify-out/graph.json exists in this checkout; graph query unavailable.",
+    "No exhaustive security scan, full 888-test-file suite, private runtime inspection, quantitative research or 2h/24h soak performed.",
+    "Checks are those actually reported by GitHub for the source checkpoint, not every possible workflow.",
+    "Snapshot can become stale; reverify GitHub before resuming."
+  ],
+  "local_validation": {
+    "mode": "source imports with isolated test dependencies; not a clean release wheel install",
+    "post_edit_checks": {
+      "check_generated": "pass",
+      "dependency_dag": "35 workstreams; no cycles",
+      "git_diff_check": "pass",
+      "local_document_links": "pass",
+      "project_state_contract_tests_passed": 18,
+      "project_state_validate": "pass",
+      "snapshot_identity_classification": "74 PRs / 62 Issues; pass"
+    },
+    "python": "3.12.13",
+    "selected_tests_passed": 160,
+    "suite_paths": [
+      "tests/test_project_state.py",
+      "tests/ci_policy/test_release_evidence_handoff.py",
+      "applications/risk_supervisor/tests",
+      "applications/system_recovery/tests",
+      "research/strategy_factory/tests/test_ms5a_host_guard.py"
+    ],
+    "warnings": [
+      "One existing PytestCollectionWarning for TestNotificationRequest dataclass."
+    ]
+  },
+  "observed_at": "2026-10-02T11:38:33Z",
+  "open_issues": [
+    {
+      "number": 1364,
+      "title": "MS5A: bounded performance-only throughput repair",
+      "updatedAt": "2026-10-02T07:07:47Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1364"
+    },
+    {
+      "number": 1353,
+      "title": "MS5: one-shot exact-source preflight-only probe",
+      "updatedAt": "2026-10-01T02:02:05Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1353"
+    },
+    {
+      "number": 1351,
+      "title": "MS5: make >24h Research evidence publication token-safe",
+      "updatedAt": "2026-10-01T01:06:55Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1351"
+    },
+    {
+      "number": 1223,
+      "title": "GOV-SEARCH-001: request fresh owner authority for first multi-strategy SEARCH",
+      "updatedAt": "2026-10-01T03:31:48Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1223"
+    },
+    {
+      "number": 1174,
+      "title": "CP-10E43: diagnose zero-trade successor screening after accepted EntryPlan bridge",
+      "updatedAt": "2026-09-21T05:07:47Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1174"
+    },
+    {
+      "number": 1172,
+      "title": "CP-10E42: read-only classify terminal coarse_search failure from run 35552571037",
+      "updatedAt": "2026-09-21T05:07:25Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1172"
+    },
+    {
+      "number": 1129,
+      "title": "CP-10E29: make successor SEARCH interruption evidence fail-safe",
+      "updatedAt": "2026-09-15T09:28:51Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1129"
+    },
+    {
+      "number": 1124,
+      "title": "CP-10E28: make successor terminal evidence cancellation-safe",
+      "updatedAt": "2026-09-14T18:23:11Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1124"
+    },
+    {
+      "number": 1122,
+      "title": "CP-10E27: one fresh governed successor SEARCH on canonical 675275e",
+      "updatedAt": "2026-09-15T08:19:52Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1122"
+    },
+    {
+      "number": 1118,
+      "title": "[HQ] CP-10E26 recovery disposition after bounded SEARCH",
+      "updatedAt": "2026-09-14T09:59:31Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1118"
+    },
+    {
+      "number": 1114,
+      "title": "CP-10E24B: hard wall-clock watchdog for non-cooperative successor execution",
+      "updatedAt": "2026-09-14T13:21:29Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1114"
+    },
+    {
+      "number": 1112,
+      "title": "CP-10E25: one governed successor SEARCH on canonical b489811",
+      "updatedAt": "2026-09-13T11:46:03Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1112"
+    },
+    {
+      "number": 1107,
+      "title": "[HQ][CI] Default-branch Fast checks can report success after Ruff or MyPy failure",
+      "updatedAt": "2026-09-13T09:09:57Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1107"
+    },
+    {
+      "number": 1085,
+      "title": "CP-10: governed successor runtime composition expansion for #250",
+      "updatedAt": "2026-09-06T07:56:33Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1085"
+    },
+    {
+      "number": 1047,
+      "title": "Allow Backtest funding runtime evidence in Research registry packages",
+      "updatedAt": "2026-09-02T12:55:39Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1047"
+    },
+    {
+      "number": 1034,
+      "title": "Classify canonical PAPER structural-screening block after safe execute",
+      "updatedAt": "2026-09-02T07:18:56Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1034"
+    },
+    {
+      "number": 1032,
+      "title": "Diagnostic: classify canonical PAPER replay failure after run 33598585027",
+      "updatedAt": "2026-09-02T06:34:55Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1032"
+    },
+    {
+      "number": 1003,
+      "title": "Research #478: make historical baseline CSV parsing bit-exact",
+      "updatedAt": "2026-08-30T20:10:55Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/1003"
+    },
+    {
+      "number": 993,
+      "title": "CI: make v0.6 ancestry checks independent of post-checkout promisor fetch",
+      "updatedAt": "2026-08-29T22:57:04Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/993"
+    },
+    {
+      "number": 992,
+      "title": "CI: make Wave Analysis repository-compatibility install match integration test ownership",
+      "updatedAt": "2026-08-29T22:56:55Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/992"
+    },
+    {
+      "number": 991,
+      "title": "CI: eliminate Stage-1 composition fixed-port collision on parallel runners",
+      "updatedAt": "2026-08-29T22:56:45Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/991"
+    },
+    {
+      "number": 978,
+      "title": "[CI][Runner] Diagnose intermittent mypy SIGSEGV and reported wheel corruption under peak load",
+      "updatedAt": "2026-08-29T17:43:02Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/978"
+    },
+    {
+      "number": 948,
+      "title": "Release Engineering: reproducible PAPER release preflight for #387/#393/#400",
+      "updatedAt": "2026-09-13T09:09:59Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/948"
+    },
+    {
+      "number": 933,
+      "title": "[System Acceptance][Stage 1] Provide canonical PAPER owner provisioning composition",
+      "updatedAt": "2026-08-25T15:56:07Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/933"
+    },
+    {
+      "number": 924,
+      "title": "[Physical][Acceptance] Decouple full historical compute from post-processing validation",
+      "updatedAt": "2026-08-24T11:53:35Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/924"
+    },
+    {
+      "number": 917,
+      "title": "[CI][Runner] Restore outbound GitHub TLS reliability on self-hosted Mac fleet",
+      "updatedAt": "2026-08-22T17:20:28Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/917"
+    },
+    {
+      "number": 873,
+      "title": "[System Acceptance][Stage 1][Mac deployment] Bind existing owner objects into durable local service host",
+      "updatedAt": "2026-08-25T15:27:03Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/873"
+    },
+    {
+      "number": 869,
+      "title": "[Backtest][CI] Make official Binance dataset materialization resilient to repeated tunnel 503",
+      "updatedAt": "2026-08-18T16:58:59Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/869"
+    },
+    {
+      "number": 866,
+      "title": "[System Acceptance][Stage 1] Bind accepted bootstrap to Mac deployment and run baseline 2h PAPER soak",
+      "updatedAt": "2026-08-25T12:01:53Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/866"
+    },
+    {
+      "number": 864,
+      "title": "[CI][Governance] Reconcile full-RC residual artifact debt with organization storage policy",
+      "updatedAt": "2026-08-18T05:14:20Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/864"
+    },
+    {
+      "number": 862,
+      "title": "[Governance][Incident] Accidental zero-diff main history movement during policy repair",
+      "updatedAt": "2026-08-29T18:04:22Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/862"
+    },
+    {
+      "number": 849,
+      "title": "Backtest: eliminate duplicate full-corpus event-stream publication",
+      "updatedAt": "2026-08-17T06:02:27Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/849"
+    },
+    {
+      "number": 826,
+      "title": "CI runners: repair Acer fast preflight capability without selector drift",
+      "updatedAt": "2026-08-19T13:56:00Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/826"
+    },
+    {
+      "number": 820,
+      "title": "Physical acceptance: retain redacted historical-helper failure diagnostics",
+      "updatedAt": "2026-08-16T11:26:57Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/820"
+    },
+    {
+      "number": 810,
+      "title": "FVG: runtime snapshot restore republishes already-restored FeatureStore entries",
+      "updatedAt": "2026-08-16T07:34:51Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/810"
+    },
+    {
+      "number": 807,
+      "title": "Control UI: resync clean-worktree physical evidence repair into accepted parent",
+      "updatedAt": "2026-08-15T16:25:40Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/807"
+    },
+    {
+      "number": 805,
+      "title": "CI: keep physical historical evidence outside canonical Git worktree",
+      "updatedAt": "2026-08-15T13:49:20Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/805"
+    },
+    {
+      "number": 800,
+      "title": "CI: fail closed when physical historical helper aborts before canonical suite",
+      "updatedAt": "2026-08-15T13:21:41Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/800"
+    },
+    {
+      "number": 794,
+      "title": "CI: automate physical Mac acceptance through GitHub Actions",
+      "updatedAt": "2026-08-15T12:51:47Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/794"
+    },
+    {
+      "number": 779,
+      "title": "Session Range: frozen checkpoint payload breaks replay restore",
+      "updatedAt": "2026-08-15T12:35:05Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/779"
+    },
+    {
+      "number": 778,
+      "title": "Control UI: integrate System Recovery without browser path authority",
+      "updatedAt": "2026-08-15T07:03:13Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/778"
+    },
+    {
+      "number": 524,
+      "title": "Test architecture regression: restore removed audited-base node IDs on current full-RC",
+      "updatedAt": "2026-08-09T06:59:04Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/524"
+    },
+    {
+      "number": 478,
+      "title": "GAP-008: canonical full-corpus futures-realism A/B acceptance",
+      "updatedAt": "2026-08-31T15:57:27Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/478"
+    },
+    {
+      "number": 400,
+      "title": "Operations: define one reproducible supported paper deployment topology",
+      "updatedAt": "2026-08-08T03:17:10Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/400"
+    },
+    {
+      "number": 398,
+      "title": "Research hardening: account for multiple testing and strategy-selection bias",
+      "updatedAt": "2026-08-08T03:16:42Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/398"
+    },
+    {
+      "number": 396,
+      "title": "GAP-011: add portfolio and multi-symbol risk coordination",
+      "updatedAt": "2026-08-08T03:12:48Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/396"
+    },
+    {
+      "number": 395,
+      "title": "GAP-010: formalize accepted strategy runtime lifecycle",
+      "updatedAt": "2026-08-08T03:12:35Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/395"
+    },
+    {
+      "number": 393,
+      "title": "GAP-014: close whole-system security threat model and negative E2E",
+      "updatedAt": "2026-08-08T03:11:06Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/393"
+    },
+    {
+      "number": 387,
+      "title": "GAP-009: formalize immutable platform release lifecycle",
+      "updatedAt": "2026-08-08T08:04:41Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/387"
+    },
+    {
+      "number": 380,
+      "title": "Strategy monitoring: detect research-to-paper statistical drift",
+      "updatedAt": "2026-08-07T12:17:51Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/380"
+    },
+    {
+      "number": 376,
+      "title": "Backtest realism: close funding, mark/index price, and futures cashflow gaps",
+      "updatedAt": "2026-08-08T14:22:47Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/376"
+    },
+    {
+      "number": 373,
+      "title": "HQ: close full-project gaps to durable paper-platform readiness",
+      "updatedAt": "2026-08-30T11:35:57Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/373"
+    },
+    {
+      "number": 370,
+      "title": "Control UI: unify Dashboard, terminal control and project Control Plane",
+      "updatedAt": "2026-08-15T07:40:17Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/370"
+    },
+    {
+      "number": 369,
+      "title": "Mac full-RC validation: deterministic backtest, paper runtime, recovery, and 24h soak",
+      "updatedAt": "2026-08-24T03:59:43Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/369"
+    },
+    {
+      "number": 320,
+      "title": "Full-RC checkpoint: PR #306 → PR #265 pre-integration audit",
+      "updatedAt": "2026-08-04T17:01:16Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/320"
+    },
+    {
+      "number": 286,
+      "title": "Governance: obtain independent human approval for full-RC PR #265",
+      "updatedAt": "2026-07-31T10:15:04Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/286"
+    },
+    {
+      "number": 250,
+      "title": "Implement independent Strategy Audit & Validation for paper admission",
+      "updatedAt": "2026-09-05T13:28:55Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/250"
+    },
+    {
+      "number": 220,
+      "title": "Results Aggregator rejects integrated Core 0.4.2 v0.4 export",
+      "updatedAt": "2026-07-27T10:43:46Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/220"
+    },
+    {
+      "number": 219,
+      "title": "Research Runner package sink rejects official Backtest evidence files",
+      "updatedAt": "2026-07-27T10:43:38Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/219"
+    },
+    {
+      "number": 158,
+      "title": "Research Runner: coordinated scheduler fencing remediation",
+      "updatedAt": "2026-07-24T08:50:26Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/158"
+    },
+    {
+      "number": 103,
+      "title": "Cross-chat development ledger: Core and integration",
+      "updatedAt": "2026-08-02T12:05:02Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/103"
+    },
+    {
+      "number": 100,
+      "title": "Decision Router: integration and release blockers",
+      "updatedAt": "2026-07-23T06:02:18Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/issues/100"
+    }
+  ],
+  "open_pull_requests": [
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "docs/release-audit-2026-10-02",
+      "headRefOid": "243d09a8c9a2721f68df10723fa7443a3aa37d9b",
+      "isDraft": true,
+      "number": 1366,
+      "title": "docs: audit release readiness and refresh multi-strategy roadmap",
+      "updatedAt": "2026-10-02T11:37:53Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1366"
+    },
+    {
+      "baseRefName": "fix/ms5a-throughput-1364",
+      "headRefName": "fix/1364-fvg-indicator-cache-materialization",
+      "headRefOid": "ae33873170c19e9f1c7825b9dce5a872a30a18fe",
+      "isDraft": true,
+      "number": 1365,
+      "title": "MS5A: bound FVG shifted-window indicator recompute overhead",
+      "updatedAt": "2026-10-02T10:03:07Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1365"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "fix/1265-ms5a-funding-v6-binding",
+      "headRefOid": "3cdfbef38c8f1d7e246dd7f09f49554f150db1e8",
+      "isDraft": true,
+      "number": 1266,
+      "title": "MS5A: bind owner request to funding v6",
+      "updatedAt": "2026-09-24T21:10:52Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1266"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "fix/ms5a-fvg-rt-constructor-contract",
+      "headRefOid": "5844eccabda703d55cd4682c54d17a77c8f262ba",
+      "isDraft": true,
+      "number": 1247,
+      "title": "MS5A: align FVG-RT composite constructor contract",
+      "updatedAt": "2026-09-24T13:35:25Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1247"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "docs/hq-ms5-deadline-repair-gate",
+      "headRefOid": "9a385e3071dedb5b89f598bb3a93c19daf08888a",
+      "isDraft": true,
+      "number": 1242,
+      "title": "HQ: record accepted MS5 deadline repair gate",
+      "updatedAt": "2026-09-24T09:53:38Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1242"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "diagnostic/cp10e42-terminal-readonly",
+      "headRefOid": "3b0c0a5369c52f6035e59df25f08683e666b8ae9",
+      "isDraft": false,
+      "number": 1173,
+      "title": "Diagnostic: classify CP-10E42 terminal coarse_search state read-only",
+      "updatedAt": "2026-09-21T05:16:58Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1173"
+    },
+    {
+      "baseRefName": "fix/250-canonical-paper-admission",
+      "headRefName": "fix/1124-successor-cancellation-evidence",
+      "headRefOid": "fdff885044f6afc0e0f6b07d82a67a4fb05fb31c",
+      "isDraft": true,
+      "number": 1126,
+      "title": "CP-10E28: make successor terminal evidence cancellation-safe",
+      "updatedAt": "2026-09-14T18:31:00Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1126"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "hq/cp10e28-r258-cancellation-recovery",
+      "headRefOid": "7251b629fdc1aca97d5dbc04617e0b618046f91f",
+      "isDraft": true,
+      "number": 1125,
+      "title": "HQ r258: persist CP-10E27 cancellation recovery state",
+      "updatedAt": "2026-09-14T18:24:00Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1125"
+    },
+    {
+      "baseRefName": "fix/250-canonical-paper-admission",
+      "headRefName": "fix/250-successor-block-inspect-daa241",
+      "headRefOid": "4a39faffcf623ea417f17f2f8e5c88a24d181d1d",
+      "isDraft": true,
+      "number": 1101,
+      "title": "Diagnostic: inspect daa241 successor structural screening",
+      "updatedAt": "2026-09-11T03:55:34Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1101"
+    },
+    {
+      "baseRefName": "fix/250-canonical-paper-admission",
+      "headRefName": "diagnostic/1032-replay-failure-a3f16f4",
+      "headRefOid": "97ce6f63b76fb22c6347bb8f5df641a736241c5b",
+      "isDraft": true,
+      "number": 1033,
+      "title": "Diagnostic: classify canonical PAPER replay failure",
+      "updatedAt": "2026-09-02T06:35:52Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1033"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "hq/250-canonical-paper-r44-admission-authorized",
+      "headRefOid": "bf16f7163f2079def1973b0718012355938cb0b2",
+      "isDraft": true,
+      "number": 1031,
+      "title": "HQ checkpoint r44: authorize exact canonical PAPER admission",
+      "updatedAt": "2026-09-02T06:21:18Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1031"
+    },
+    {
+      "baseRefName": "fix/250-canonical-paper-admission",
+      "headRefName": "diagnostic/250-paper-admission-state-776f81d2",
+      "headRefOid": "18d4e6da60a086fc86c405fe1ba52693c1f39ff3",
+      "isDraft": true,
+      "number": 1023,
+      "title": "Diagnostic: classify current-head PAPER durable state after execute failure",
+      "updatedAt": "2026-09-02T03:17:22Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1023"
+    },
+    {
+      "baseRefName": "fix/250-canonical-paper-admission",
+      "headRefName": "diagnostic/250-paper-admission-state-590764dc",
+      "headRefOid": "9b05f2d0d49d5a88d9801e81d2f75630da8d9406",
+      "isDraft": false,
+      "number": 1020,
+      "title": "Read-only diagnose canonical PAPER admission durable state",
+      "updatedAt": "2026-09-01T17:34:20Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1020"
+    },
+    {
+      "baseRefName": "fix/250-canonical-paper-admission",
+      "headRefName": "diag/1010-v4-target-verify-failure",
+      "headRefOid": "b0e5f44952f1c472349c3d6a2ec744adb483e9b9",
+      "isDraft": true,
+      "number": 1012,
+      "title": "Draft: diagnose canonical v4 target verification failure",
+      "updatedAt": "2026-09-01T07:56:57Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/1012"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "release/issue-948-paper-release-preflight-r4",
+      "headRefOid": "da550f52a4a4b46c0f2e74ae2dccd19f28f522ba",
+      "isDraft": true,
+      "number": 982,
+      "title": "Release Engineering: refresh PAPER release preflight (#948)",
+      "updatedAt": "2026-08-29T17:04:41Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/982"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "fix/953-paper-close-position-contract",
+      "headRefOid": "c565f05f8e7da9879b845449224f357d3af96f09",
+      "isDraft": true,
+      "number": 954,
+      "title": "test(#953): capture unreachable PAPER full-close contract",
+      "updatedAt": "2026-08-27T17:56:13Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/954"
+    },
+    {
+      "baseRefName": "control-ui/unified-control-plane-foundation",
+      "headRefName": "fix/250-canonical-paper-admission",
+      "headRefOid": "8e8d0f303712a2afa926e6f0b3e19659e2d57b3d",
+      "isDraft": true,
+      "number": 938,
+      "title": "Draft: owner-native canonical PAPER admission",
+      "updatedAt": "2026-09-22T13:23:05Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/938"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "fix/865-browser-runner-preflight",
+      "headRefOid": "dd7362ed4c1d2f184c491b7df993291ab1441658",
+      "isDraft": true,
+      "number": 909,
+      "title": "Draft: #865 enforce browser ABI on fast Linux runners",
+      "updatedAt": "2026-08-29T06:33:53Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/909"
+    },
+    {
+      "baseRefName": "ops/actions-artifact-prune-1d-20260809",
+      "headRefName": "ops/actions-artifact-prune-batch-20260809",
+      "headRefOid": "c8ec4875288cc153d6b526f786ebc8e7710d7fe8",
+      "isDraft": true,
+      "number": 511,
+      "title": "[ops] Draft: deterministic bounded artifact pruning batches",
+      "updatedAt": "2026-08-10T02:30:11Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/511"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "release/platform-release-manifest-v2",
+      "headRefOid": "2ac62e8b6c94156f53d833ed2a2f61813db80e24",
+      "isDraft": true,
+      "number": 428,
+      "title": "Draft: rebase platform release manifest onto current full-RC",
+      "updatedAt": "2026-08-08T07:21:47Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/428"
+    },
+    {
+      "baseRefName": "validation/runner-capacity-base-a8482f1c",
+      "headRefName": "validation/runner-capacity-exact-a8482f1c",
+      "headRefOid": "3173a73cf56f8532c62fc0fbc80f046196ce8cd2",
+      "isDraft": true,
+      "number": 424,
+      "title": "Validation-only: exact runner disk pressure telemetry",
+      "updatedAt": "2026-08-08T05:39:02Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/424"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "integration/modular-strategy-full-rc",
+      "headRefOid": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "isDraft": false,
+      "number": 325,
+      "title": "Validation: final exact-head full-RC acceptance",
+      "updatedAt": "2026-10-01T03:15:36Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/325"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "agent/exact-runner-selectors",
+      "headRefOid": "37a01ee9249d98ad8ed0bf6a909e20af3b97c2bd",
+      "isDraft": true,
+      "number": 319,
+      "title": "ci: enforce four exact self-hosted runner selectors",
+      "updatedAt": "2026-08-04T02:58:02Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/319"
+    },
+    {
+      "baseRefName": "integration/optimization-wave-1",
+      "headRefName": "validation/optimization-wave-1-final-a54a5fa",
+      "headRefOid": "1e1fec89b30579d0b11fa2fd0a7810f771b09b45",
+      "isDraft": true,
+      "number": 307,
+      "title": "Lab: hosted validation for Optimization Wave 1 final head",
+      "updatedAt": "2026-08-02T07:26:41Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/307"
+    },
+    {
+      "baseRefName": "integration/optimization-wave-1",
+      "headRefName": "integration/optimization-wave-1-merge-lab",
+      "headRefOid": "3b2a7b5e080533642d63612de2a2f655e7ea5355",
+      "isDraft": true,
+      "number": 305,
+      "title": "Lab: export optimization wave 1 merge bundle",
+      "updatedAt": "2026-08-02T06:08:31Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/305"
+    },
+    {
+      "baseRefName": "integration/registered-streaming-on-backtest-memory",
+      "headRefName": "strategy/btcusdt-4h-fvg-first-retest",
+      "headRefOid": "7a0cf8eea6ea2b67873ac976fb9e14c542e84ed1",
+      "isDraft": true,
+      "number": 298,
+      "title": "Draft: add BTCUSDT 4H FVG first-retest baseline",
+      "updatedAt": "2026-08-02T00:10:17Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/298"
+    },
+    {
+      "baseRefName": "integration/registered-streaming-on-backtest-memory",
+      "headRefName": "validation/registered-streaming-synthetic-scale-20260801",
+      "headRefOid": "b75715b37521902d33d392eb1a219478cef1de22",
+      "isDraft": true,
+      "number": 297,
+      "title": "Draft: validate registered streaming synthetic scale ladder",
+      "updatedAt": "2026-08-01T17:25:51Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/297"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "docs/update-project-readme",
+      "headRefOid": "0583cc7a600a8cd18ae0a2b4b13a56ed000e3a66",
+      "isDraft": true,
+      "number": 295,
+      "title": "Draft: rewrite project README with interface gallery",
+      "updatedAt": "2026-08-01T09:24:14Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/295"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-full-rc",
+      "headRefName": "integration/strategy-factory-premerge",
+      "headRefOid": "d579c6cb3f7ea1e5b9e4a82f486ca4bb48c4c14c",
+      "isDraft": true,
+      "number": 281,
+      "title": "Draft: validate Strategy Factory and independent Auditor integration",
+      "updatedAt": "2026-07-30T01:36:51Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/281"
+    },
+    {
+      "baseRefName": "interface/market-data-web-cli",
+      "headRefName": "interface/market-data-progress-sse-contract",
+      "headRefOid": "a260c2a3ee767ef082d30b4c8f5c70c260168ee7",
+      "isDraft": true,
+      "number": 264,
+      "title": "Prove measured Market Data progress over SSE",
+      "updatedAt": "2026-07-29T12:49:30Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/264"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "agent/runner-label-policy",
+      "headRefOid": "2638297237952036ccdea38d1848616bfdfe0e14",
+      "isDraft": true,
+      "number": 249,
+      "title": "Enforce self-hosted runner capability labels",
+      "updatedAt": "2026-07-28T15:13:39Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/249"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "agent/self-hosted-python-toolcache-fix",
+      "headRefOid": "a150b228335155b278cc87aa6da542c4b0430d4d",
+      "isDraft": true,
+      "number": 248,
+      "title": "Fix Python selection on self-hosted fast runners",
+      "updatedAt": "2026-07-28T04:02:35Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/248"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.6.0-rc",
+      "headRefName": "research/automatic-strategy-builder",
+      "headRefOid": "60d4f4e8951cc0e762e60d3b6cda0b78e5fbae87",
+      "isDraft": true,
+      "number": 218,
+      "title": "Develop Automatic Strategy Builder / Strategy Factory",
+      "updatedAt": "2026-07-28T14:42:05Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/218"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "agent/runner-dependency-check",
+      "headRefOid": "a1ab76bd2a4cad8650a516d576261b771688febd",
+      "isDraft": true,
+      "number": 194,
+      "title": "Add self-hosted runner dependency audit",
+      "updatedAt": "2026-07-25T18:45:31Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/194"
+    },
+    {
+      "baseRefName": "core/integration-contract-freeze-v0.4.2",
+      "headRefName": "integration/modular-strategy-v0.6.0-rc",
+      "headRefOid": "9b7cc5cac837f8d66c691117143e0dcb9cf2d8f8",
+      "isDraft": true,
+      "number": 168,
+      "title": "Prepare Modular Strategy v0.6 staged integration",
+      "updatedAt": "2026-07-31T05:46:13Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/168"
+    },
+    {
+      "baseRefName": "core/engine-integration-boundaries-v0.4.2",
+      "headRefName": "core/contract-freeze-v0.4.2",
+      "headRefOid": "eab4a8dfce3e10c142408114ca674c2ed94111df",
+      "isDraft": true,
+      "number": 165,
+      "title": "Freeze Core 0.4.2 contracts for module integration",
+      "updatedAt": "2026-07-24T07:03:32Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/165"
+    },
+    {
+      "baseRefName": "core/engine-integration-boundaries-v0.4.2",
+      "headRefName": "core/integration-contract-freeze-v0.4.2",
+      "headRefOid": "cc7eb494c27eb0fc48dd16026b704bade9f6de3e",
+      "isDraft": true,
+      "number": 164,
+      "title": "Freeze Core 0.4.2 contracts for module integration",
+      "updatedAt": "2026-07-24T07:09:54Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/164"
+    },
+    {
+      "baseRefName": "core/timeframe-store-boundaries-v0.4.2",
+      "headRefName": "core/engine-integration-boundaries-v0.4.2",
+      "headRefOid": "241afbda31073fa020cac4fd9c596152db77a247",
+      "isDraft": true,
+      "number": 161,
+      "title": "Harden Engine integration boundaries",
+      "updatedAt": "2026-07-24T07:09:23Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/161"
+    },
+    {
+      "baseRefName": "core/manifest-registry-boundaries-v0.4.2",
+      "headRefName": "core/timeframe-store-boundaries-v0.4.2",
+      "headRefOid": "c9c656f459b1f4ff6283b6ae05b60d8591e71b08",
+      "isDraft": true,
+      "number": 157,
+      "title": "Harden timeframe identity and store boundaries",
+      "updatedAt": "2026-07-24T06:38:04Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/157"
+    },
+    {
+      "baseRefName": "core/config-numeric-boundaries-v0.4.2",
+      "headRefName": "core/manifest-registry-boundaries-v0.4.2",
+      "headRefOid": "c8b202e6b66ce42c8ea4ddf9dcfcae2dcb85714b",
+      "isDraft": true,
+      "number": 156,
+      "title": "Harden manifest, dependency plan and registry boundaries",
+      "updatedAt": "2026-07-24T03:01:50Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/156"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "ops/export-static-tools-py313",
+      "headRefOid": "daf0a2fbb5467917c68e138b9d7dc479bbe9a9de",
+      "isDraft": true,
+      "number": 155,
+      "title": "Export Ruff and MyPy wheels for local Results Aggregator fixes",
+      "updatedAt": "2026-07-24T02:46:50Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/155"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "ci/results-aggregator-gates",
+      "headRefOid": "e0ffbc51f8c50328f15330bd382fd2d86c6b2a3b",
+      "isDraft": true,
+      "number": 154,
+      "title": "Add Results Aggregator CI gates",
+      "updatedAt": "2026-07-24T05:16:19Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/154"
+    },
+    {
+      "baseRefName": "core/session-temporal-boundaries-v0.4.2",
+      "headRefName": "core/config-numeric-boundaries-v0.4.2",
+      "headRefOid": "231ccb0b8953287726358327ab1f9cbceac8dab5",
+      "isDraft": true,
+      "number": 153,
+      "title": "Canonicalize numeric configuration boundaries",
+      "updatedAt": "2026-07-24T02:43:17Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/153"
+    },
+    {
+      "baseRefName": "core/runtime-data-risk-boundaries-v0.4.2",
+      "headRefName": "core/session-temporal-boundaries-v0.4.2",
+      "headRefOid": "e24e27e355d1c2c0cc8c0f9d9332858688875d43",
+      "isDraft": true,
+      "number": 151,
+      "title": "Harden session, calendar and temporal boundaries",
+      "updatedAt": "2026-07-24T02:26:17Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/151"
+    },
+    {
+      "baseRefName": "core/model-request-boundaries-v0.4.2",
+      "headRefName": "core/runtime-data-risk-boundaries-v0.4.2",
+      "headRefOid": "99779ca0e03636dc0eca2f4bd66142ab8cdea501",
+      "isDraft": true,
+      "number": 148,
+      "title": "Harden readiness, data, clock and risk boundaries",
+      "updatedAt": "2026-07-24T02:08:35Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/148"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "ops/ff-results-aggregator-dc14e45-clean",
+      "headRefOid": "cad16fe7f082b8f510a83931dfec9ffc15e39a34",
+      "isDraft": true,
+      "number": 135,
+      "title": "Transport verified Results Aggregator checkpoint dc14e45 (clean)",
+      "updatedAt": "2026-07-23T17:21:38Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/135"
+    },
+    {
+      "baseRefName": "policy/five-round-development-cycle",
+      "headRefName": "policy/chat-continuation-checkpoints",
+      "headRefOid": "a0999b87fb8569d58295f1183cee5a3d656c3b0b",
+      "isDraft": true,
+      "number": 132,
+      "title": "Add proactive GitHub checkpoints for chat continuation",
+      "updatedAt": "2026-07-29T11:49:25Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/132"
+    },
+    {
+      "baseRefName": "core/post-release-hardening-v0.4.2",
+      "headRefName": "core/evidence-integrity-hardening-v0.4.2",
+      "headRefOid": "2742b3c6499a4fe60feff2be5486666831abca41",
+      "isDraft": true,
+      "number": 130,
+      "title": "Harden checkpoint and run-manifest evidence integrity",
+      "updatedAt": "2026-07-23T11:12:02Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/130"
+    },
+    {
+      "baseRefName": "core/setup-metadata-hardening-v0.4.2",
+      "headRefName": "core/model-request-boundaries-v0.4.2",
+      "headRefOid": "6bbde2f65341994ad6805e91d7775b60f0f2802c",
+      "isDraft": true,
+      "number": 129,
+      "title": "Harden immutable signal, setup and order request DTOs",
+      "updatedAt": "2026-07-23T12:40:33Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/129"
+    },
+    {
+      "baseRefName": "core/evidence-integrity-hardening-v0.4.2",
+      "headRefName": "core/setup-metadata-hardening-v0.4.2",
+      "headRefOid": "13d305fdb3090ff2c0b0bf28dfc99d740b0f1fa1",
+      "isDraft": true,
+      "number": 128,
+      "title": "Harden setup registry and feature-store boundaries",
+      "updatedAt": "2026-07-23T11:45:12Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/128"
+    },
+    {
+      "baseRefName": "policy/runner-label-only-routing",
+      "headRefName": "policy/five-round-development-cycle",
+      "headRefOid": "a212e24d0ccf71fdf6fa0538a428502f9fa26d83",
+      "isDraft": true,
+      "number": 120,
+      "title": "Replace 30-round hardening with a five-round cycle",
+      "updatedAt": "2026-07-23T08:23:36Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/120"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "research/experiment-runner",
+      "headRefOid": "97b4cf512b816a24042f07f40314d010fde666a7",
+      "isDraft": true,
+      "number": 119,
+      "title": "Implement deterministic phased Research Runner v0.3.0",
+      "updatedAt": "2026-07-24T10:06:42Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/119"
+    },
+    {
+      "baseRefName": "research/results-aggregator",
+      "headRefName": "ops/export-results-aggregator-20260723",
+      "headRefOid": "4b4f9d878a6cded5dd084649a9e35c9c557577cf",
+      "isDraft": true,
+      "number": 101,
+      "title": "Export exact Results Aggregator source for local continuation",
+      "updatedAt": "2026-07-23T09:30:52Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/101"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "execution/paper-venue-reconciliation",
+      "headRefOid": "57283323c38255c1a259df42a1e1388dcd260483",
+      "isDraft": true,
+      "number": 98,
+      "title": "Draft: Paper Execution & Venue Reconciliation — integration gate passed",
+      "updatedAt": "2026-07-24T14:15:21Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/98"
+    },
+    {
+      "baseRefName": "core/post-release-validation-base-v0.4.2",
+      "headRefName": "core/post-release-hardening-v0.4.2",
+      "headRefOid": "04f6de01e5337883256299dd20effdbedd5ac73e",
+      "isDraft": true,
+      "number": 96,
+      "title": "Continue Core 0.4.2 post-release hardening",
+      "updatedAt": "2026-07-24T02:05:11Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/96"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/trade-plan-router-v0.5",
+      "headRefOid": "f779e599b361a7b860506980de6b5ae8d0cd1f01",
+      "isDraft": true,
+      "number": 95,
+      "title": "Decision Router & Trade Plan Composer",
+      "updatedAt": "2026-07-24T02:20:55Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/95"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "research/results-aggregator",
+      "headRefOid": "b33be3492c670ee282f0be5c08fc5236ff772894",
+      "isDraft": true,
+      "number": 94,
+      "title": "Add Results Aggregator & Experiment Registry",
+      "updatedAt": "2026-07-25T16:52:12Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/94"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "engine/modular-backtest",
+      "headRefOid": "055ddc5720e3ffaeb7143c92a25d987b9dc72caf",
+      "isDraft": true,
+      "number": 55,
+      "title": "Add modular Backtest Engine v0.1 application layer",
+      "updatedAt": "2026-07-25T15:33:33Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/55"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/canonical-setup-adapter",
+      "headRefOid": "ed3efeddbcf2a76a5f67e67e497ff9c42457a3cb",
+      "isDraft": true,
+      "number": 47,
+      "title": "Add canonical setup adapter for Entry Model integration",
+      "updatedAt": "2026-07-23T09:00:58Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/47"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/risk-sizing-position-adjustments",
+      "headRefOid": "ea3579b0159ee9269f9213c4b698730153f356ac",
+      "isDraft": true,
+      "number": 43,
+      "title": "Add projected-position risk enforcement to Risk Sizing 1.2.0",
+      "updatedAt": "2026-07-24T02:07:22Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/43"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/position-exit-management-hardening",
+      "headRefOid": "8ba3396068efd0ba2252c3b488be5d296f4f441a",
+      "isDraft": true,
+      "number": 35,
+      "title": "Harden Position & Exit Management to v0.2.1 after error discovery",
+      "updatedAt": "2026-07-24T02:06:57Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/35"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/wave-analysis",
+      "headRefOid": "233406d2ad9f3438e13e06d0c33cf2dba993819c",
+      "isDraft": true,
+      "number": 33,
+      "title": "Add deterministic Wave Structure Analysis module",
+      "updatedAt": "2026-07-23T09:05:06Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/33"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/market-regime-hardening",
+      "headRefOid": "55946d26f6b95c5d0a2b5c8ed9b0dbbd6786f938",
+      "isDraft": true,
+      "number": 29,
+      "title": "Harden Market Regime 1.2.0 after error discovery",
+      "updatedAt": "2026-07-23T09:07:33Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/29"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/fvg-hardening",
+      "headRefOid": "85d30d96928c9e016919ae5c369959b0b93c5e56",
+      "isDraft": true,
+      "number": 27,
+      "title": "[READY FOR INTEGRATION] Harden FVG producer to v0.3.0",
+      "updatedAt": "2026-07-24T07:31:43Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/27"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/session-range-hardening",
+      "headRefOid": "0ffbc5aa409e7628fff39fe1e80f0db77fc102a3",
+      "isDraft": true,
+      "number": 26,
+      "title": "Harden Session Range state, gap semantics and performance",
+      "updatedAt": "2026-07-23T09:12:02Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/26"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/entry-model-hardening",
+      "headRefOid": "d08ca2957dff1fc697665762e91cc6c297b43ab0",
+      "isDraft": true,
+      "number": 24,
+      "title": "Draft: harden Entry Model 0.2.0 against integration v0.5.0",
+      "updatedAt": "2026-07-23T09:13:47Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/24"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/position-scaling-hardening",
+      "headRefOid": "d5cb7975dda0beba113ec32971384b4bc0e88ed8",
+      "isDraft": true,
+      "number": 23,
+      "title": "Harden Position Scaling & Adjustment 0.2.2",
+      "updatedAt": "2026-07-24T02:07:09Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/23"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/breakout-return-v1.1.0-hardening",
+      "headRefOid": "49bc941ee65a64f87fdbf714127996b1f3982388",
+      "isDraft": true,
+      "number": 18,
+      "title": "Harden and deeply optimize Breakout–Return v1.1 candidate",
+      "updatedAt": "2026-07-23T09:15:18Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/18"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/liquidity-sweep-deep-optimization",
+      "headRefOid": "02e42aab3bef221ebc9d5600a7cec13ee6a7c55b",
+      "isDraft": false,
+      "number": 16,
+      "title": "Harden Liquidity Sweep 0.1.2 for v0.5 integration",
+      "updatedAt": "2026-07-23T09:16:18Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/16"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "core/hardening-v0.4.x",
+      "headRefOid": "38ea0c8e7fd7f6f8d8949fad2b98e95a4aeda4f2",
+      "isDraft": true,
+      "number": 13,
+      "title": "Harden modular strategy core to v0.4.2",
+      "updatedAt": "2026-07-23T09:20:15Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/13"
+    },
+    {
+      "baseRefName": "integration/modular-strategy-v0.5.0",
+      "headRefName": "modules/protection-target",
+      "headRefOid": "02f3a2239e6edce2eb3e92b558925f5ca436da76",
+      "isDraft": false,
+      "number": 12,
+      "title": "feat: harden Protection & Target module to 1.1.1",
+      "updatedAt": "2026-07-23T09:17:17Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/12"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "modules/position-exit-management",
+      "headRefOid": "1864931926f3c7c0343922c4d11b6bc3074aa5b8",
+      "isDraft": true,
+      "number": 11,
+      "title": "Add Position & Exit Management module",
+      "updatedAt": "2026-07-20T21:11:33Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/11"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "modules/entry-model",
+      "headRefOid": "e3b506315a51fb14bbd8563bbb1e68d0348557e5",
+      "isDraft": true,
+      "number": 10,
+      "title": "feat: add deterministic Entry Model module",
+      "updatedAt": "2026-07-21T07:43:12Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/10"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "integration/modular-strategy-v0.5.0",
+      "headRefOid": "b4860c94dafb1d398cb36088d16c32bfcd065fc4",
+      "isDraft": true,
+      "number": 8,
+      "title": "Integrate audited strategy modules and add cross-module release gates",
+      "updatedAt": "2026-07-24T02:07:50Z",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/pull/8"
+    }
+  ],
+  "open_surface_classification": {
+    "issues": {
+      "active": [
+        373,
+        376,
+        380,
+        387,
+        393,
+        395,
+        396,
+        398,
+        400,
+        478,
+        778,
+        810,
+        820,
+        849,
+        864,
+        866,
+        869,
+        873,
+        924,
+        933,
+        948,
+        991,
+        992,
+        993,
+        1003,
+        1032,
+        1034,
+        1047,
+        1107,
+        1114,
+        1124,
+        1129,
+        1351,
+        1364
+      ],
+      "external-approval": [
+        158,
+        826,
+        917,
+        978,
+        1223
+      ],
+      "frozen-history": [
+        103,
+        250,
+        286,
+        320,
+        370,
+        779,
+        794,
+        800,
+        805,
+        807,
+        862,
+        1085,
+        1112,
+        1118,
+        1122
+      ],
+      "superseded": [
+        100,
+        219,
+        220,
+        524
+      ],
+      "validation-only": [
+        369,
+        1172,
+        1174,
+        1353
+      ]
+    },
+    "observed_open_issues": 62,
+    "observed_open_pull_requests": 74,
+    "pull_requests": {
+      "active": [
+        298,
+        511,
+        909,
+        982,
+        1365,
+        1366
+      ],
+      "external-approval": [
+        119
+      ],
+      "frozen-history": [
+        8,
+        12,
+        16,
+        18,
+        23,
+        24,
+        26,
+        27,
+        29,
+        33,
+        35,
+        43,
+        47,
+        55,
+        94,
+        95,
+        98,
+        120,
+        132,
+        154,
+        164,
+        168,
+        194,
+        218,
+        248,
+        281,
+        295,
+        428,
+        938,
+        1031,
+        1125,
+        1126,
+        1242
+      ],
+      "superseded": [
+        10,
+        11,
+        13,
+        96,
+        128,
+        129,
+        130,
+        148,
+        151,
+        153,
+        156,
+        157,
+        161,
+        165,
+        249,
+        319,
+        954,
+        1247,
+        1266
+      ],
+      "validation-only": [
+        101,
+        135,
+        155,
+        264,
+        297,
+        305,
+        307,
+        325,
+        424,
+        1012,
+        1020,
+        1023,
+        1033,
+        1101,
+        1173
+      ]
+    }
+  },
+  "repository": "MishkaStrategy/Module-Strategy",
+  "schema": "module-strategy-release-audit-snapshot/v1",
+  "scope": "read-only project/release audit; docs and governance refresh; no lifecycle execution",
+  "source_check_runs": [
+    {
+      "conclusion": "skipped",
+      "head_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "name": "public-binance-smoke",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36976998046/job/110742873921"
+    },
+    {
+      "conclusion": "success",
+      "head_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "name": "audit-dependency-routing",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36809682420/job/110201729487"
+    },
+    {
+      "conclusion": "success",
+      "head_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "name": "audit",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36809682407/job/110201729427"
+    },
+    {
+      "conclusion": "success",
+      "head_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "name": "audit",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36809682370/job/110201729365"
+    },
+    {
+      "conclusion": "success",
+      "head_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "name": "validate",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36809682378/job/110201729254"
+    },
+    {
+      "conclusion": "success",
+      "head_sha": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+      "name": "register-and-smoke",
+      "url": "https://github.com/MishkaStrategy/Module-Strategy/actions/runs/36809682382/job/110201729123"
+    }
+  ],
+  "source_checkpoint": {
+    "governance_issue": 389,
+    "integration_head": "30bef03c8ea6a99fb202a5f93a63c9afc22516f3",
+    "main_head": "eb4ef89a3c477e689e689da75cb3fd9ad94c7b4b",
+    "repository": "MishkaStrategy/Module-Strategy"
+  },
+  "timezone": "Asia/Novosibirsk"
+}

@@ -1,0 +1,6 @@
+wheel clean-install: pass
+sdist clean-install: pass
+entry-point discovery: pass
+smoke: pass
+pip check: pass
+sdist source pytest: pass

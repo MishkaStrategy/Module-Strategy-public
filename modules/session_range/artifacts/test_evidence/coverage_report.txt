@@ -1,0 +1,8 @@
+Name                                                          Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------------------------------
+modules/session_range/src/modular_session_range/__init__.py       3      0   100%
+modules/session_range/src/modular_session_range/config.py       173      6    97%   95, 128, 156, 166-167, 169
+modules/session_range/src/modular_session_range/module.py       441     15    97%   308, 339, 391, 394, 465, 474, 480, 484, 490, 504, 506, 520, 552, 726, 735
+modules/session_range/src/modular_session_range/state.py        191      6    97%   88, 103, 111, 242, 275, 316
+-------------------------------------------------------------------------------------------
+TOTAL                                                           808     27    97%

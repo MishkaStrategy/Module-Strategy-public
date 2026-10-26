@@ -1,0 +1,258 @@
+name: research-runner-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "research/experiment_runner/**"
+      - "docs/research_runner/**"
+      - "scripts/sanitize_ci_evidence.py"
+      - ".github/workflows/research-runner-*.yml"
+      - ".github/workflows/integration-ci.yml"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "research/experiment_runner/**"
+      - "docs/research_runner/**"
+      - "scripts/sanitize_ci_evidence.py"
+      - ".github/workflows/research-runner-*.yml"
+      - ".github/workflows/integration-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-runner-${{ github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.event.action || 'push' }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.action == 'opened' ||
+      github.event.action == 'reopened' ||
+      github.event.action == 'synchronize'
+    name: Research Runner fast / Python 3.12
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 90
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      SOURCE_DATE_EPOCH: "946684800"
+    defaults:
+      run:
+        working-directory: research-runner-ci-${{ github.run_id }}-fast
+
+    steps:
+      - name: Checkout Release evidence publisher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          sparse-checkout: .github/actions/publish-release-evidence
+          persist-credentials: false
+          show-progress: false
+
+      - name: Checkout Research Runner candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          path: research-runner-ci-${{ github.run_id }}-fast
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Research Runner candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Checkout authoritative Backtest Engine branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: engine/modular-backtest
+          path: research-runner-ci-${{ github.run_id }}-fast/authoritative-backtest-engine
+          persist-credentials: false
+          show-progress: false
+
+      - name: Checkout authoritative Results Aggregator branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: research/results-aggregator
+          path: research-runner-ci-${{ github.run_id }}-fast/authoritative-results-aggregator
+          persist-credentials: false
+          show-progress: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: "3.12"
+          activate-environment: true
+          enable-cache: false
+          working-directory: research-runner-ci-${{ github.run_id }}-fast
+
+      - name: Install core and Research Runner
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./research/experiment_runner[dev]"
+          uv pip check
+
+      - name: Configure authoritative module paths
+        run: >-
+          python -c "import os; from pathlib import Path;
+          engine=str(Path('authoritative-backtest-engine/src').resolve());
+          aggregator=str(Path('authoritative-results-aggregator/modules/results_aggregator/src').resolve());
+          runner=str(Path('research/experiment_runner/src').resolve());
+          target=Path(os.environ['GITHUB_ENV']);
+          target.write_text(f'PYTHONPATH={os.pathsep.join((engine, aggregator, runner))}\nMYPYPATH={engine}\n', encoding='utf-8')"
+
+      - name: Prepare reports
+        run: python -c "from pathlib import Path; Path('reports').mkdir(exist_ok=True)"
+
+      - name: Compile Research Runner
+        run: python -m compileall -q research/experiment_runner/src research/experiment_runner/tests
+
+      - name: Lint Research Runner
+        shell: bash
+        run: |
+          set -o pipefail
+          ruff check research/experiment_runner 2>&1 | tee reports/research-runner-ruff.txt
+
+      - name: Type check Research Runner
+        run: mypy --follow-imports=skip research/experiment_runner/src/modular_research_runner
+
+      - name: Run focused Research Runner quality gate
+        run: |
+          coverage run --branch --source=modular_research_runner -m pytest -q research/experiment_runner/tests --junitxml=reports/research-runner-tests.xml
+          coverage report --fail-under=90
+          coverage json -o reports/research-runner-coverage.json
+
+      - name: Build and smoke-test wheel
+        run: >-
+          python -c "import glob, os, subprocess, sys; from pathlib import Path;
+          subprocess.check_call([sys.executable, '-m', 'pip', 'wheel', '.', '--no-deps', '-w', 'dist/core']);
+          subprocess.check_call([sys.executable, '-m', 'pip', 'wheel', './research/experiment_runner', '--no-deps', '-w', 'dist/research_runner']);
+          root=Path('.venv-research-runner-smoke');
+          subprocess.check_call([sys.executable, '-m', 'venv', str(root)]);
+          py=root / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python');
+          subprocess.check_call([str(py), '-m', 'pip', 'install', '--upgrade', 'pip']);
+          wheels=glob.glob('dist/core/*.whl')+glob.glob('dist/research_runner/*.whl');
+          subprocess.check_call([str(py), '-m', 'pip', 'install', *wheels]);
+          subprocess.check_call([str(py), '-m', 'pip', 'check']);
+          subprocess.check_call([str(py), '-m', 'modular_research_runner', 'validate', 'research/experiment_runner/examples/research.example.yaml'])"
+
+      - name: Verify reproducible Research Runner wheel
+        run: >-
+          python -c "import glob, hashlib, subprocess, sys; from pathlib import Path;
+          subprocess.check_call([sys.executable, '-m', 'pip', 'wheel', './research/experiment_runner', '--no-deps', '-w', 'dist/research_runner_repro']);
+          first=Path(glob.glob('dist/research_runner/*.whl')[0]);
+          second=Path(glob.glob('dist/research_runner_repro/*.whl')[0]);
+          first_sha=hashlib.sha256(first.read_bytes()).hexdigest();
+          second_sha=hashlib.sha256(second.read_bytes()).hexdigest();
+          assert first_sha == second_sha, f'wheel SHA mismatch: {first_sha} != {second_sha}';
+          Path('reports/research-runner-wheel-sha256.txt').write_text(first_sha + '\n', encoding='utf-8')"
+
+      - name: Sanitize and verify focused evidence privacy
+        id: focused_evidence_privacy
+        if: always()
+        run: python scripts/sanitize_ci_evidence.py reports
+
+      - name: Record Research Runner fast evidence identity
+        if: success() && steps.focused_evidence_privacy.outcome == 'success'
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          roots = (Path("reports"), Path("dist/core"), Path("dist/research_runner"))
+          manifest = Path("reports/research-runner-evidence-identity.json")
+          files = sorted(
+              (
+                  path
+                  for root in roots
+                  if root.exists()
+                  for path in root.rglob("*")
+                  if path.is_file() and path != manifest
+              ),
+              key=lambda path: path.as_posix(),
+          )
+          if not files:
+              raise SystemExit("Research Runner fast evidence set is empty")
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": [
+                  {
+                      "bytes": len(path.read_bytes()),
+                      "path": path.as_posix(),
+                      "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                  }
+                  for path in files
+              ],
+              "python_version": "3.12",
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest.write_text(canonical, encoding="utf-8")
+          print(canonical, end="")
+          print(
+              "RESEARCH_RUNNER_EVIDENCE_SHA256="
+              + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+          )
+          PY
+
+      - name: Assemble Research Runner fast release evidence
+        if: success() && steps.focused_evidence_privacy.outcome == 'success'
+        run: |
+          set -euo pipefail
+          bundle="release-evidence/research-runner-fast"
+          rm -rf "$bundle"
+          mkdir -p "$bundle/reports" "$bundle/dist/core" "$bundle/dist/research_runner"
+          find reports -maxdepth 1 -type f -exec cp {} "$bundle/reports/" \;
+          find dist/core -maxdepth 1 -type f -name '*.whl' -exec cp {} "$bundle/dist/core/" \;
+          find dist/research_runner -maxdepth 1 -type f -name '*.whl' -exec cp {} "$bundle/dist/research_runner/" \;
+          test -n "$(find "$bundle" -type f -print -quit)"
+
+      - name: Publish exact Research Runner fast evidence
+        if: success() && steps.focused_evidence_privacy.outcome == 'success'
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ github.workspace }}/research-runner-ci-${{ github.run_id }}-fast/release-evidence/research-runner-fast
+          asset_name: research-runner-fast-py3.12.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Research Runner fast publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Research Runner fast failure diagnostics
+        if: ${{ (failure() || cancelled()) && steps.focused_evidence_privacy.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: research-runner-fast-diagnostics-py3.12-${{ env.EXPECTED_HEAD }}
+          path: |
+            research-runner-ci-${{ github.run_id }}-fast/dist/core/*.whl
+            research-runner-ci-${{ github.run_id }}-fast/dist/research_runner/*.whl
+            research-runner-ci-${{ github.run_id }}-fast/reports/*
+          if-no-files-found: error
+
+  full:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.action == 'ready_for_review')
+    uses: ./.github/workflows/research-runner-full.yml

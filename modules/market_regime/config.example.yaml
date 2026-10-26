@@ -1,0 +1,20 @@
+modules:
+  - class: market_regime:MarketRegimeModule
+    enabled: true
+    parameters:
+      timeframe: 1h
+      fast_ema_period: 20
+      slow_ema_period: 50
+      atr_period: 14
+      volatility_baseline_period: 50
+      efficiency_period: 20
+      slope_lookback: 5
+      trend_spread_threshold: "0.001"
+      trend_slope_threshold: "0.00015"
+      trend_efficiency_threshold: "0.35"
+      range_efficiency_threshold: "0.22"
+      low_volatility_ratio: "0.75"
+      high_volatility_ratio: "1.35"
+      regime_confirmation_bars: 2
+      volatility_confirmation_bars: 2
+      publish_diagnostics: true

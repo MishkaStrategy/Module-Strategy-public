@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-fvg"
+version = "0.3.0"
+description = "Causal, deterministic Fair Value Gap producer plugin for Modular Strategy Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["modular-strategy-core>=0.4,<0.5"]
+
+[tool.setuptools.package-data]
+modular_strategy_fvg = ["py.typed"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.3",
+    "coverage==7.13.3",
+    "ruff==0.12.0",
+    "mypy==1.16.1",
+    "hypothesis==6.135.26",
+]
+
+[project.entry-points."modular_strategy.modules"]
+fvg = "modular_strategy_fvg:FvgModule"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["modular_strategy_fvg"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/modular_strategy_fvg/module_*.py" = ["F405"]
+"src/modular_strategy_fvg/module_shared.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+disallow_subclassing_any = false
+disallow_any_unimported = false
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "modular_strategy_fvg.module_feature_boundaries",
+    "modular_strategy_fvg.module_features",
+    "modular_strategy_fvg.module_init",
+    "modular_strategy_fvg.module_onbar",
+    "modular_strategy_fvg.module_processing",
+    "modular_strategy_fvg.module_restore",
+    "modular_strategy_fvg.module_runtime",
+    "modular_strategy_fvg.module_state",
+    "modular_strategy_fvg.module_support",
+]
+disable_error_code = ["attr-defined"]

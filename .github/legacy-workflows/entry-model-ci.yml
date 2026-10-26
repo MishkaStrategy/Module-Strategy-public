@@ -1,0 +1,328 @@
+name: entry-model-ci
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-v0.5.0
+    paths:
+      - modules/entry_model/**
+      - src/modular_core/**
+      - pyproject.toml
+      - .github/workflows/entry-model-ci.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  fast-quality:
+    name: Fast Quality / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Runner diagnostics
+        run: |
+          set -euo pipefail
+          echo "name=$RUNNER_NAME os=$RUNNER_OS arch=$RUNNER_ARCH temp=$RUNNER_TEMP"
+          uname -a
+          df -h . "$RUNNER_TEMP"
+          python3 --version
+          command -v python3.12 || true
+          command -v python3.13 || true
+          command -v uv || true
+      - name: Resolve Python ${{ matrix.python-version }}
+        id: base-python
+        run: bash modules/entry_model/scripts/resolve_ci_python.sh "${{ matrix.python-version }}"
+      - name: Create isolated environment
+        id: venv
+        env:
+          BASE_PYTHON: ${{ steps.base-python.outputs.python }}
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/entry-model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-${{ matrix.python-version }}"
+          rm -rf "$VENV"
+          "$BASE_PYTHON" -m venv "$VENV"
+          echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+          "$VENV/bin/python" --version
+      - name: Install quality dependencies
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -m pip install --upgrade pip
+          "$PYTHON" -m pip install -e .
+          "$PYTHON" -m pip install -e 'modules/entry_model[dev]'
+      - name: Compile, lint, format and type check
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          "$PYTHON" -m compileall -q modules/entry_model/src modules/entry_model/tests modules/entry_model/benchmarks modules/entry_model/scripts
+          bash -n modules/entry_model/scripts/resolve_ci_python.sh
+          "$BIN_DIR/ruff" check modules/entry_model/src modules/entry_model/tests modules/entry_model/benchmarks modules/entry_model/scripts
+          "$BIN_DIR/ruff" format --check modules/entry_model/src modules/entry_model/tests modules/entry_model/benchmarks modules/entry_model/scripts
+          "$BIN_DIR/mypy" --strict modules/entry_model/src/modular_modules/entry_model
+      - name: Fast regression smoke
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          "$(dirname "$PYTHON")/pytest" -q \
+            modules/entry_model/tests/test_module_planner.py \
+            modules/entry_model/tests/test_state_runtime.py \
+            modules/entry_model/tests/test_packaging_contract.py
+      - name: Cleanup
+        if: always()
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          if [[ -n "${PYTHON:-}" ]]; then rm -rf "$(dirname "$(dirname "$PYTHON")")"; fi
+
+  full-test:
+    name: Full Test / Python ${{ matrix.python-version }}
+    needs: fast-quality
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Resolve Python ${{ matrix.python-version }}
+        id: base-python
+        run: bash modules/entry_model/scripts/resolve_ci_python.sh "${{ matrix.python-version }}"
+      - name: Create isolated environment
+        id: venv
+        env:
+          BASE_PYTHON: ${{ steps.base-python.outputs.python }}
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/entry-model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-${{ matrix.python-version }}"
+          rm -rf "$VENV"
+          "$BASE_PYTHON" -m venv "$VENV"
+          echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+      - name: Install test dependencies
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -m pip install --upgrade pip
+          "$PYTHON" -m pip install -e .
+          "$PYTHON" -m pip install -e 'modules/entry_model[dev]'
+      - name: Full coverage and optimized-runtime suite
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          mkdir -p modules/entry_model/reports
+          "$BIN_DIR/coverage" run --branch --source=modular_modules.entry_model -m pytest -q modules/entry_model/tests \
+            --junitxml="modules/entry_model/reports/tests-py${{ matrix.python-version }}.xml"
+          "$BIN_DIR/coverage" report --fail-under=90
+          "$BIN_DIR/coverage" xml -o "modules/entry_model/reports/coverage-py${{ matrix.python-version }}.xml"
+          "$PYTHON" -O -m pytest -q modules/entry_model/tests
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: entry-model-tests-py${{ matrix.python-version }}
+          path: |
+            modules/entry_model/reports/tests-py${{ matrix.python-version }}.xml
+            modules/entry_model/reports/coverage-py${{ matrix.python-version }}.xml
+      - name: Cleanup
+        if: always()
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          if [[ -n "${PYTHON:-}" ]]; then rm -rf "$(dirname "$(dirname "$PYTHON")")"; fi
+
+  packaging:
+    name: Packaging / Python 3.13
+    needs: full-test
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Resolve Python 3.13
+        id: base-python
+        run: bash modules/entry_model/scripts/resolve_ci_python.sh "3.13"
+      - name: Create isolated environment
+        id: venv
+        env:
+          BASE_PYTHON: ${{ steps.base-python.outputs.python }}
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/entry-model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-3.13"
+          rm -rf "$VENV"
+          "$BASE_PYTHON" -m venv "$VENV"
+          echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+      - name: Install packaging dependencies
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -m pip install --upgrade pip
+          "$PYTHON" -m pip install -e .
+          "$PYTHON" -m pip install 'modules/entry_model[dev]' twine
+      - name: Build and verify distributions
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          rm -rf modules/entry_model/dist modules/entry_model/build
+          "$PYTHON" -m build modules/entry_model
+          "$BIN_DIR/twine" check modules/entry_model/dist/*
+          "$PYTHON" modules/entry_model/scripts/verify_distribution.py \
+            --sdist modules/entry_model/dist/modular_strategy_entry_model-0.2.0.tar.gz \
+            --wheel modules/entry_model/dist/modular_strategy_entry_model-0.2.0-py3-none-any.whl
+          "$PYTHON" -m pip wheel . --no-deps -w modules/entry_model/dist/core
+      - name: Clean wheel-only install
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          CLEAN_DIR="$RUNNER_TEMP/entry-model-clean-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "$CLEAN_DIR"
+          "$PYTHON" -m venv "$CLEAN_DIR"
+          "$CLEAN_DIR/bin/python" -m pip install --upgrade pip
+          "$CLEAN_DIR/bin/pip" install modules/entry_model/dist/core/*.whl \
+            modules/entry_model/dist/modular_strategy_entry_model-0.2.0-py3-none-any.whl
+          "$CLEAN_DIR/bin/python" -m pip check
+          "$CLEAN_DIR/bin/python" modules/entry_model/scripts/clean_wheel_smoke.py
+      - name: Checksums
+        run: |
+          mkdir -p modules/entry_model/reports
+          shasum -a 256 modules/entry_model/dist/*.whl modules/entry_model/dist/*.tar.gz > modules/entry_model/reports/distribution-checksums.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: entry-model-distributions
+          path: |
+            modules/entry_model/dist/*.whl
+            modules/entry_model/dist/*.tar.gz
+            modules/entry_model/reports/distribution-checksums.sha256
+      - name: Cleanup
+        if: always()
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          rm -rf "$RUNNER_TEMP/entry-model-clean-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ -n "${PYTHON:-}" ]]; then rm -rf "$(dirname "$(dirname "$PYTHON")")"; fi
+
+  security:
+    name: Security / Python 3.13
+    needs: fast-quality
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Resolve Python 3.13
+        id: base-python
+        run: bash modules/entry_model/scripts/resolve_ci_python.sh "3.13"
+      - name: Create isolated environment
+        id: venv
+        env:
+          BASE_PYTHON: ${{ steps.base-python.outputs.python }}
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/entry-model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-3.13"
+          rm -rf "$VENV"
+          "$BASE_PYTHON" -m venv "$VENV"
+          echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+      - name: Install security dependencies
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -m pip install --upgrade pip
+          "$PYTHON" -m pip install -e .
+          "$PYTHON" -m pip install -e 'modules/entry_model[dev]' bandit detect-secrets pip-audit cyclonedx-bom
+      - name: Static security and dependency audit
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(dirname "$PYTHON")"
+          mkdir -p modules/entry_model/reports
+          "$BIN_DIR/bandit" -q -r modules/entry_model/src
+          "$BIN_DIR/detect-secrets" scan modules/entry_model/src modules/entry_model/tests \
+            modules/entry_model/benchmarks modules/entry_model/scripts > modules/entry_model/reports/detect-secrets.json
+          "$BIN_DIR/pip-audit" --local --format json -o modules/entry_model/reports/pip-audit.json
+          "$BIN_DIR/cyclonedx-py" environment --output-format JSON --output-file modules/entry_model/reports/sbom.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: entry-model-security
+          path: modules/entry_model/reports/*.json
+      - name: Cleanup
+        if: always()
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          if [[ -n "${PYTHON:-}" ]]; then rm -rf "$(dirname "$(dirname "$PYTHON")")"; fi
+
+  performance:
+    name: Performance / Python 3.13
+    needs: full-test
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Resolve Python 3.13
+        id: base-python
+        run: bash modules/entry_model/scripts/resolve_ci_python.sh "3.13"
+      - name: Create isolated environment
+        id: venv
+        env:
+          BASE_PYTHON: ${{ steps.base-python.outputs.python }}
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/entry-model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}-3.13"
+          rm -rf "$VENV"
+          "$BASE_PYTHON" -m venv "$VENV"
+          echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+      - name: Install performance dependencies
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          "$PYTHON" -m pip install --upgrade pip
+          "$PYTHON" -m pip install -e .
+          "$PYTHON" -m pip install -e 'modules/entry_model[dev]'
+      - name: Full deterministic benchmark
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          set -euo pipefail
+          mkdir -p modules/entry_model/reports
+          "$PYTHON" modules/entry_model/benchmarks/benchmark_entry_model.py \
+            --output modules/entry_model/reports/benchmark.json \
+            --profile-output modules/entry_model/reports/profile-5000.prof
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: entry-model-performance
+          path: |
+            modules/entry_model/reports/benchmark.json
+            modules/entry_model/reports/profile-5000.prof
+      - name: Cleanup
+        if: always()
+        env:
+          PYTHON: ${{ steps.venv.outputs.python }}
+        run: |
+          if [[ -n "${PYTHON:-}" ]]; then rm -rf "$(dirname "$(dirname "$PYTHON")")"; fi

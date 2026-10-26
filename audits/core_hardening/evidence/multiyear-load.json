@@ -1,0 +1,24 @@
+{
+  "bars": 10000,
+  "modules": 5,
+  "timeframes": [
+    "5m",
+    "15m",
+    "1h"
+  ],
+  "runs": 2,
+  "durations_seconds": [
+    0.922154665999642,
+    0.842167815999801
+  ],
+  "median_seconds": 0.8821612409997215,
+  "throughput_module_calls_per_second": 56678.98075337883,
+  "peak_rss_kib": 319320,
+  "checkpoint_size_bytes": [
+    1170,
+    1170
+  ],
+  "deterministic_run_id": true,
+  "run_id": "run-00156def6ddf87f9",
+  "base_history_limit": 512
+}

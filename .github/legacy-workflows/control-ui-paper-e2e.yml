@@ -1,0 +1,204 @@
+name: control-ui-paper-e2e
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "applications/trading_runner/**"
+      - "modules/paper_execution/**"
+      - "web/market-data-console/**"
+      - "docs/control_ui/PAPER_RUNTIME_CONTROL_V1.md"
+      - ".github/workflows/control-ui-paper-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-paper-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  paper-browser-e2e:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      MODULAR_CONTROL_PAPER_E2E: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Paper Runtime UI candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install Control Plane and lifecycle owner
+        run: |
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "applications/trading_runner"
+          uv pip install -e "applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Install pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.12.0"
+
+      - name: Install exact browser dependencies
+        working-directory: web/market-data-console
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Paper browser fixture quality
+        working-directory: web/market-data-console
+        run: |
+          python -m compileall -q e2e/serve_paper.py
+          ruff check --output-format=concise e2e/serve_paper.py
+          ruff format --check e2e/serve_paper.py
+          npm run e2e:typecheck
+
+      - name: Generate masked reader/operator tokens and loopback ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_reader_token=$(python -c 'import secrets; print("control-reader-" + secrets.token_hex(24))')
+          control_operator_token=$(python -c 'import secrets; print("control-operator-" + secrets.token_hex(24))')
+          ports=$(python - <<'PY'
+          import socket
+          values = []
+          for _ in range(2):
+              with socket.socket() as current:
+                  current.bind(("127.0.0.1", 0))
+                  values.append(current.getsockname()[1])
+          print(*values)
+          PY
+          )
+          read -r control_port web_port <<< "$ports"
+          test "$control_port" != "$web_port"
+          echo "::add-mask::$control_reader_token"
+          echo "::add-mask::$control_operator_token"
+          {
+            echo "MODULAR_CONTROL_E2E_READER_TOKEN=$control_reader_token"
+            echo "MODULAR_CONTROL_E2E_OPERATOR_TOKEN=$control_operator_token"
+            echo "MODULAR_CONTROL_PORT=$control_port"
+            echo "MODULAR_CONTROL_E2E_PORT=$control_port"
+            echo "MDI_E2E_WEB_PORT=$web_port"
+            echo "MDI_E2E_BASE_URL=http://127.0.0.1:$web_port"
+          } >> "$GITHUB_ENV"
+
+      - name: TypeScript unit and build gates
+        working-directory: web/market-data-console
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Install isolated Chromium
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-paper-playwright
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install chromium
+
+      - name: Run Paper Runtime browser flow
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-paper-playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-paper-e2e"
+          rm -rf "$root"
+          mkdir -p "$root/logs"
+          python e2e/serve_paper.py \
+            --port "$MODULAR_CONTROL_E2E_PORT" \
+            --reader-token "$MODULAR_CONTROL_E2E_READER_TOKEN" \
+            --operator-token "$MODULAR_CONTROL_E2E_OPERATOR_TOKEN" \
+            > "$root/logs/control.log" 2>&1 &
+          control_pid=$!
+          npm run preview -- --port "$MDI_E2E_WEB_PORT" > "$root/logs/web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" "$control_pid" 2>/dev/null || true
+            wait "$web_pid" "$control_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              cat "$root/logs/control.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              cat "$root/logs/web.log" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/components/paper_runtime/health" \
+              >/dev/null \
+              && curl --fail --silent --show-error "http://127.0.0.1:$MDI_E2E_WEB_PORT/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              cat "$root/logs/control.log" >&2 || true
+              cat "$root/logs/web.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          npx playwright test e2e/paper.spec.ts
+
+      - name: Sanitize generated tokens and privacy canaries from logs
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "control-ui-paper-e2e" / "logs"
+          forbidden = (
+              os.environ.get("MODULAR_CONTROL_E2E_READER_TOKEN", ""),
+              os.environ.get("MODULAR_CONTROL_E2E_OPERATOR_TOKEN", ""),
+              "BROWSER-PRIVATE-KILL-SWITCH-REASON",
+              "/Users/private/paper-runtime.json",
+              "BROWSER-PRIVATE-RECOVERY-PAYLOAD",
+              "BROWSER-PRIVATE-ORDER-METADATA",
+          )
+          leaked = []
+          for path in sorted(root.glob("*.log")):
+              text = path.read_text(encoding="utf-8", errors="replace")
+              hits = [value for value in forbidden if value and value in text]
+              if hits:
+                  leaked.append(path.name)
+                  for value in hits:
+                      text = text.replace(value, "***REDACTED***")
+                  path.write_text(text, encoding="utf-8")
+          if leaked:
+              raise SystemExit("generated credential/private canary leaked into Paper E2E logs")
+          print("PASS: generated credentials/private canaries absent from Paper E2E logs")
+          PY
+
+      - name: Upload short-lived sanitized Paper E2E evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: control-ui-paper-e2e-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            web/market-data-console/test-results
+            ${{ runner.temp }}/control-ui-paper-e2e/logs
+          if-no-files-found: warn

@@ -1,0 +1,16 @@
+enabled: true
+allow_averaging_down: true
+allow_martingale: false
+max_scale_in_count: 2
+max_total_position_risk_fraction: 0.005
+max_additional_risk_fraction: 0.0025
+rules:
+  - stage: 1
+    mode: averaging_down
+    action: add
+    trigger_kind: adverse_percent
+    trigger_value: 0.01
+    quantity_kind: initial_fraction
+    quantity_value: 0.20
+    cooldown_bars: 3
+    expires_bars: 1

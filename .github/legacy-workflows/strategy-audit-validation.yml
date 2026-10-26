@@ -1,0 +1,113 @@
+name: strategy-audit-validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/strategy-audit-validation.yml"
+      - "research/strategy_audit_validation/**"
+      - "scripts/runner_preflight.sh"
+  push:
+    branches:
+      - "integration/**"
+    paths:
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/strategy-audit-validation.yml"
+      - "research/strategy_audit_validation/**"
+      - "scripts/runner_preflight.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      PACKAGE: research/strategy_audit_validation
+      SOURCE_DATE_EPOCH: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-suffix: strategy-audit-validation
+          cache-dependency-glob: |
+            research/strategy_audit_validation/pyproject.toml
+      - name: Install auditor development dependencies
+        run: uv pip install -e './research/strategy_audit_validation[dev]'
+      - name: Compile
+        run: python -m compileall -q "$PACKAGE/src" "$PACKAGE/tests"
+      - name: Ruff lint
+        run: ruff check "$PACKAGE"
+      - name: Ruff format
+        run: ruff format --check "$PACKAGE"
+      - name: Strict MyPy
+        run: >-
+          mypy
+          --config-file "$PACKAGE/pyproject.toml"
+          "$PACKAGE/src/strategy_audit_validation"
+      - name: Tests and branch coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          coverage run \
+            --rcfile="$PACKAGE/pyproject.toml" \
+            --branch \
+            -m pytest -q "$PACKAGE/tests"
+          coverage report \
+            --rcfile="$PACKAGE/pyproject.toml" \
+            --fail-under=95
+      - name: Build deterministic wheel and sdist twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="$RUNNER_TEMP/auditor-dist-a-${{ matrix.python-version }}"
+          second="$RUNNER_TEMP/auditor-dist-b-${{ matrix.python-version }}"
+          rm -rf "$first" "$second"
+          uv build --wheel --sdist --out-dir "$first" "$PACKAGE"
+          uv build --wheel --sdist --out-dir "$second" "$PACKAGE"
+          python - "$first" "$second" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import sys
+          from pathlib import Path
+
+          left = Path(sys.argv[1])
+          right = Path(sys.argv[2])
+          left_files = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in left.iterdir()}
+          right_files = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in right.iterdir()}
+          if left_files != right_files:
+              raise SystemExit(f"non-deterministic artifacts: {left_files!r} != {right_files!r}")
+          for name, digest in sorted(left_files.items()):
+              print(f"{digest}  {name}")
+          PY
+      - name: Clean-install wheel and sdist
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist="$RUNNER_TEMP/auditor-dist-a-${{ matrix.python-version }}"
+          for kind in whl tar.gz; do
+            artifact="$(find "$dist" -maxdepth 1 -name "*.$kind" -print -quit)"
+            test -n "$artifact"
+            clean="$RUNNER_TEMP/auditor-clean-${kind//./-}-${{ matrix.python-version }}"
+            rm -rf "$clean"
+            uv venv --python "${{ matrix.python-version }}" --seed "$clean"
+            uv pip install --python "$clean/bin/python" "$artifact"
+            "$clean/bin/python" -c \
+              "import strategy_audit_validation as package; print(package.CONTRACT_VERSION)"
+            "$clean/bin/python" -m pip check
+          done

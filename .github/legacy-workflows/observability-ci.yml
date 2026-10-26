@@ -1,0 +1,114 @@
+name: observability-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "applications/observability/**"
+      - "applications/risk_supervisor/**"
+      - "applications/trading_runner/**"
+      - ".github/workflows/observability-ci.yml"
+  push:
+    branches:
+      - "runtime-safety/**"
+      - "integration/**"
+    paths:
+      - "applications/observability/**"
+      - "applications/risk_supervisor/**"
+      - "applications/trading_runner/**"
+      - ".github/workflows/observability-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  component:
+    name: Observability / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Observability candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/observability/pyproject.toml
+            applications/risk_supervisor/pyproject.toml
+            applications/trading_runner/pyproject.toml
+          cache-suffix: observability
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev]"
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./applications/risk_supervisor"
+          uv pip install -e "./applications/observability[dev]"
+          uv pip check
+
+      - name: Compile
+        run: python -m compileall -q applications/observability/src applications/observability/tests
+
+      - name: Ruff format
+        run: ruff format --check applications/observability/src applications/observability/tests
+
+      - name: Ruff lint
+        run: ruff check applications/observability/src applications/observability/tests
+
+      - name: Strict MyPy
+        run: mypy --strict applications/observability/src
+
+      - name: Deterministic component and PAPER E2E tests
+        run: pytest -q applications/observability/tests
+
+      - name: Build package
+        run: (cd applications/observability && python -m build)
+
+      - name: Enforce projection-only PAPER boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          forbidden = (
+              "LiveExecutionAdapter",
+              "private_api_key",
+              "private_exchange",
+              "production_trading",
+              "place_live_order",
+              "subprocess.Popen",
+              "os.system(",
+          )
+          findings = []
+          for path in Path("applications/observability/src").rglob("*.py"):
+              text = path.read_text(encoding="utf-8")
+              for token in forbidden:
+                  if token in text:
+                      findings.append(f"{path}: {token}")
+          if findings:
+              raise SystemExit("forbidden authority/live surface:\n" + "\n".join(findings))
+          print(f"PASS exact_head={__import__('os').environ['EXPECTED_HEAD']}")
+          PY

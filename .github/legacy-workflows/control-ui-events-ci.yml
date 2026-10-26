@@ -1,0 +1,260 @@
+name: control-ui-events-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/control_plane/**"
+      - "applications/trading_runner/**"
+      - "web/market-data-console/src/events/**"
+      - "web/market-data-console/src/dashboard/**"
+      - "web/market-data-console/e2e/events.spec.ts"
+      - "web/market-data-console/e2e/serve_events.py"
+      - "docs/control_ui/STRUCTURED_OPERATIONAL_EVENTS_V1.md"
+      - ".github/workflows/control-ui-events-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ui-events-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structured-events:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 25
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      MODULAR_CONTROL_EVENTS_E2E: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact structured-events candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/control_plane/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_factory/pyproject.toml
+          cache-suffix: control-ui-events
+
+      - name: Install canonical Control Plane dependencies and Trading Runner owner
+        run: |
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[backtest]"
+          uv pip install -e "./modules/market_data_ingestion"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation"
+          uv pip install -e "./research/strategy_factory" --no-deps
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Ruff structured-events lint
+        run: |
+          ruff check --output-format=concise \
+            applications/control_plane/src/modular_control_plane/adapters/trading_runner_events_http.py \
+            applications/control_plane/src/modular_control_plane/operational_events.py \
+            applications/control_plane/src/modular_control_plane/operational_events_api.py \
+            applications/control_plane/src/modular_control_plane/operational_events_client.py \
+            applications/control_plane/src/modular_control_plane/cli_entrypoint.py \
+            applications/control_plane/src/modular_control_plane/server.py \
+            applications/control_plane/tests/test_trading_runner_events_http_adapter.py \
+            applications/control_plane/tests/test_operational_events_api.py \
+            applications/control_plane/tests/test_operational_events_client_cli.py \
+            web/market-data-console/e2e/serve_events.py
+
+      - name: Ruff structured-events format
+        run: |
+          ruff format --check \
+            applications/control_plane/src/modular_control_plane/adapters/trading_runner_events_http.py \
+            applications/control_plane/src/modular_control_plane/operational_events.py \
+            applications/control_plane/src/modular_control_plane/operational_events_api.py \
+            applications/control_plane/src/modular_control_plane/operational_events_client.py \
+            applications/control_plane/src/modular_control_plane/cli_entrypoint.py \
+            applications/control_plane/src/modular_control_plane/server.py \
+            applications/control_plane/tests/test_trading_runner_events_http_adapter.py \
+            applications/control_plane/tests/test_operational_events_api.py \
+            applications/control_plane/tests/test_operational_events_client_cli.py \
+            web/market-data-console/e2e/serve_events.py
+
+      - name: Strict MyPy Control Plane
+        run: mypy --strict applications/control_plane/src
+
+      - name: Test structured-events owner adapter
+        run: pytest -q applications/control_plane/tests/test_trading_runner_events_http_adapter.py
+
+      - name: Test structured-events Control Plane API
+        run: pytest -q applications/control_plane/tests/test_operational_events_api.py
+
+      - name: Test structured-events CLI client
+        run: pytest -q applications/control_plane/tests/test_operational_events_client_cli.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.12.0"
+
+      - name: Install exact browser dependencies
+        working-directory: web/market-data-console
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Web structured-events gates
+        working-directory: web/market-data-console
+        run: |
+          npm run typecheck
+          npm run e2e:typecheck
+          npm test -- --run src/events/client.test.ts src/dashboard/navigation.test.ts
+          npm run build
+
+      - name: Generate masked reader token and loopback ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          control_token=$(python -c 'import secrets; print("control-reader-" + secrets.token_hex(24))')
+          ports=$(python - <<'PY'
+          import socket
+          values = []
+          for _ in range(2):
+              with socket.socket() as current:
+                  current.bind(("127.0.0.1", 0))
+                  values.append(current.getsockname()[1])
+          print(*values)
+          PY
+          )
+          read -r control_port web_port <<< "$ports"
+          test "$control_port" != "$web_port"
+          echo "::add-mask::$control_token"
+          {
+            echo "MODULAR_CONTROL_E2E_READER_TOKEN=$control_token"
+            echo "MODULAR_CONTROL_E2E_PORT=$control_port"
+            echo "MODULAR_CONTROL_PORT=$control_port"
+            echo "MDI_E2E_WEB_PORT=$web_port"
+            echo "MDI_E2E_BASE_URL=http://127.0.0.1:$web_port"
+          } >> "$GITHUB_ENV"
+
+      - name: Install isolated Chromium
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-events-playwright
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install chromium
+
+      - name: Run real-owner structured-events browser flow
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/control-ui-events-playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-events-e2e"
+          rm -rf "$root"
+          mkdir -p "$root/logs"
+          python e2e/serve_events.py \
+            --port "$MODULAR_CONTROL_E2E_PORT" \
+            --reader-token "$MODULAR_CONTROL_E2E_READER_TOKEN" \
+            > "$root/logs/control.log" 2>&1 &
+          control_pid=$!
+          npm run preview -- --port "$MDI_E2E_WEB_PORT" > "$root/logs/web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" "$control_pid" 2>/dev/null || true
+            wait "$web_pid" "$control_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              cat "$root/logs/control.log" >&2
+              exit 1
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              cat "$root/logs/web.log" >&2
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/events/trading-runner?limit=1" \
+              >/dev/null \
+              && curl --fail --silent --show-error "$MDI_E2E_BASE_URL/" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              cat "$root/logs/control.log" >&2 || true
+              cat "$root/logs/web.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          npx playwright test e2e/events.spec.ts
+
+      - name: Verify events E2E logs contain no credentials or privacy canaries
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "control-ui-events-e2e" / "logs"
+          forbidden = (
+              os.environ.get("MODULAR_CONTROL_E2E_READER_TOKEN", ""),
+              "BROWSER-PRIVATE-EVENT-TOKEN",
+              "/Users/private/runtime-events.log",
+          )
+          leaked = []
+          for path in sorted(root.glob("*.log")):
+              text = path.read_text(encoding="utf-8", errors="replace")
+              hits = [value for value in forbidden if value and value in text]
+              if hits:
+                  leaked.append(path.name)
+                  for value in hits:
+                      text = text.replace(value, "***REDACTED***")
+                  path.write_text(text, encoding="utf-8")
+          if leaked:
+              raise SystemExit("generated credential/private canary leaked into events E2E logs")
+          print("PASS: generated credential/private canaries absent from events E2E logs")
+          PY
+
+      - name: Record structured-events evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/control-ui-events-e2e"
+          {
+            echo "### Structured-events evidence"
+            echo "- exact head: $EXPECTED_HEAD"
+            echo "- artifact upload: intentionally not required; GitHub artifact service is unavailable on current runners"
+            echo "- privacy scan: see previous required step"
+            echo "- generated files:"
+            if [ -d "$root" ]; then
+              find "$root" -type f -maxdepth 3 -print | sed 's/^/  - /'
+            else
+              echo "  - none"
+            fi
+            if [ -d "web/market-data-console/test-results" ]; then
+              find web/market-data-console/test-results -type f -maxdepth 3 -print | sed 's/^/  - /'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,51 @@
+{
+  "$id": "urn:modular-results-registry:dataset-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregation_version": {"minLength": 1, "type": "string"},
+    "dataset_id": {"minLength": 3, "type": "string"},
+    "duplicate_summary": {"type": "object"},
+    "funding_data_hash": {
+      "oneOf": [
+        {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "gap_summary": {"type": "object"},
+    "instrument": {"minLength": 1, "type": "string"},
+    "market": {"minLength": 1, "type": "string"},
+    "market_type": {"minLength": 1, "type": "string"},
+    "max_timestamp": {"format": "date-time", "type": "string"},
+    "metadata_hash": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "min_timestamp": {"format": "date-time", "type": "string"},
+    "preprocessing_version": {"minLength": 1, "type": "string"},
+    "quality_status": {"minLength": 1, "type": "string"},
+    "row_count": {"minimum": 0, "type": "integer"},
+    "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "source": {"minLength": 1, "type": "string"},
+    "timeframe": {"minLength": 1, "type": "string"},
+    "timezone_name": {"const": "UTC"}
+  },
+  "required": [
+    "dataset_id",
+    "source",
+    "market",
+    "market_type",
+    "instrument",
+    "timeframe",
+    "min_timestamp",
+    "max_timestamp",
+    "row_count",
+    "sha256",
+    "preprocessing_version",
+    "aggregation_version",
+    "metadata_hash",
+    "funding_data_hash",
+    "gap_summary",
+    "duplicate_summary",
+    "quality_status",
+    "timezone_name"
+  ],
+  "type": "object"
+}

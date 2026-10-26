@@ -1,0 +1,154 @@
+name: system-acceptance-stage1-composition-ci
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "scripts/system_acceptance_stage1_deployment.py"
+      - "scripts/system_acceptance_stage1_host.py"
+      - "scripts/system_acceptance_stage1_service_manager.py"
+      - "scripts/system_acceptance_stage1_launchd.py"
+      - "tests/integration/test_system_acceptance_stage1_deployment.py"
+      - "tests/integration/test_system_acceptance_stage1_host.py"
+      - "tests/integration/test_system_acceptance_stage1_owner_reconnect.py"
+      - "tests/integration/test_system_acceptance_stage1_service_manager.py"
+      - "tests/integration/test_system_acceptance_stage1_launchd.py"
+      - "applications/system_acceptance/**"
+      - "modules/market_data_ingestion/**"
+      - "src/modular_backtest/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_factory/**"
+      - "applications/trading_runner/**"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/system-acceptance-stage1-composition-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: system-acceptance-stage1-composition-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  composition:
+    name: Stage-1 Composition / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Stage-1 composition candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/system_acceptance/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            modules/risk_request_composer/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_factory/pyproject.toml
+          cache-suffix: system-acceptance-stage1-composition
+
+      - name: Install authoritative owner surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --upgrade pip setuptools wheel 'hatchling>=1.27,<2'
+          uv pip install -e ".[dev,security]"
+          uv pip install -e "./modules/market_data_ingestion[dev,parquet]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/trading_runner[dev]"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation[dev]"
+          uv pip install -e "./modules/risk_request_composer" --no-deps
+          uv pip install -e "./research/strategy_factory[dev]"
+          uv pip install -e "./applications/system_acceptance[dev]"
+          uv pip check
+
+      - name: Compile composition, host and integration tests
+        run: |
+          python -m compileall -q \
+            scripts/system_acceptance_stage1_deployment.py \
+            scripts/system_acceptance_stage1_host.py \
+            scripts/system_acceptance_stage1_service_manager.py \
+            scripts/system_acceptance_stage1_launchd.py \
+            tests/integration/test_system_acceptance_stage1_deployment.py \
+            tests/integration/test_system_acceptance_stage1_host.py \
+            tests/integration/test_system_acceptance_stage1_owner_reconnect.py \
+            tests/integration/test_system_acceptance_stage1_service_manager.py \
+            tests/integration/test_system_acceptance_stage1_launchd.py
+
+      - name: Ruff Stage-1 deployment lint
+        run: |
+          ruff check --output-format=concise \
+            scripts/system_acceptance_stage1_deployment.py \
+            scripts/system_acceptance_stage1_host.py \
+            scripts/system_acceptance_stage1_service_manager.py \
+            scripts/system_acceptance_stage1_launchd.py \
+            tests/integration/test_system_acceptance_stage1_deployment.py \
+            tests/integration/test_system_acceptance_stage1_host.py \
+            tests/integration/test_system_acceptance_stage1_owner_reconnect.py \
+            tests/integration/test_system_acceptance_stage1_service_manager.py \
+            tests/integration/test_system_acceptance_stage1_launchd.py
+
+      - name: Ruff Stage-1 deployment format
+        run: |
+          ruff format --check \
+            scripts/system_acceptance_stage1_deployment.py \
+            scripts/system_acceptance_stage1_host.py \
+            scripts/system_acceptance_stage1_service_manager.py \
+            scripts/system_acceptance_stage1_launchd.py \
+            tests/integration/test_system_acceptance_stage1_deployment.py \
+            tests/integration/test_system_acceptance_stage1_host.py \
+            tests/integration/test_system_acceptance_stage1_owner_reconnect.py \
+            tests/integration/test_system_acceptance_stage1_service_manager.py \
+            tests/integration/test_system_acceptance_stage1_launchd.py
+
+      - name: Strict MyPy Stage-1 deployment roots
+        run: |
+          mypy --strict scripts/system_acceptance_stage1_deployment.py
+          mypy --strict scripts/system_acceptance_stage1_host.py
+          mypy --strict scripts/system_acceptance_stage1_service_manager.py
+          mypy --strict scripts/system_acceptance_stage1_launchd.py
+
+      - name: Cross-owner Stage-1 deployment tests
+        run: |
+          python -m pytest -q --tb=short \
+            tests/integration/test_system_acceptance_stage1_deployment.py \
+            tests/integration/test_system_acceptance_stage1_host.py \
+            tests/integration/test_system_acceptance_stage1_owner_reconnect.py \
+            tests/integration/test_system_acceptance_stage1_service_manager.py \
+            tests/integration/test_system_acceptance_stage1_launchd.py \
+            research/strategy_factory/tests/test_restart_loader.py \
+            research/experiment_runner/tests/test_restart.py \
+            applications/trading_runner/tests/test_bootstrap.py

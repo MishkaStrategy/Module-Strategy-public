@@ -1,0 +1,248 @@
+name: fvg-0.3.0-release-validation
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - ready_for_review
+      - labeled
+    paths:
+      - "plugins/fvg/**"
+      - ".github/workflows/fvg-release-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fvg-release-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  materialize-format:
+    if: >-
+      (
+        github.event.action == 'ready_for_review' ||
+        (github.event.action == 'labeled' && github.event.label.name == 'full-integration') ||
+        (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'full-integration'))
+      ) &&
+      github.head_ref == 'modules/fvg-hardening' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    name: Check canonical FVG formatting
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    outputs:
+      validated-sha: ${{ steps.head.outputs.sha }}
+    defaults:
+      run:
+        working-directory: .work/fvg-format
+    env:
+      UV_LINK_MODE: hardlink
+    steps:
+      - name: Checkout isolated FVG formatter workspace
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: .work/fvg-format
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: false
+          working-directory: .work/fvg-format
+
+      - name: Determine formatting eligibility
+        run: |
+          test "${GITHUB_HEAD_REF}" = "modules/fvg-hardening"
+          test "${{ github.event.pull_request.head.repo.full_name }}" = "${GITHUB_REPOSITORY}"
+
+      - name: Prepare runner-safe formatter cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv_cache_dir="${RUNNER_TEMP}/fvg-format-uv-${GITHUB_RUN_ID}"
+          rm -rf -- "${uv_cache_dir}"
+          mkdir -p "${uv_cache_dir}"
+          echo "UV_CACHE_DIR=${uv_cache_dir}" >> "${GITHUB_ENV}"
+          available_kb="$(df -Pk "${RUNNER_TEMP}" | awk 'NR == 2 {print $4}')"
+          if [[ "${available_kb}" =~ ^[0-9]+$ ]] && (( available_kb < 65536 )); then
+            echo "warning: formatter starts with only ${available_kb} KB free" >&2
+          fi
+
+      - name: Materialize deterministic Ruff output
+        run: uv run --python "3.12" --no-project python plugins/fvg/scripts/materialize_format.py
+
+      - name: Verify clean exact head
+        id: head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff --exit-code
+          echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload formatting evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fvg-format-check-${{ github.event.pull_request.head.sha }}
+          path: |
+            .work/fvg-format/fvg-format-preview.json
+            .work/fvg-format/fvg-format-preview.patch
+          if-no-files-found: warn
+
+  exact-head:
+    needs: materialize-format
+    if: >-
+      always() &&
+      needs.materialize-format.result == 'success' &&
+      github.head_ref == 'modules/fvg-hardening'
+    name: FVG 0.3.0 / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: .work/fvg-release
+    env:
+      CORE_SHA: b4860c94dafb1d398cb36088d16c32bfcd065fc4  # pragma: allowlist secret
+      VALIDATED_SHA: ${{ needs.materialize-format.outputs.validated-sha }}
+      UV_LINK_MODE: hardlink
+    steps:
+      - name: Checkout exact FVG head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.VALIDATED_SHA }}
+          path: .work/fvg-release
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Checkout pinned Core source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.CORE_SHA }}
+          path: .work/fvg-core
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          enable-cache: false
+          working-directory: .work/fvg-release
+
+      - name: Prepare runner-safe release cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv_cache_dir="${RUNNER_TEMP}/fvg-release-uv-${GITHUB_RUN_ID}-${{ matrix.python-version }}"
+          rm -rf -- "${uv_cache_dir}"
+          mkdir -p "${uv_cache_dir}"
+          echo "UV_CACHE_DIR=${uv_cache_dir}" >> "${GITHUB_ENV}"
+          available_kb="$(df -Pk "${RUNNER_TEMP}" | awk 'NR == 2 {print $4}')"
+          if [[ ! "${available_kb}" =~ ^[0-9]+$ ]] || (( available_kb < 262144 )); then
+            echo "insufficient disk for release gate: ${available_kb:-unknown} KB" >&2
+            exit 1
+          fi
+          if (( available_kb < 786432 )); then
+            echo "warning: release gate starts with only ${available_kb} KB free" >&2
+          fi
+
+      - name: Verify pinned Core
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${VALIDATED_SHA}"
+          test "$(git -C ../fvg-core rev-parse HEAD)" = "${CORE_SHA}"
+
+      - name: Run complete FVG release gate
+        id: release_gate
+        continue-on-error: true
+        run: |
+          uv run --python "${{ matrix.python-version }}" --no-project \
+            python plugins/fvg/scripts/run_release_gate_portable.py \
+            "${VALIDATED_SHA}" \
+            "../fvg-core" \
+            "${{ matrix.python-version }}" \
+            "fvg-ci-evidence/${{ matrix.python-version }}"
+
+      - name: Bundle exact-head evidence
+        if: always()
+        shell: bash
+        env:
+          EVIDENCE_DIR: fvg-ci-evidence/${{ matrix.python-version }}
+          EVIDENCE_ZIP: fvg-ci-evidence-${{ matrix.python-version }}.zip
+        run: |
+          uv run --python "${{ matrix.python-version }}" --no-project python - <<'PY'
+          import os
+          from pathlib import Path
+          import zipfile
+
+          root = Path(os.environ["EVIDENCE_DIR"])
+          root.mkdir(parents=True, exist_ok=True)
+          entries = sorted(path for path in root.rglob("*") if path.is_file())
+          if not entries:
+              marker = root / "artifact-error.txt"
+              marker.write_text("release gate produced no evidence files\n", encoding="utf-8")
+              entries = [marker]
+          with zipfile.ZipFile(
+              os.environ["EVIDENCE_ZIP"],
+              "w",
+              compression=zipfile.ZIP_DEFLATED,
+              compresslevel=9,
+          ) as archive:
+              for path in entries:
+                  archive.write(path, path.relative_to(root).as_posix())
+          PY
+
+      - name: Upload exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fvg-0.3.0-${{ matrix.python-version }}-${{ env.VALIDATED_SHA }}
+          path: .work/fvg-release/fvg-ci-evidence-${{ matrix.python-version }}.zip
+          if-no-files-found: error
+
+      - name: Publish release gate summary
+        if: always()
+        shell: bash
+        run: |
+          outcomes="fvg-ci-evidence/${{ matrix.python-version }}/outcomes.txt"
+          {
+            echo "## FVG 0.3.0 release gate"
+            echo
+            echo "- Python: ${{ matrix.python-version }}"
+            echo "- exact head: \`${VALIDATED_SHA}\`"
+            echo "- pinned Core: \`${CORE_SHA}\`"
+            echo
+            if [[ -f "${outcomes}" ]]; then
+              echo '```text'
+              cat "${outcomes}"
+              echo '```'
+            else
+              echo "No outcomes file was produced."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Enforce release gate
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.release_gate.outcome }}" != "success" ]]; then
+            echo "release gate outcome was ${{ steps.release_gate.outcome }}" >&2
+            exit 1
+          fi

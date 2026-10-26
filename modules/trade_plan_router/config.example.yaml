@@ -1,0 +1,28 @@
+schema_version: "1"
+long_short_policy: reject_all
+multi_setup_policy: highest_priority
+existing_position_policy: reject
+pending_order_policy: reject
+active_plan_policy: reject_new_exposure
+strict_mode: true
+require_portfolio_snapshot: true
+allow_risk_reducing_when_locked: true
+max_decision_age_seconds: 86400
+max_snapshot_age_seconds: 300
+plan_ttl_seconds: 300
+max_portfolio_risk_fraction: 0.03
+max_symbol_notional_fraction: 3.0
+max_entry_candidates: 1000
+max_decisions_per_type: 2000
+max_portfolio_positions: 5000
+max_pending_orders: 10000
+max_targets_per_plan: 100
+portfolio_priorities: {}
+strategy_priorities: {}
+setup_priorities: {}
+module_priorities: {}
+side_priorities:
+  long: 0
+  short: 0
+warning_escalation: false
+audit_level: full

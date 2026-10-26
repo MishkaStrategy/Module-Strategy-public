@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:modular-strategy:web-console-release-contract:1",
+  "title": "Web console deployment and acceptance contract v1",
+  "description": "A fail-closed, separately versioned web-console release envelope linked to a v2 PAPER release manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "contract_sha256", "disposition", "manifest", "toolchain", "npm_lock", "linux_build", "linux_serving", "linux_deployment", "darwin_acceptance", "blockers"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "contract_sha256": {"$ref": "#/$defs/sha256"},
+    "disposition": {"enum": ["pending", "accepted"]},
+    "manifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "manifest_sha256", "candidate_id", "profile_id", "source_commit"],
+      "properties": {
+        "schema_version": {"const": 2},
+        "manifest_sha256": {"$ref": "#/$defs/binding"},
+        "candidate_id": {"$ref": "#/$defs/binding"},
+        "profile_id": {"$ref": "#/$defs/binding"},
+        "source_commit": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "toolchain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node_version", "npm_version", "provisioning_material", "registry_policy", "install_script_policy"],
+      "properties": {
+        "node_version": {"$ref": "#/$defs/binding"},
+        "npm_version": {"$ref": "#/$defs/binding"},
+        "provisioning_material": {"$ref": "#/$defs/binding"},
+        "registry_policy": {"$ref": "#/$defs/binding"},
+        "install_script_policy": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "npm_lock": {
+      "type": "object", "additionalProperties": false,
+      "required": ["relation"],
+      "properties": {"relation": {"$ref": "#/$defs/binding"}}
+    },
+    "linux_build": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target_os", "architecture", "image", "recipe", "source_inputs", "reconstruction_receipt", "artifact"],
+      "properties": {
+        "target_os": {"const": "linux"},
+        "architecture": {"$ref": "#/$defs/binding"},
+        "image": {"$ref": "#/$defs/binding"},
+        "recipe": {"$ref": "#/$defs/binding"},
+        "source_inputs": {"$ref": "#/$defs/binding"},
+        "reconstruction_receipt": {"$ref": "#/$defs/binding"},
+        "artifact": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "linux_serving": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "runtime", "configuration"],
+      "properties": {
+        "mode": {"$ref": "#/$defs/binding"},
+        "runtime": {"$ref": "#/$defs/binding"},
+        "configuration": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "linux_deployment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["context", "evidence"],
+      "properties": {
+        "context": {"$ref": "#/$defs/binding"},
+        "evidence": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "darwin_acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target_os", "context", "browser_contexts", "artifact_use", "evidence"],
+      "properties": {
+        "target_os": {"const": "darwin"},
+        "context": {"$ref": "#/$defs/binding"},
+        "browser_contexts": {"$ref": "#/$defs/binding"},
+        "artifact_use": {"$ref": "#/$defs/binding"},
+        "evidence": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "value"],
+      "properties": {
+        "status": {"enum": ["pending", "bound"]},
+        "value": {}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "pending"}}, "required": ["status"]}, "then": {"properties": {"value": {"type": "null"}}}},
+        {"if": {"properties": {"status": {"const": "bound"}}, "required": ["status"]}, "then": {"properties": {"value": {"not": {"type": "null"}}}}}
+      ]
+    }
+  }
+}

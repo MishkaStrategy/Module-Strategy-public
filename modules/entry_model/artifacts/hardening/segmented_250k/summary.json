@@ -1,0 +1,46 @@
+{
+  "digest": "d3a5971648e73d2f800cc6c835c3585f59d701d55a340df4b1aafdfcabf78087",
+  "events": 250000,
+  "expected_digest": "d3a5971648e73d2f800cc6c835c3585f59d701d55a340df4b1aafdfcabf78087",
+  "match": true,
+  "min_throughput": 4434.231122468727,
+  "segments": 5,
+  "segments_data": [
+    {
+      "checkpoint_bytes": 3110382,
+      "end": 50000,
+      "plans": 50000,
+      "seconds": 10.173254416999953,
+      "start": 0
+    },
+    {
+      "checkpoint_bytes": 3110384,
+      "end": 100000,
+      "plans": 50000,
+      "seconds": 11.275912016999882,
+      "start": 50000
+    },
+    {
+      "checkpoint_bytes": 3130384,
+      "end": 150000,
+      "plans": 50000,
+      "seconds": 9.394243102000019,
+      "start": 100000
+    },
+    {
+      "checkpoint_bytes": 3130384,
+      "end": 200000,
+      "plans": 50000,
+      "seconds": 9.376909160999958,
+      "start": 150000
+    },
+    {
+      "checkpoint_bytes": 3130384,
+      "end": 250000,
+      "plans": 50000,
+      "seconds": 9.108884586000158,
+      "start": 200000
+    }
+  ],
+  "total_seconds": 49.32920328299997
+}

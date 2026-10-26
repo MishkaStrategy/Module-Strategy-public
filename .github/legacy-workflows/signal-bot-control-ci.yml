@@ -1,0 +1,92 @@
+name: signal-bot-control-ci
+
+on:
+  pull_request:
+    paths:
+      - "src/signal_bot/**"
+      - "tests/signal_bot/**"
+      - "docs/signal_bot/**"
+      - ".github/workflows/signal-bot-control-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signal-bot-control-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  owner-contract:
+    name: Signal Bot Control / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Signal Bot control candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: pyproject.toml
+          cache-suffix: signal-bot-control
+
+      - name: Install dependencies
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev,signal-bot]"
+          uv pip check
+
+      - name: Compile
+        run: python -m compileall -q src/signal_bot tests/signal_bot
+
+      - name: Ruff lint
+        run: ruff check src/signal_bot tests/signal_bot
+
+      - name: Ruff format
+        run: ruff format --check src/signal_bot tests/signal_bot
+
+      - name: MyPy
+        run: mypy src/signal_bot
+
+      - name: Signal Bot fast tests
+        env:
+          MPLCONFIGDIR: /tmp/module-strategy-signal-bot-mpl
+        run: pytest -q -m "not slow" tests/signal_bot
+
+      - name: Owner contract focused tests
+        run: |
+          pytest -q \
+            tests/signal_bot/test_operator_control.py \
+            tests/signal_bot/test_operator_control_security.py \
+            tests/signal_bot/test_operator_http.py \
+            tests/signal_bot/test_operator_cli.py
+
+      - name: Build wheel
+        run: python -m build
+
+      - name: Clean wheel smoke
+        run: |
+          rm -rf .signal-bot-control-smoke
+          python -m venv .signal-bot-control-smoke
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print | sort | head -n 1)"
+          test -n "$wheel"
+          .signal-bot-control-smoke/bin/python -m pip install "${wheel}[signal-bot]"
+          .signal-bot-control-smoke/bin/python -m pip check
+          .signal-bot-control-smoke/bin/python -c "import signal_bot; from signal_bot import SignalBotControlHttpServer, SignalBotOperatorControl"

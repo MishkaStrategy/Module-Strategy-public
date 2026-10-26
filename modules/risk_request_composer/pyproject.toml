@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-strategy-risk-request-composer"
+version = "0.1.0"
+description = "Deterministic adapter from entry/protection evidence to risk.request"
+requires-python = ">=3.12"
+dependencies = [
+  "modular-strategy-core>=0.4.2,<0.5",
+  "modular-strategy-risk-sizing>=1.2,<1.3",
+]
+
+[project.entry-points."modular_strategy.modules"]
+risk_request_composer = "modular_strategy_risk_request_composer:RiskRequestComposerModule"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+modular_strategy_risk_request_composer = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

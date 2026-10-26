@@ -1,0 +1,142 @@
+name: Fast checks
+
+on:
+  push:
+    branches:
+      - main
+      - "integration/**"
+      - "modules/**"
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "modules/**"
+      - "plugins/**"
+      - "applications/**"
+      - "research/**"
+      - "benchmarks/**"
+      - "configs/**"
+      - "config/**"
+      - "examples/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/**"
+      - ".github/workflows/fast-checks.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "modules/**"
+      - "plugins/**"
+      - "applications/**"
+      - "research/**"
+      - "benchmarks/**"
+      - "configs/**"
+      - "config/**"
+      - "examples/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/**"
+      - ".github/workflows/fast-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-checks:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.12"
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/risk_sizing/pyproject.toml
+          cache-suffix: fast-checks
+
+      - name: Install project and quality tools
+        run: |
+          uv pip install -e '.[dev]' ruff mypy
+          uv pip install -e ./modules/risk_sizing
+
+      - name: Compile shared policy code
+        run: python -m compileall -q src tests scripts
+
+      - name: Collect Ruff lint evidence
+        id: ruff_lint
+        continue-on-error: true
+        run: ruff check . --output-format=json > ruff-lint.json
+
+      - name: Generate safe Ruff repair evidence
+        if: steps.ruff_lint.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check . --fix || true
+          git diff --binary > ruff-safe-fixes.patch
+          python - <<'PY'
+          from __future__ import annotations
+
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          raw = subprocess.check_output(["git", "diff", "--name-only", "-z"])
+          files = [Path(item.decode("utf-8")) for item in raw.split(b"\0") if item]
+          if not files:
+              raise SystemExit("Ruff reported failures but produced no safe fixes")
+          with zipfile.ZipFile("ruff-safe-fixed-files.zip", "w", zipfile.ZIP_DEFLATED) as archive:
+              for path in files:
+                  archive.write(path, path.as_posix())
+          Path("ruff-safe-fixed-files.txt").write_text(
+              "\n".join(path.as_posix() for path in files) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git reset --hard HEAD
+
+      - name: Enforce Ruff lint
+        if: steps.ruff_lint.outcome == 'failure'
+        run: ruff check .
+
+      - name: Run Ruff format check
+        run: ruff format --check .
+
+      - name: Run focused strict MyPy
+        run: mypy --strict scripts/audit_runner_routing.py
+
+      - name: Run root fast tests
+        run: >-
+          python -m pytest -q -m "not slow and not backtest" tests
+          --ignore=tests/backtest_engine
+          --ignore=tests/breakout_return
+          --ignore=tests/integration
+          --ignore=tests/signal_bot
+
+      - name: Upload Ruff lint and repair evidence
+        if: ${{ always() && steps.ruff_lint.outcome == 'failure' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fast-checks-ruff-evidence
+          path: |
+            ruff-lint.json
+            ruff-safe-fixes.patch
+            ruff-safe-fixed-files.zip
+            ruff-safe-fixed-files.txt
+          if-no-files-found: error

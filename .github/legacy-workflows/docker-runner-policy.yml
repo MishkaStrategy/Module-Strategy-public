@@ -1,0 +1,42 @@
+name: Environment dependency runner policy
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "scripts/audit_docker_runner_routing.py"
+      - "tests/test_environment_dependency_routing.py"
+  push:
+    branches:
+      - main
+      - "integration/**"
+    paths:
+      - ".github/workflows/**"
+      - "scripts/audit_docker_runner_routing.py"
+      - "tests/test_environment_dependency_routing.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: environment-dependency-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit-dependency-routing:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.12"
+      - name: Install test dependency
+        run: uv pip install pytest
+      - name: Verify environment jobs use matching runner roles
+        run: python scripts/audit_docker_runner_routing.py
+      - name: Test semantic routing audit
+        run: python -m pytest -q tests/test_environment_dependency_routing.py

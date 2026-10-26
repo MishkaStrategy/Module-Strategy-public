@@ -1,0 +1,74 @@
+{
+  "$id": "urn:modular-results-registry:metric-definition-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregation_method": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "definition_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "MAXIMIZE",
+        "MINIMIZE",
+        null
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "formula": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "metric_name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "missing_value_policy": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "owner_module": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "precision": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "producer": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "unit": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "metric_name",
+    "definition_version",
+    "formula",
+    "unit",
+    "precision",
+    "aggregation_method",
+    "missing_value_policy",
+    "producer",
+    "owner_module",
+    "direction",
+    "schema_version"
+  ],
+  "type": "object"
+}

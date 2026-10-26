@@ -1,0 +1,30 @@
+{
+  "deterministic_outputs": true,
+  "deterministic_states": true,
+  "events": 250000,
+  "maximum_checkpoint_bytes": 3516,
+  "maximum_peak_traced_bytes": null,
+  "maximum_seconds": 25.32179482499987,
+  "median_restore_seconds": 0.0003913059999831603,
+  "median_seconds": 25.32179482499987,
+  "median_throughput": 9872.91784519075,
+  "minimum_seconds": 25.32179482499987,
+  "python_version": "3.13.5",
+  "restart_at": 125000,
+  "runs": 1,
+  "samples": [
+    {
+      "checkpoint_bytes": 3516,
+      "elapsed_seconds": 25.32179482499987,
+      "feature_count": 749808,
+      "output_digest": "27012574520f6235479390ccd987489825cf6f48af03c31d1e1e76ea8dc3c00b",
+      "peak_traced_bytes": null,
+      "publications": 249936,
+      "restore_seconds": 0.0003913059999831603,
+      "state_digest": "d003db379007113f992b5bf3a52152c57dbd3c2fedc2ed5d032352e3f8b6c613",
+      "throughput_events_per_second": 9872.91784519075
+    }
+  ],
+  "timeframe": "1h",
+  "trace_memory": false
+}

@@ -1,0 +1,517 @@
+{
+  "environment": {
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "pid": 1155,
+    "platform": "Linux-6.12.13-x86_64-with-glibc2.41",
+    "processor": "",
+    "python": "3.13.5"
+  },
+  "headline": {
+    "concurrent_reader_operations": 4000,
+    "corruption_detection": {
+      "EvidenceTamperedError": 1
+    },
+    "interrupted_1000_restart_overhead_ms": 0.762102,
+    "repeated_1000_duplicate_suppression": 1999,
+    "valid_1000_artifact_bytes_per_candidate": 9182.808,
+    "valid_1000_candidates_per_second": 217.15304275472198,
+    "valid_1000_cold_p95_ms": 12.370088,
+    "valid_1000_cold_p99_ms": 22.612931,
+    "valid_1000_rss_delta_bytes": 10616832
+  },
+  "report_id": "strategy-governance-wave2f-baseline-v1",
+  "schema_version": 1,
+  "variance_valid_1000": {
+    "coefficient_of_variation_percent": 5.999591684356775,
+    "deterministic": true,
+    "logical_digests": [
+      "07296d0dab57bdb01d54fb598cb280b48fcf2ef5674f555fd5a4d54490d99991"
+    ],
+    "mean_candidates_per_second": 269.0049017127672,
+    "sample_count": 3,
+    "throughput_candidates_per_second": [
+      247.65998218175622,
+      272.6769139863422,
+      286.67780897020333
+    ]
+  },
+  "workload_contract": {
+    "canonical_strategy_execution_claimed": false,
+    "exchange_credentials_used": false,
+    "id": "strategy-governance-synthetic-v1",
+    "live_trading_used": false,
+    "network_used": false,
+    "purpose": "Measure governance/audit storage and identity mechanics only."
+  },
+  "workloads": {
+    "concurrent-readers-100": {
+      "logical_digest": "b722e28e522853a7cabe05b0e304279de4c5e892918fa27d6f46a295cfe08c05",
+      "metrics": {
+        "artifact_bytes": 4701688,
+        "artifact_bytes_per_requested_candidate": 47016.88,
+        "attempt_failure_counts": {},
+        "attempts": 200,
+        "candidates_per_second": 149.08494648998322,
+        "cold_latency": {
+          "count": 100.0,
+          "max_ms": 33.485782,
+          "mean_ms": 8.56510043,
+          "p50_ms": 7.749953,
+          "p95_ms": 17.82371,
+          "p99_ms": 31.129461
+        },
+        "cpu_seconds": 0.7845657370000001,
+        "duplicate_candidate_suppression": 100,
+        "durable_counts": {
+          "approvals": 100,
+          "candidates": 100,
+          "checkpoints": 100,
+          "evidence": 100
+        },
+        "failure_counts": {},
+        "inserted_candidates": 100,
+        "inserted_evidence": 100,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 117981184,
+        "reader_operations": 4000,
+        "reader_wall_ms": 125.289219,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 3276800,
+        "successful_attempts": 200,
+        "wall_seconds": 1.3415170659999376,
+        "warm_latency": {
+          "count": 100.0,
+          "max_ms": 21.600399,
+          "mean_ms": 2.64482295,
+          "p50_ms": 1.992522,
+          "p95_ms": 6.913199,
+          "p99_ms": 10.470025
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "corrupted-10": {
+      "logical_digest": "0565faf5cc77d5ef1611f43322188e3718a721281bc8719b15282403b15ad572",
+      "metrics": {
+        "artifact_bytes": 856776,
+        "artifact_bytes_per_requested_candidate": 85677.6,
+        "attempt_failure_counts": {},
+        "attempts": 10,
+        "candidates_per_second": 75.17628029580868,
+        "cold_latency": {
+          "count": 10.0,
+          "max_ms": 17.856734,
+          "mean_ms": 9.5217341,
+          "p50_ms": 8.934183,
+          "p95_ms": 17.856734,
+          "p99_ms": 17.856734
+        },
+        "cpu_seconds": 0.042674714999999974,
+        "duplicate_candidate_suppression": 0,
+        "durable_counts": {
+          "approvals": 10,
+          "candidates": 10,
+          "checkpoints": 10,
+          "evidence": 10
+        },
+        "failure_counts": {
+          "EvidenceTamperedError": 1
+        },
+        "inserted_candidates": 10,
+        "inserted_evidence": 10,
+        "integrity_failure_counts": {
+          "EvidenceTamperedError": 1
+        },
+        "peak_rss_bytes": 115236864,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 655360,
+        "successful_attempts": 10,
+        "wall_seconds": 0.1330206810000618,
+        "warm_latency": {
+          "count": 0.0,
+          "max_ms": 0.0,
+          "mean_ms": 0.0,
+          "p50_ms": 0.0,
+          "p95_ms": 0.0,
+          "p99_ms": 0.0
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "interrupted-1000": {
+      "logical_digest": "261f84ce7b49afc2711391c2ebe2b28d7157a0c5fc0f656b93cf3c47f3f4090e",
+      "metrics": {
+        "artifact_bytes": 8703528,
+        "artifact_bytes_per_requested_candidate": 8703.528,
+        "attempt_failure_counts": {},
+        "attempts": 1000,
+        "candidates_per_second": 154.05822622895778,
+        "cold_latency": {
+          "count": 1000.0,
+          "max_ms": 46.985161,
+          "mean_ms": 5.392296775,
+          "p50_ms": 4.030528,
+          "p95_ms": 12.496065,
+          "p99_ms": 20.55336
+        },
+        "cpu_seconds": 3.3689671169999995,
+        "duplicate_candidate_suppression": 0,
+        "durable_counts": {
+          "approvals": 1000,
+          "candidates": 1000,
+          "checkpoints": 1000,
+          "evidence": 1000
+        },
+        "failure_counts": {},
+        "inserted_candidates": 1000,
+        "inserted_evidence": 1000,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 124751872,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.762102,
+        "rss_delta_bytes": 9830400,
+        "successful_attempts": 1000,
+        "wall_seconds": 6.491052276000005,
+        "warm_latency": {
+          "count": 0.0,
+          "max_ms": 0.0,
+          "mean_ms": 0.0,
+          "p50_ms": 0.0,
+          "p95_ms": 0.0,
+          "p99_ms": 0.0
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "large-10": {
+      "logical_digest": "0daed524f0cdf83b97460159a80504c6e55544a15e5216bbe886428e5252d628",
+      "metrics": {
+        "artifact_bytes": 13092888,
+        "artifact_bytes_per_requested_candidate": 1309288.8,
+        "attempt_failure_counts": {},
+        "attempts": 20,
+        "candidates_per_second": 13.35140738273275,
+        "cold_latency": {
+          "count": 10.0,
+          "max_ms": 83.239288,
+          "mean_ms": 67.79169809999999,
+          "p50_ms": 66.991092,
+          "p95_ms": 83.239288,
+          "p99_ms": 83.239288
+        },
+        "cpu_seconds": 1.3630031640000002,
+        "duplicate_candidate_suppression": 10,
+        "durable_counts": {
+          "approvals": 10,
+          "candidates": 10,
+          "checkpoints": 10,
+          "evidence": 10
+        },
+        "failure_counts": {},
+        "inserted_candidates": 10,
+        "inserted_evidence": 10,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 133337088,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 18628608,
+        "successful_attempts": 20,
+        "wall_seconds": 1.4979694220000965,
+        "warm_latency": {
+          "count": 10.0,
+          "max_ms": 66.247978,
+          "mean_ms": 55.337120000000006,
+          "p50_ms": 55.0968,
+          "p95_ms": 66.247978,
+          "p99_ms": 66.247978
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "mostly-invalid-1000": {
+      "logical_digest": "260ba2623916f4071371b8dc6ab239398af56b11e5e2f75b4434e58ebcb4b280",
+      "metrics": {
+        "artifact_bytes": 6196800,
+        "artifact_bytes_per_requested_candidate": 6196.8,
+        "attempt_failure_counts": {
+          "EvidenceMalformedError": 750
+        },
+        "attempts": 1000,
+        "candidates_per_second": 338.39746550450707,
+        "cold_latency": {
+          "count": 1000.0,
+          "max_ms": 33.403942,
+          "mean_ms": 2.6524169499999997,
+          "p50_ms": 2.153582,
+          "p95_ms": 8.144021,
+          "p99_ms": 17.135649
+        },
+        "cpu_seconds": 1.5383701980000002,
+        "duplicate_candidate_suppression": 0,
+        "durable_counts": {
+          "approvals": 250,
+          "candidates": 500,
+          "checkpoints": 500,
+          "evidence": 500
+        },
+        "failure_counts": {
+          "EvidenceMalformedError": 750
+        },
+        "inserted_candidates": 250,
+        "inserted_evidence": 250,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 120799232,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 6094848,
+        "successful_attempts": 250,
+        "wall_seconds": 2.955104874999961,
+        "warm_latency": {
+          "count": 0.0,
+          "max_ms": 0.0,
+          "mean_ms": 0.0,
+          "p50_ms": 0.0,
+          "p95_ms": 0.0,
+          "p99_ms": 0.0
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "repeated-1000": {
+      "logical_digest": "9818528f6a3be27f4331ec4b0e39ce290b3b1ec8d15183b8ec08ece87a5b8cca",
+      "metrics": {
+        "artifact_bytes": 197576,
+        "artifact_bytes_per_requested_candidate": 197.576,
+        "attempt_failure_counts": {},
+        "attempts": 2000,
+        "candidates_per_second": 827.8579604641534,
+        "cold_latency": {
+          "count": 1000.0,
+          "max_ms": 9.492753,
+          "mean_ms": 1.1991539029999998,
+          "p50_ms": 1.109973,
+          "p95_ms": 1.534954,
+          "p99_ms": 3.081664
+        },
+        "cpu_seconds": 2.390317274,
+        "duplicate_candidate_suppression": 1999,
+        "durable_counts": {
+          "approvals": 1,
+          "candidates": 1,
+          "checkpoints": 1,
+          "evidence": 1
+        },
+        "failure_counts": {},
+        "inserted_candidates": 1,
+        "inserted_evidence": 1,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 116088832,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 1310720,
+        "successful_attempts": 2000,
+        "wall_seconds": 2.4158733689999963,
+        "warm_latency": {
+          "count": 1000.0,
+          "max_ms": 6.813311,
+          "mean_ms": 1.1867831180000001,
+          "p50_ms": 1.117737,
+          "p95_ms": 1.464221,
+          "p99_ms": 2.271323
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "valid-1": {
+      "logical_digest": "5251dd2a4600458f8f765750039c118b5c15fdcfa391a284fb8c910c16419b95",
+      "metrics": {
+        "artifact_bytes": 197576,
+        "artifact_bytes_per_requested_candidate": 197576.0,
+        "attempt_failure_counts": {},
+        "attempts": 2,
+        "candidates_per_second": 59.07309412244099,
+        "cold_latency": {
+          "count": 1.0,
+          "max_ms": 8.231989,
+          "mean_ms": 8.231989,
+          "p50_ms": 8.231989,
+          "p95_ms": 8.231989,
+          "p99_ms": 8.231989
+        },
+        "cpu_seconds": 0.01348970099999991,
+        "duplicate_candidate_suppression": 1,
+        "durable_counts": {
+          "approvals": 1,
+          "candidates": 1,
+          "checkpoints": 1,
+          "evidence": 1
+        },
+        "failure_counts": {},
+        "inserted_candidates": 1,
+        "inserted_evidence": 1,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 115216384,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 655360,
+        "successful_attempts": 2,
+        "wall_seconds": 0.03385636100006195,
+        "warm_latency": {
+          "count": 1.0,
+          "max_ms": 3.030044,
+          "mean_ms": 3.030044,
+          "p50_ms": 3.030044,
+          "p95_ms": 3.030044,
+          "p99_ms": 3.030044
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "valid-10": {
+      "logical_digest": "cbf1f1bda3e54790198bf34324d1c73da3e7adb4b39ab41a7cbe6449c51556f6",
+      "metrics": {
+        "artifact_bytes": 984496,
+        "artifact_bytes_per_requested_candidate": 98449.6,
+        "attempt_failure_counts": {},
+        "attempts": 20,
+        "candidates_per_second": 73.22619099187631,
+        "cold_latency": {
+          "count": 10.0,
+          "max_ms": 104.772722,
+          "mean_ms": 18.813548700000002,
+          "p50_ms": 8.981569,
+          "p95_ms": 104.772722,
+          "p99_ms": 104.772722
+        },
+        "cpu_seconds": 0.066332842,
+        "duplicate_candidate_suppression": 10,
+        "durable_counts": {
+          "approvals": 10,
+          "candidates": 10,
+          "checkpoints": 10,
+          "evidence": 10
+        },
+        "failure_counts": {},
+        "inserted_candidates": 10,
+        "inserted_evidence": 10,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 115249152,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 655360,
+        "successful_attempts": 20,
+        "wall_seconds": 0.27312631899997086,
+        "warm_latency": {
+          "count": 10.0,
+          "max_ms": 15.204892,
+          "mean_ms": 5.1768322,
+          "p50_ms": 3.86566,
+          "p95_ms": 15.204892,
+          "p99_ms": 15.204892
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "valid-100": {
+      "logical_digest": "3983d928b6e773d57352f854530206419e7fd4acdadc81b3beb26020348e361c",
+      "metrics": {
+        "artifact_bytes": 4701688,
+        "artifact_bytes_per_requested_candidate": 47016.88,
+        "attempt_failure_counts": {},
+        "attempts": 200,
+        "candidates_per_second": 81.0144450578361,
+        "cold_latency": {
+          "count": 100.0,
+          "max_ms": 474.849031,
+          "mean_ms": 20.23511759,
+          "p50_ms": 8.933633,
+          "p95_ms": 45.662613,
+          "p99_ms": 234.943675
+        },
+        "cpu_seconds": 0.534580952,
+        "duplicate_candidate_suppression": 100,
+        "durable_counts": {
+          "approvals": 100,
+          "candidates": 100,
+          "checkpoints": 100,
+          "evidence": 100
+        },
+        "failure_counts": {},
+        "inserted_candidates": 100,
+        "inserted_evidence": 100,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 117014528,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 2097152,
+        "successful_attempts": 200,
+        "wall_seconds": 2.4686955500000067,
+        "warm_latency": {
+          "count": 100.0,
+          "max_ms": 22.055997,
+          "mean_ms": 3.6358877,
+          "p50_ms": 2.246888,
+          "p95_ms": 13.793604,
+          "p99_ms": 14.706206
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    },
+    "valid-1000": {
+      "logical_digest": "07296d0dab57bdb01d54fb598cb280b48fcf2ef5674f555fd5a4d54490d99991",
+      "metrics": {
+        "artifact_bytes": 9182808,
+        "artifact_bytes_per_requested_candidate": 9182.808,
+        "attempt_failure_counts": {},
+        "attempts": 2000,
+        "candidates_per_second": 217.15304275472198,
+        "cold_latency": {
+          "count": 1000.0,
+          "max_ms": 181.041765,
+          "mean_ms": 5.768990713999999,
+          "p50_ms": 4.115228,
+          "p95_ms": 12.370088,
+          "p99_ms": 22.612931
+        },
+        "cpu_seconds": 4.553430607,
+        "duplicate_candidate_suppression": 1000,
+        "durable_counts": {
+          "approvals": 1000,
+          "candidates": 1000,
+          "checkpoints": 1000,
+          "evidence": 1000
+        },
+        "failure_counts": {},
+        "inserted_candidates": 1000,
+        "inserted_evidence": 1000,
+        "integrity_failure_counts": {},
+        "peak_rss_bytes": 125399040,
+        "reader_operations": 0,
+        "reader_wall_ms": 0.0,
+        "restart_overhead_ms": 0.0,
+        "rss_delta_bytes": 10616832,
+        "successful_attempts": 2000,
+        "wall_seconds": 9.210094293999987,
+        "warm_latency": {
+          "count": 1000.0,
+          "max_ms": 433.786847,
+          "mean_ms": 2.869361119,
+          "p50_ms": 1.940864,
+          "p95_ms": 4.659255,
+          "p99_ms": 11.117988
+        }
+      },
+      "path": "reports/strategy-governance-wave2f/baseline-evidence.json"
+    }
+  }
+}

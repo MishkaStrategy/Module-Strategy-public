@@ -1,0 +1,640 @@
+name: market-data-ingestion-io-benchmark
+
+on:
+  pull_request:
+    paths:
+      - "modules/market_data_ingestion/src/market_data_ingestion/spool.py"
+      - "modules/market_data_ingestion/scripts/benchmark_spool_io.py"
+      - "modules/market_data_ingestion/scripts/benchmark_real_parquet.py"
+      - "modules/market_data_ingestion/tests/test_spool_io_optimization.py"
+      - "modules/market_data_ingestion/tests/test_spool_pending_bound.py"
+      - ".github/workflows/market-data-ingestion-io-benchmark.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-data-ingestion-io-benchmark-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  spool-before-after:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 60
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: _baseline
+          show-progress: false
+
+      - name: Verify exact benchmark source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C _baseline rev-parse HEAD)" = "$BASE_SHA"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Install benchmark dependencies
+        working-directory: modules/market_data_ingestion
+        run: |
+          uv pip install -e ".[dev]"
+          uv pip check
+
+      - name: Run isolated baseline and optimized samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_root="modules/market_data_ingestion/reports/spool-io"
+          mkdir -p "$report_root"
+          for rows in 20000 100000; do
+            for repetition in 1 2 3; do
+              baseline_workdir="$RUNNER_TEMP/mdi-spool-baseline-${rows}-${repetition}"
+              optimized_workdir="$RUNNER_TEMP/mdi-spool-optimized-${rows}-${repetition}"
+              rm -rf "$baseline_workdir" "$optimized_workdir"
+              PYTHONPATH="$PWD/_baseline/modules/market_data_ingestion/src" \
+                GITHUB_SHA="$BASE_SHA" \
+                python modules/market_data_ingestion/scripts/benchmark_spool_io.py \
+                  --rows "$rows" \
+                  --workdir "$baseline_workdir" \
+                  --output "$report_root/baseline-${rows}-${repetition}.json"
+              PYTHONPATH="$PWD/modules/market_data_ingestion/src" \
+                GITHUB_SHA="$HEAD_SHA" \
+                python modules/market_data_ingestion/scripts/benchmark_spool_io.py \
+                  --rows "$rows" \
+                  --workdir "$optimized_workdir" \
+                  --output "$report_root/optimized-${rows}-${repetition}.json"
+              rm -rf "$baseline_workdir" "$optimized_workdir"
+            done
+          done
+
+      - name: Build comparison and enforce equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import statistics
+          from pathlib import Path
+
+          root = Path("modules/market_data_ingestion/reports/spool-io")
+          comparison = {
+              "benchmark_version": 1,
+              "base_sha": "${{ github.event.pull_request.base.sha }}",
+              "head_sha": "${{ github.event.pull_request.head.sha }}",
+              "datasets": {},
+              "gate": {"passed": True, "criteria": {}},
+          }
+          all_equivalent = True
+          for rows in (20_000, 100_000):
+              baseline = [
+                  json.loads(path.read_text(encoding="utf-8"))
+                  for path in sorted(root.glob(f"baseline-{rows}-*.json"))
+              ]
+              optimized = [
+                  json.loads(path.read_text(encoding="utf-8"))
+                  for path in sorted(root.glob(f"optimized-{rows}-*.json"))
+              ]
+              if len(baseline) != 3 or len(optimized) != 3:
+                  raise SystemExit(f"missing samples for {rows} rows")
+
+              baseline_digests = {
+                  item["validation"]["typed_reread_digest_sha256"] for item in baseline
+              }
+              optimized_digests = {
+                  item["validation"]["typed_reread_digest_sha256"] for item in optimized
+              }
+              equivalent = (
+                  len(baseline_digests) == 1
+                  and baseline_digests == optimized_digests
+                  and all(item["gate"]["passed"] for item in (*baseline, *optimized))
+              )
+              all_equivalent = all_equivalent and equivalent
+
+              def median(items, *keys):
+                  values = []
+                  for item in items:
+                      value = item
+                      for key in keys:
+                          value = value[key]
+                      values.append(float(value))
+                  return statistics.median(values)
+
+              base_wall = median(baseline, "performance", "wall_seconds")
+              head_wall = median(optimized, "performance", "wall_seconds")
+              base_cpu = median(baseline, "performance", "cpu_seconds")
+              head_cpu = median(optimized, "performance", "cpu_seconds")
+              base_temp = median(
+                  baseline, "spool", "peak_sampled_temporary_bytes"
+              )
+              head_temp = median(
+                  optimized, "spool", "peak_sampled_temporary_bytes"
+              )
+              base_rss = median(baseline, "memory", "rss_peak_delta_bytes")
+              head_rss = median(optimized, "memory", "rss_peak_delta_bytes")
+              comparison["datasets"][str(rows)] = {
+                  "repetitions": 3,
+                  "cache_condition": "warm-process-isolated",
+                  "equivalent_typed_digest": equivalent,
+                  "baseline": {
+                      "median_wall_seconds": base_wall,
+                      "median_cpu_seconds": base_cpu,
+                      "median_peak_temporary_bytes": base_temp,
+                      "median_peak_rss_delta_bytes": base_rss,
+                      "serialized_payload_copies_per_logical_row": median(
+                          baseline,
+                          "spool",
+                          "serialized_payload_copies_per_logical_row",
+                      ),
+                  },
+                  "optimized": {
+                      "median_wall_seconds": head_wall,
+                      "median_cpu_seconds": head_cpu,
+                      "median_peak_temporary_bytes": head_temp,
+                      "median_peak_rss_delta_bytes": head_rss,
+                      "serialized_payload_copies_per_logical_row": median(
+                          optimized,
+                          "spool",
+                          "serialized_payload_copies_per_logical_row",
+                      ),
+                  },
+                  "change": {
+                      "wall_percent": round((head_wall / base_wall - 1) * 100, 3),
+                      "cpu_percent": round((head_cpu / base_cpu - 1) * 100, 3),
+                      "temporary_bytes_percent": round(
+                          (head_temp / base_temp - 1) * 100, 3
+                      ),
+                      "peak_rss_delta_percent": (
+                          round((head_rss / base_rss - 1) * 100, 3)
+                          if base_rss
+                          else None
+                      ),
+                  },
+              }
+
+          comparison["gate"]["criteria"] = {
+              "typed_digest_equivalent": all_equivalent,
+              "all_samples_passed": all_equivalent,
+          }
+          comparison["gate"]["passed"] = all_equivalent
+          output = root / "comparison.json"
+          output.write_text(
+              json.dumps(comparison, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(output.read_text(encoding="utf-8"))
+          if not all_equivalent:
+              raise SystemExit("baseline/head typed equivalence failed")
+          PY
+
+      - name: Enforce synthetic benchmark evidence privacy and inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import stat
+          from pathlib import Path
+
+          root = Path("modules/market_data_ingestion/reports/spool-io")
+          expected = {"comparison.json"}
+          for rows in (20_000, 100_000):
+              for repetition in (1, 2, 3):
+                  expected.add(f"baseline-{rows}-{repetition}.json")
+                  expected.add(f"optimized-{rows}-{repetition}.json")
+          observed = {path.name for path in root.iterdir()}
+          if observed != expected:
+              raise SystemExit(
+                  f"synthetic benchmark evidence inventory mismatch: {sorted(observed)}"
+              )
+          forbidden = (
+              "/Users/",
+              "/home/",
+              "GoogleDrive-",
+              "My Drive",
+              "Мой диск",
+              "RUNNER_TEMP",
+              "runner.temp",
+              "file://",
+          )
+          for path in sorted(root.iterdir()):
+              if path.is_symlink():
+                  raise SystemExit(f"synthetic benchmark evidence contains symlink: {path.name}")
+              mode = path.stat(follow_symlinks=False).st_mode
+              if not stat.S_ISREG(mode):
+                  raise SystemExit(
+                      f"synthetic benchmark evidence contains non-regular file: {path.name}"
+                  )
+              text = path.read_text(encoding="utf-8")
+              json.loads(text)
+              if any(marker in text for marker in forbidden):
+                  raise SystemExit(f"private path marker leaked into {path.name}")
+          comparison = json.loads((root / "comparison.json").read_text(encoding="utf-8"))
+          if comparison.get("base_sha") != os.environ["BASE_SHA"]:
+              raise SystemExit("synthetic comparison base SHA mismatch")
+          if comparison.get("head_sha") != os.environ["HEAD_SHA"]:
+              raise SystemExit("synthetic comparison head SHA mismatch")
+          PY
+
+      - name: Publish exact synthetic benchmark evidence
+        if: success()
+        id: synthetic_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/market_data_ingestion/reports/spool-io
+          asset_name: market-data-ingestion-io-benchmark.tar.gz
+          commit_sha: ${{ env.HEAD_SHA }}
+          draft: "true"
+
+      - name: Enforce synthetic benchmark publication gate
+        if: success()
+        run: test "${{ steps.synthetic_evidence_publish.outcome }}" = success
+
+      - name: Cleanup synthetic benchmark state
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            modules/market_data_ingestion/reports/spool-io \
+            _baseline \
+            "$RUNNER_TEMP"/mdi-spool-baseline-* \
+            "$RUNNER_TEMP"/mdi-spool-optimized-*
+
+  real-btc-large-before-after:
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 240
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      INPUT_SHA256: 2b8a20ef09e1c292abbbee4a6963a1cedb7904cfc4340c9de72d0d2cd0b87ed1
+      INPUT_BYTES: "34020301"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: _baseline
+          show-progress: false
+
+      - name: Verify exact benchmark source identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C _baseline rev-parse HEAD)" = "$BASE_SHA"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+
+      - name: Install exact Parquet benchmark surface
+        working-directory: modules/market_data_ingestion
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev,parquet]"
+          uv pip check
+
+      - name: Discover approved synced BTC corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import glob
+          import os
+          from pathlib import Path
+
+          home = Path.home().resolve()
+          patterns = (
+              home / "Library/CloudStorage/GoogleDrive-*/My Drive/binance_usdtm_futures_history",
+              home / "Library/CloudStorage/GoogleDrive-*/Мой диск/binance_usdtm_futures_history",
+              home / "Google Drive/My Drive/binance_usdtm_futures_history",
+              home / "Google Диск/Мой диск/binance_usdtm_futures_history",
+          )
+          allowed_roots = tuple(
+              path.resolve()
+              for path in (
+                  home / "Library/CloudStorage",
+                  home / "Google Drive",
+                  home / "Google Диск",
+              )
+              if path.exists()
+          )
+          candidates: set[Path] = set()
+          for pattern in patterns:
+              for value in glob.glob(str(pattern)):
+                  candidate = Path(value)
+                  if candidate.is_symlink() or not candidate.is_dir():
+                      continue
+                  resolved = candidate.resolve(strict=True)
+                  if not any(
+                      root == resolved or root in resolved.parents
+                      for root in allowed_roots
+                  ):
+                      raise SystemExit(
+                          "discovered corpus root escaped approved sync locations"
+                      )
+                  candidates.add(resolved)
+          if len(candidates) != 1:
+              raise SystemExit(
+                  f"expected exactly one synced corpus root, found {len(candidates)}"
+              )
+          source = next(iter(candidates)) / "BTCUSDT" / "BTCUSDT_5m.parquet"
+          if source.is_symlink() or not source.is_file():
+              raise SystemExit("approved BTCUSDT 5m corpus file is unavailable")
+          destination = Path(os.environ["RUNNER_TEMP"]) / "mdi-btc-corpus-path.txt"
+          destination.write_text(str(source.resolve(strict=True)), encoding="utf-8")
+          destination.chmod(0o600)
+          print("approved BTCUSDT 5m corpus discovered")
+          PY
+
+      - name: Verify corpus identity and warm source cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_path="$(cat "$RUNNER_TEMP/mdi-btc-corpus-path.txt")"
+          test "$(stat -f %z "$source_path")" = "$INPUT_BYTES"
+          observed="$(shasum -a 256 "$source_path" | awk '{print $1}')"
+          test "$observed" = "$INPUT_SHA256"
+          shasum -a 256 "$source_path" >/dev/null
+
+      - name: Run real baseline and optimized samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_path="$(cat "$RUNNER_TEMP/mdi-btc-corpus-path.txt")"
+          report_root="modules/market_data_ingestion/reports/real-btc-io"
+          mkdir -p "$report_root"
+          for repetition in 1 2; do
+            for variant in baseline optimized; do
+              workdir="$RUNNER_TEMP/mdi-real-${variant}-${repetition}"
+              rm -rf "$workdir"
+              if [ "$variant" = baseline ]; then
+                package_root="$PWD/_baseline/modules/market_data_ingestion/src"
+                sha="$BASE_SHA"
+              else
+                package_root="$PWD/modules/market_data_ingestion/src"
+                sha="$HEAD_SHA"
+              fi
+              PYTHONPATH="$package_root" GITHUB_SHA="$sha" \
+                python modules/market_data_ingestion/scripts/benchmark_real_parquet.py \
+                  "$source_path" \
+                  --batch-size 8192 \
+                  --workdir "$workdir" \
+                  --expected-sha256 "$INPUT_SHA256" \
+                  --output "$report_root/${variant}-${repetition}.json"
+              rm -rf "$workdir"
+            done
+          done
+
+      - name: Compare real benchmark evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import statistics
+          from pathlib import Path
+
+          root = Path("modules/market_data_ingestion/reports/real-btc-io")
+          baseline = [
+              json.loads(path.read_text(encoding="utf-8"))
+              for path in sorted(root.glob("baseline-*.json"))
+          ]
+          optimized = [
+              json.loads(path.read_text(encoding="utf-8"))
+              for path in sorted(root.glob("optimized-*.json"))
+          ]
+          if len(baseline) != 2 or len(optimized) != 2:
+              raise SystemExit("real benchmark requires two baseline and two head samples")
+
+          expected_digest = {
+              item["validation"]["typed_reread_digest_sha256"]
+              for item in (*baseline, *optimized)
+          }
+          expected_rows = {
+              item["rows"]["typed_reread"] for item in (*baseline, *optimized)
+          }
+          expected_partitions = {
+              item["streaming"]["monthly_partition_count"]
+              for item in (*baseline, *optimized)
+          }
+          equivalent = (
+              len(expected_digest) == 1
+              and expected_rows == {721_597}
+              and expected_partitions == {83}
+              and all(item["gate"]["passed"] for item in (*baseline, *optimized))
+          )
+
+          def median(items, *keys):
+              values = []
+              for item in items:
+                  value = item
+                  for key in keys:
+                      value = value[key]
+                  values.append(float(value))
+              return statistics.median(values)
+
+          base_total = median(baseline, "performance", "total_seconds")
+          head_total = median(optimized, "performance", "total_seconds")
+          base_rss = median(baseline, "memory", "rss_peak_sampled_bytes")
+          head_rss = median(optimized, "memory", "rss_peak_sampled_bytes")
+          base_spool = median(baseline, "storage", "spool_bytes")
+          head_spool = median(optimized, "storage", "spool_bytes")
+          phase_names = sorted(
+              set(baseline[0]["performance"]["phases_seconds"])
+              | set(optimized[0]["performance"]["phases_seconds"])
+          )
+          phases = {}
+          for name in phase_names:
+              base_value = median(
+                  baseline, "performance", "phases_seconds", name
+              )
+              head_value = median(
+                  optimized, "performance", "phases_seconds", name
+              )
+              phases[name] = {
+                  "baseline_median_seconds": base_value,
+                  "optimized_median_seconds": head_value,
+                  "change_percent": round(
+                      (head_value / base_value - 1) * 100, 3
+                  ),
+              }
+
+          comparison = {
+              "benchmark_version": 1,
+              "base_sha": "${{ github.event.pull_request.base.sha }}",
+              "head_sha": "${{ github.event.pull_request.head.sha }}",
+              "cache_condition": "warm-source-cache",
+              "repetitions_per_variant": 2,
+              "input": {
+                  "sha256": "${{ env.INPUT_SHA256 }}",
+                  "size_bytes": int("${{ env.INPUT_BYTES }}"),
+                  "rows": 721_597,
+                  "partitions": 83,
+              },
+              "equivalence": {
+                  "typed_reread_digest_equal": len(expected_digest) == 1,
+                  "row_count_equal": expected_rows == {721_597},
+                  "partition_count_equal": expected_partitions == {83},
+                  "all_gates_passed": all(
+                      item["gate"]["passed"] for item in (*baseline, *optimized)
+                  ),
+              },
+              "performance": {
+                  "baseline_median_total_seconds": base_total,
+                  "optimized_median_total_seconds": head_total,
+                  "wall_change_percent": round(
+                      (head_total / base_total - 1) * 100, 3
+                  ),
+                  "baseline_rows_per_second": round(721_597 / base_total, 3),
+                  "optimized_rows_per_second": round(721_597 / head_total, 3),
+                  "phases": phases,
+              },
+              "memory": {
+                  "baseline_median_peak_rss_bytes": base_rss,
+                  "optimized_median_peak_rss_bytes": head_rss,
+                  "peak_rss_change_percent": round(
+                      (head_rss / base_rss - 1) * 100, 3
+                  ),
+              },
+              "storage": {
+                  "baseline_median_spool_bytes": base_spool,
+                  "optimized_median_spool_bytes": head_spool,
+                  "spool_change_percent": (
+                      round((head_spool / base_spool - 1) * 100, 3)
+                      if base_spool
+                      else None
+                  ),
+              },
+              "gate": {"passed": equivalent},
+          }
+          output = root / "comparison.json"
+          output.write_text(
+              json.dumps(comparison, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(output.read_text(encoding="utf-8"))
+          if not equivalent:
+              raise SystemExit("real BTC baseline/head equivalence failed")
+          PY
+
+      - name: Enforce real BTC evidence privacy and inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import stat
+          from pathlib import Path
+
+          root = Path("modules/market_data_ingestion/reports/real-btc-io")
+          expected = {
+              "baseline-1.json",
+              "baseline-2.json",
+              "optimized-1.json",
+              "optimized-2.json",
+              "comparison.json",
+          }
+          observed = {path.name for path in root.iterdir()}
+          if observed != expected:
+              raise SystemExit(
+                  f"real BTC evidence inventory mismatch: {sorted(observed)}"
+              )
+          forbidden = (
+              "/Users/",
+              "/home/",
+              "GoogleDrive-",
+              "My Drive",
+              "Мой диск",
+              "RUNNER_TEMP",
+              "runner.temp",
+              "file://",
+          )
+          for path in sorted(root.iterdir()):
+              if path.is_symlink():
+                  raise SystemExit(f"real BTC evidence contains symlink: {path.name}")
+              mode = path.stat(follow_symlinks=False).st_mode
+              if not stat.S_ISREG(mode):
+                  raise SystemExit(
+                      f"real BTC evidence contains non-regular file: {path.name}"
+                  )
+              text = path.read_text(encoding="utf-8")
+              payload = json.loads(text)
+              if any(marker in text for marker in forbidden):
+                  raise SystemExit(f"private path marker leaked into {path.name}")
+              if path.name != "comparison.json":
+                  source = payload.get("input")
+                  if not isinstance(source, dict):
+                      raise SystemExit(f"real BTC input metadata missing in {path.name}")
+                  if set(source) != {
+                      "name",
+                      "parquet_row_groups",
+                      "schema",
+                      "sha256",
+                      "size_bytes",
+                  }:
+                      raise SystemExit(f"real BTC input metadata inventory drift in {path.name}")
+                  if source.get("name") != "BTCUSDT_5m.parquet":
+                      raise SystemExit(f"real BTC source filename drift in {path.name}")
+                  if source.get("sha256") != os.environ["INPUT_SHA256"]:
+                      raise SystemExit(f"real BTC source SHA mismatch in {path.name}")
+                  if source.get("size_bytes") != int(os.environ["INPUT_BYTES"]):
+                      raise SystemExit(f"real BTC source size mismatch in {path.name}")
+          comparison = json.loads((root / "comparison.json").read_text(encoding="utf-8"))
+          if comparison.get("base_sha") != os.environ["BASE_SHA"]:
+              raise SystemExit("real BTC comparison base SHA mismatch")
+          if comparison.get("head_sha") != os.environ["HEAD_SHA"]:
+              raise SystemExit("real BTC comparison head SHA mismatch")
+          PY
+
+      - name: Publish exact real BTC benchmark evidence
+        if: success()
+        id: real_btc_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: modules/market_data_ingestion/reports/real-btc-io
+          asset_name: market-data-ingestion-real-btc-io-benchmark.tar.gz
+          commit_sha: ${{ env.HEAD_SHA }}
+          draft: "true"
+
+      - name: Enforce real BTC benchmark publication gate
+        if: success()
+        run: test "${{ steps.real_btc_evidence_publish.outcome }}" = success
+
+      - name: Cleanup real BTC benchmark state
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            modules/market_data_ingestion/reports/real-btc-io \
+            _baseline \
+            "$RUNNER_TEMP"/mdi-real-*
+          rm -f "$RUNNER_TEMP/mdi-btc-corpus-path.txt"

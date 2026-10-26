@@ -1,0 +1,96 @@
+{
+  "$id": "urn:modular-results-registry:audit-evidence-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "created_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "evidence_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "evidence_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence_type": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "experiment_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "producer": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "producer_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "scope": {
+      "type": "object"
+    },
+    "severity": {
+      "enum": [
+        "INFO",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "status": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "PARTIAL",
+        "MISSING",
+        "CONTAMINATED",
+        "INCOMPATIBLE"
+      ]
+    }
+  },
+  "required": [
+    "evidence_id",
+    "experiment_id",
+    "run_ids",
+    "evidence_type",
+    "producer",
+    "producer_version",
+    "status",
+    "severity",
+    "artifact_ids",
+    "created_at",
+    "scope",
+    "evidence_hash",
+    "limitations"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,725 @@
+name: backtest-engine-heavy-audit
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        description: Exact source commit SHA.
+        required: true
+        type: string
+      executor_mode:
+        description: heavy_audit or owner-gated ms5a_search.
+        required: false
+        default: heavy_audit
+        type: string
+      execute_search:
+        description: Run SEARCH only after a separately authorized owner gate.
+        required: false
+        default: false
+        type: boolean
+      authority_id:
+        description: One-shot governed SEARCH authority identifier.
+        required: false
+        default: ""
+        type: string
+      caller_main_sha:
+        description: Exact default-branch SHA validated by the owner gate.
+        required: false
+        default: ""
+        type: string
+      authority_comment_id:
+        description: Issue 1223 owner-authority comment id.
+        required: false
+        default: ""
+        type: string
+      dispatch_comment_id:
+        description: Issue 1223 single-use dispatch comment id.
+        required: false
+        default: ""
+        type: string
+    outputs:
+      evidence_payload:
+        description: Sanitized bounded SEARCH evidence payload; empty for preflight-only calls.
+        value: ${{ jobs.ms5a_search.outputs.evidence_payload }}
+      evidence_sha256:
+        description: SHA-256 of the sanitized evidence archive; empty for preflight-only calls.
+        value: ${{ jobs.ms5a_search.outputs.evidence_sha256 }}
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to audit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    backtest-engine-heavy-${{ inputs.executor_mode || 'heavy_audit' }}-${{ inputs.expected_sha }}-${{ inputs.authority_id || 'none' }}
+  cancel-in-progress: ${{ inputs.executor_mode != 'ms5a_search' }}
+
+jobs:
+  heavy-audit:
+    if: ${{ inputs.executor_mode != 'ms5a_search' }}
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Validate local Backtest Heavy runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/runner_preflight.sh backtester
+          command -v python3.12
+          python3.12 - <<'PY'
+          import sys
+
+          assert sys.version_info[:2] == (3, 12), sys.version
+          PY
+
+      - name: Verify exact commit before audit
+        run: test "$(git rev-parse HEAD)" = "${{ inputs.expected_sha }}"
+
+      - name: Run reproducible Heavy Audit harness
+        id: audit
+        continue-on-error: true
+        run: bash scripts/run_backtest_heavy_audit.sh "${{ inputs.expected_sha }}"
+
+      - name: Prepare structured evidence for privacy sanitization
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d evidence
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+          from typing import Any
+
+          evidence = Path("evidence")
+
+          candidates = evidence / "python-candidates.txt"
+          if candidates.exists():
+              sanitized: list[str] = []
+              for raw_line in candidates.read_text(encoding="utf-8").splitlines():
+                  parts = [part.strip() for part in raw_line.split("->")]
+                  if len(parts) >= 3:
+                      sanitized.append(f"{parts[0]} -> {parts[-1]}")
+                  elif raw_line.strip():
+                      sanitized.append(raw_line.strip())
+              candidates.write_text(
+                  "\n".join(sanitized) + ("\n" if sanitized else ""),
+                  encoding="utf-8",
+              )
+
+          sbom = evidence / "sbom.json"
+          if sbom.exists():
+              payload = json.loads(sbom.read_text(encoding="utf-8"))
+
+              def sanitize(value: Any) -> Any:
+                  if isinstance(value, dict):
+                      return {
+                          key: sanitize(item)
+                          for key, item in value.items()
+                          if not (
+                              key == "url"
+                              and isinstance(item, str)
+                              and item.startswith("file://")
+                          )
+                      }
+                  if isinstance(value, list):
+                      return [sanitize(item) for item in value]
+                  return value
+
+              sbom.write_text(
+                  json.dumps(sanitize(payload), indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+          PY
+
+      - name: Sanitize and verify Heavy Audit evidence privacy
+        id: evidence_privacy
+        if: always()
+        run: python3 scripts/sanitize_ci_evidence.py evidence
+
+      - name: Record sanitized closed evidence inventory
+        id: evidence_inventory
+        if: always() && steps.evidence_privacy.outcome == 'success'
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = Path("evidence")
+          expected_sha = os.environ["EXPECTED_SHA"]
+          actual_sha = (evidence / "commit-sha.txt").read_text(encoding="utf-8").strip()
+          if actual_sha != expected_sha:
+              raise SystemExit("Heavy Audit evidence commit identity mismatch")
+
+          privacy = json.loads(
+              (evidence / "privacy-status.json").read_text(encoding="utf-8")
+          )
+          if privacy.get("status") != "PASS":
+              raise SystemExit("Heavy Audit evidence privacy status is not PASS")
+          if privacy.get("credential_findings") != 0:
+              raise SystemExit("Heavy Audit evidence contains credential findings")
+
+          checksum_file = evidence / "checksums.sha256"
+          checksum_file.unlink(missing_ok=True)
+          checksum_lines: list[str] = []
+          for path in sorted(evidence.rglob("*")):
+              if path.is_symlink():
+                  raise SystemExit(f"evidence symlink is forbidden: {path}")
+              if not path.is_file() or path == checksum_file:
+                  continue
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              relative = path.relative_to(evidence).as_posix()
+              checksum_lines.append(f"{digest}  evidence/{relative}")
+          if not checksum_lines:
+              raise SystemExit("Heavy Audit evidence inventory is empty")
+          checksum_file.write_text(
+              "\n".join(checksum_lines) + "\n",
+              encoding="utf-8",
+          )
+
+          for line in checksum_file.read_text(encoding="utf-8").splitlines():
+              digest, recorded = line.split("  ", 1)
+              prefix = "evidence/"
+              if not recorded.startswith(prefix):
+                  raise SystemExit(f"invalid checksum path: {recorded}")
+              target = evidence / recorded.removeprefix(prefix)
+              actual = hashlib.sha256(target.read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f"checksum mismatch after sanitization: {recorded}")
+          PY
+
+      - name: Upload exact Heavy Audit evidence
+        if: >-
+          always() &&
+          steps.evidence_privacy.outcome == 'success' &&
+          steps.evidence_inventory.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: >-
+            backtest-engine-heavy-${{ inputs.expected_sha }}-${{ github.run_id }}-attempt${{ github.run_attempt }}
+          path: evidence
+          if-no-files-found: error
+
+      - name: Enforce Heavy Audit result
+        if: always()
+        run: |
+          test "${{ steps.audit.outcome }}" = "success"
+          test "${{ steps.evidence_privacy.outcome }}" = "success"
+          test "${{ steps.evidence_inventory.outcome }}" = "success"
+
+
+  ms5a_search:
+    if: ${{ inputs.executor_mode == 'ms5a_search' }}
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 1560
+    outputs:
+      evidence_payload: ${{ steps.evidence_handoff.outputs.payload }}
+      evidence_sha256: ${{ steps.evidence_handoff.outputs.sha256 }}
+    env:
+      EXPECTED_HEAD: 408d09c05435292d6995060a5d2fd0d4feb0f16e
+      REQUEST_ID: ms5a-multi-strategy-search-v2
+      REQUEST_FINGERPRINT: 203f997e45e9f35931b994e6168d11f2ff2704f9cf185cc33d3997e6dca29848
+      DATASET_FINGERPRINT: 8cade21615ef460a133925b9f5dcef5ab5e32bddee77c207c7d4be35da7fee80
+      RUNTIME_SURFACE_FINGERPRINT: e84520e50af54e65dc6b42558fe04182146e088eb7ad7c66066fb72a726e55e9
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+
+    steps:
+      - name: Checkout exact bound MS5A source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Verify immutable source and prepare private roots
+        shell: bash
+        env:
+          INPUT_EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EXECUTE_SEARCH: ${{ inputs.execute_search }}
+          AUTHORITY_ID: ${{ inputs.authority_id }}
+          CALLER_MAIN_SHA: ${{ inputs.caller_main_sha }}
+          AUTHORITY_COMMENT_ID: ${{ inputs.authority_comment_id }}
+          DISPATCH_COMMENT_ID: ${{ inputs.dispatch_comment_id }}
+        run: |
+          set -euo pipefail
+          test "$INPUT_EXPECTED_SHA" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          [[ "$CALLER_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          market_data_root="${GITHUB_WORKSPACE}/../../ModuleStrategyData/market_data"
+          if [[ ! -d "$market_data_root" ]]; then
+            market_data_root="$HOME/ModuleStrategyData/market_data"
+          fi
+          test -d "$market_data_root"
+          printf 'MARKET_DATA_ROOT=%s\n' "$market_data_root" >> "$GITHUB_ENV"
+
+          if [[ "$EXECUTE_SEARCH" == "true" ]]; then
+            [[ "$AUTHORITY_ID" =~ ^gov-search-[0-9]+-1223-[0-9]+$ ]]
+            [[ "$AUTHORITY_COMMENT_ID" =~ ^[0-9]+$ ]]
+            [[ "$DISPATCH_COMMENT_ID" =~ ^[0-9]+$ ]]
+            runtime_root="$HOME/ModuleStrategyData/ms5a_runtime/$AUTHORITY_ID"
+            if [[ -e "$runtime_root" ]]; then
+              echo "single-use runtime root already exists; refusing redispatch" >&2
+              exit 1
+            fi
+            umask 077
+            mkdir -p "$runtime_root"
+            chmod 700 "$runtime_root"
+          else
+            test -z "$AUTHORITY_ID"
+            test -z "$AUTHORITY_COMMENT_ID"
+            test -z "$DISPATCH_COMMENT_ID"
+            runtime_root="$RUNNER_TEMP/ms5a-preflight-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            rm -rf "$runtime_root"
+            mkdir -p "$runtime_root"
+          fi
+          printf 'RUNTIME_ROOT=%s\n' "$runtime_root" >> "$GITHUB_ENV"
+
+      - name: Validate local MS5A Backtester runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/runner_preflight.sh backtester
+
+      - name: Provision pinned uv and Python 3.13
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: "0.11.31"
+          manifest-file: "data:application/x-ndjson,%7B%22version%22%3A%220.11.31%22%2C%22artifacts%22%3A%5B%7B%22platform%22%3A%22aarch64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fastral-sh%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22b2b93e82a6786f9c7cb89fd4ca0e859a147b292ae8f6f95784f9742f0efec39e%22%7D%2C%7B%22platform%22%3A%22x86_64-apple-darwin%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-apple-darwin.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%2233ee6bd62b57fcd77a499deb54e4432dc1e1a2f3d34930ba987ad8b43f9c7bc7%22%7D%2C%7B%22platform%22%3A%22aarch64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-aarch64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%22d74f23949fd07be4970f293d06ca99d87cd2a78a341c3d7b7fc0df7bc2d8a145%22%7D%2C%7B%22platform%22%3A%22x86_64-unknown-linux-gnu%22%2C%22variant%22%3A%22default%22%2C%22url%22%3A%22https%3A%2F%2Freleases.astral.sh%2Fgithub%2Fuv%2Freleases%2Fdownload%2F0.11.31%2Fuv-x86_64-unknown-linux-gnu.tar.gz%22%2C%22archive_format%22%3A%22tar.gz%22%2C%22sha256%22%3A%228cc1cd82d434ec565376f98bd938d4b715b5791a80ff2d3aa78821cf85091b4b%22%7D%5D%7D"
+          python-version: "3.13"
+          activate-environment: true
+          enable-cache: false
+
+      - name: Verify exact MS5A Python runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import sys
+          assert sys.version_info[:2] == (3, 13), sys.version
+          PY
+
+      - name: Install exact owner-backed MS5A surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install \
+            -e '.[backtest]' \
+            -e './modules/entry_model' \
+            -e './modules/market_data_ingestion[parquet]' \
+            -e './modules/market_regime' \
+            -e './modules/position_exit_management' \
+            -e './modules/protection_target' \
+            -e './modules/risk_sizing' \
+            -e './modules/setup_adapter' \
+            -e './modules/trade_plan_router' \
+            -e './modules/wave_analysis' \
+            -e './plugins/fvg' \
+            -e './research/experiment_runner' \
+            -e './modules/results_aggregator' \
+            -e './research/strategy_audit_validation' \
+            -e './research/strategy_factory'
+          uv pip install -e './modules/risk_request_composer' --no-deps
+          uv pip check
+
+          # Editable installs generate source-tree *.egg-info metadata. Remove only
+          # those known install artifacts; preserve the active pinned .venv.
+          find modules plugins research src \
+            -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          if find modules plugins research src \
+            -type d -name '*.egg-info' -print -quit | grep -q .; then
+            echo "editable-install metadata remains after bounded cleanup" >&2
+            exit 1
+          fi
+          test -n "$VIRTUAL_ENV"
+          test -x "$VIRTUAL_ENV/bin/python"
+          "$VIRTUAL_ENV/bin/python" - <<'PY'
+          import sys
+          assert sys.version_info[:2] == (3, 13), sys.version
+          PY
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+      - name: Deep-verify frozen request without execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          preflight="$RUNNER_TEMP/ms5a-reusable-preflight.json"
+          rm -f "$preflight"
+          python scripts/ms5a_owner_search_preflight.py \
+            --expected-head "$EXPECTED_HEAD" \
+            --market-data-root "$MARKET_DATA_ROOT" \
+            --runtime-root "$RUNTIME_ROOT" \
+            --output "$preflight"
+
+      - name: Final live host-maintenance preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          host_evidence="$RUNNER_TEMP/ms5a-reusable-host-maintenance.json"
+          rm -f "$host_evidence"
+          python - "$host_evidence" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          from strategy_factory.ms5a_host_guard import assert_governed_host_maintenance_clear
+
+          payload = dict(assert_governed_host_maintenance_clear())
+          expected = {
+              "schema_version": 1,
+              "platform": "Darwin",
+              "macos_update_restart_risk": False,
+              "scheduled_restart_risk": False,
+              "read_only": True,
+          }
+          if payload != expected:
+              raise SystemExit(f"live host-maintenance evidence drift: {payload!r}")
+          Path(sys.argv[1]).write_text(
+              json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+          PY
+
+      - name: Enforce exact frozen bindings and timeout geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/ms5a-reusable-preflight.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          from strategy_factory.multi_strategy_research_runtime import (
+              _OWNER_EXECUTION_WINDOW_SECONDS,
+              _OWNER_RESEARCH_RETURN_MARGIN_SECONDS,
+              _OWNER_WORKFLOW_CLEANUP_MARGIN_SECONDS,
+              _OWNER_WORKFLOW_TIMEOUT_SECONDS,
+          )
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          exact = {
+              "contract": "ms5a-owner-search-preflight-v2",
+              "source_commit_sha": os.environ["EXPECTED_HEAD"],
+              "request_id": os.environ["REQUEST_ID"],
+              "request_fingerprint": os.environ["REQUEST_FINGERPRINT"],
+              "dataset_fingerprint": os.environ["DATASET_FINGERPRINT"],
+              "runtime_surface_fingerprint": os.environ["RUNTIME_SURFACE_FINGERPRINT"],
+              "dataset_id": "binance_usdt-m-perpetual_btcusdt_5m",
+              "dataset_sha256": "49ee948c7c22dc3c552bf6a96d2fdce9c5bba97662a694ae98ab85fc521c04f5",
+              "funding_dataset_version": 6,
+              "funding_sha256": "9d9a6d6aa1b71e69ea4b666b57c4da7fb7d1270aea6dd887732c9a381ca8c9de",
+              "dataset_row_count": 282851,
+              "request_created_at": "2026-09-24T21:09:00+00:00",
+          }
+          for key, expected in exact.items():
+              if payload.get(key) != expected:
+                  raise SystemExit(
+                      f"exact binding drift for {key}: expected={expected!r} actual={payload.get(key)!r}"
+                  )
+          expected_budget = {
+              "maximum_experiments": 132,
+              "maximum_architectures": 12,
+              "maximum_finalists": 3,
+              "maximum_duration_seconds": 86400,
+              "maximum_memory_bytes": 8589934592,
+              "maximum_cpu_workers": 1,
+              "maximum_parallel_tasks": 1,
+              "stage_experiment_limits": {
+                  "coarse_search": 24,
+                  "local_refinement": 12,
+                  "structural_screening": 96,
+              },
+          }
+          if payload["budget"] != expected_budget:
+              raise SystemExit(f"ResourceBudget drift: {payload['budget']!r}")
+          if payload["dataset_period"] != {
+              "start": "2023-11-10T04:05:00+00:00",
+              "end": "2026-07-19T07:00:00+00:00",
+          }:
+              raise SystemExit(f"dataset period drift: {payload['dataset_period']!r}")
+          if payload["allowed_strategy_families"] != [
+              "breakout_return",
+              "fvg_rt",
+              "liquidity_sweep",
+          ]:
+              raise SystemExit("allowed strategy family drift")
+          if _OWNER_WORKFLOW_TIMEOUT_SECONDS != 1560 * 60:
+              raise SystemExit("owner parent timeout must remain 1560 minutes")
+          if _OWNER_WORKFLOW_CLEANUP_MARGIN_SECONDS != 60 * 60:
+              raise SystemExit("owner cleanup margin drift")
+          if _OWNER_RESEARCH_RETURN_MARGIN_SECONDS != 60 * 60:
+              raise SystemExit("owner Research-return margin drift")
+          if _OWNER_EXECUTION_WINDOW_SECONDS != 24 * 60 * 60:
+              raise SystemExit("owner Research window must remain 86400 seconds")
+          forbidden = (
+              "research_executed",
+              "search_authorized",
+              "walk_forward_authorized",
+              "walk_forward_executed",
+              "holdout_authorized",
+              "holdout_opened",
+              "paper_authorized",
+              "live_authorized",
+          )
+          leaked = [name for name in forbidden if payload.get(name)]
+          if leaked:
+              raise SystemExit(f"execution/downstream authority leaked: {leaked}")
+          if payload.get("final_test_grants") != 0:
+              raise SystemExit("final-test grant leaked into preflight")
+          print(json.dumps({
+              "preflight": "PASS",
+              "source_commit_sha": payload["source_commit_sha"],
+              "request_fingerprint": payload["request_fingerprint"],
+              "dataset_fingerprint": payload["dataset_fingerprint"],
+              "runtime_surface_fingerprint": payload["runtime_surface_fingerprint"],
+              "maximum_duration_seconds": payload["budget"]["maximum_duration_seconds"],
+              "research_executed": payload["research_executed"],
+              "search_authorized": payload["search_authorized"],
+          }, sort_keys=True, separators=(",", ":")))
+          PY
+
+      - name: Preparation boundary — stop before Research
+        if: ${{ !inputs.execute_search }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNTIME_ROOT"
+          echo "PREPARATION_PREFLIGHT_ONLY=PASS"
+
+      - name: Execute exactly one separately authorized SEARCH
+        if: ${{ inputs.execute_search }}
+        id: search_execution
+        continue-on-error: true
+        shell: bash
+        env:
+          AUTHORITY_ID: ${{ inputs.authority_id }}
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/ms5a-governed-search-summary.json"
+          rm -f "$summary"
+          python scripts/ms5a_owner_search.py \
+            --expected-head "$EXPECTED_HEAD" \
+            --market-data-root "$MARKET_DATA_ROOT" \
+            --runtime-root "$RUNTIME_ROOT" \
+            --authority-id "$AUTHORITY_ID" \
+            --request-fingerprint "$REQUEST_FINGERPRINT" \
+            --output "$summary" \
+            > "$RUNNER_TEMP/ms5a-governed-search-stdout.log"
+
+      - name: Validate SEARCH terminal envelope
+        if: ${{ inputs.execute_search && always() }}
+        id: terminal_boundary
+        shell: bash
+        env:
+          AUTHORITY_ID: ${{ inputs.authority_id }}
+          SEARCH_EXECUTION_OUTCOME: ${{ steps.search_execution.outcome }}
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/ms5a-governed-search-summary.json"
+          test -f "$summary"
+          python - "$summary" <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          summary = Path(sys.argv[1])
+          raw = summary.read_bytes()
+          payload = json.loads(raw.decode("utf-8"))
+          outcome = os.environ["SEARCH_EXECUTION_OUTCOME"]
+
+          if payload.get("schema_version") != 1:
+              raise SystemExit("SEARCH summary schema drift")
+          if payload.get("phase") != "search":
+              raise SystemExit("unexpected phase")
+          if payload.get("commit_sha") != os.environ["EXPECTED_HEAD"]:
+              raise SystemExit("SEARCH source SHA drift")
+          if payload.get("request_fingerprint") != os.environ["REQUEST_FINGERPRINT"]:
+              raise SystemExit("SEARCH request fingerprint drift")
+          if payload.get("authority_id") != os.environ["AUTHORITY_ID"]:
+              raise SystemExit("SEARCH authority drift")
+          if payload.get("walk_forward_executed") or payload.get("holdout_opened"):
+              raise SystemExit("downstream lifecycle execution escaped SEARCH")
+          if payload.get("final_test_grants") != 0 or payload.get("live_trading_authorized"):
+              raise SystemExit("downstream authority escaped SEARCH")
+
+          if outcome == "success":
+              if payload.get("phase_outcome") not in {
+                  "finalists_frozen",
+                  "no_admissible_candidate",
+              }:
+                  raise SystemExit("unexpected successful SEARCH outcome")
+              if payload.get("next_stage") != "walk_forward":
+                  raise SystemExit("SEARCH did not stop at pre-WALK_FORWARD boundary")
+              finalists = payload.get("finalists", [])
+              if not isinstance(finalists, list) or len(finalists) > 3:
+                  raise SystemExit("finalist evidence exceeds frozen contract")
+              allowed = {"breakout_return", "fvg_rt", "liquidity_sweep"}
+              if any(item.get("strategy_family") not in allowed for item in finalists):
+                  raise SystemExit("finalist family escaped frozen contract")
+          elif outcome == "failure":
+              if len(raw) > 4096:
+                  raise SystemExit("failure envelope exceeds 4096-byte bound")
+              if payload.get("status") != "failed":
+                  raise SystemExit("failure envelope status drift")
+              phase_outcome = payload.get("phase_outcome")
+              if phase_outcome == "technical_failure":
+                  if payload.get("terminal_kind") != "ordinary_exception":
+                      raise SystemExit("ordinary failure terminal kind drift")
+                  failure = payload.get("failure")
+                  if not isinstance(failure, dict):
+                      raise SystemExit("ordinary failure metadata missing")
+                  exception_type = failure.get("exception_type")
+                  if (
+                      not isinstance(exception_type, str)
+                      or not 1 <= len(exception_type) <= 128
+                      or re.fullmatch(r"[A-Za-z0-9_.-]+", exception_type) is None
+                  ):
+                      raise SystemExit("ordinary failure exception type is not bounded")
+                  if failure.get("message_policy") != "omitted_for_publication_safety":
+                      raise SystemExit("ordinary failure message policy drift")
+              elif phase_outcome == "technical_interrupted":
+                  interruption = payload.get("interruption")
+                  if not isinstance(interruption, dict):
+                      raise SystemExit("interruption metadata missing")
+                  if interruption.get("signal_name") not in {"SIGTERM", "SIGINT"}:
+                      raise SystemExit("interruption signal drift")
+                  if interruption.get("exit_code") not in {130, 143}:
+                      raise SystemExit("interruption exit-code drift")
+              else:
+                  raise SystemExit("unexpected failed SEARCH outcome")
+
+              forbidden_fragments = ("finalist", "candidate", "pareto")
+
+              def reject_success_shape(value):
+                  if isinstance(value, dict):
+                      for key, item in value.items():
+                          lowered = str(key).lower()
+                          if any(fragment in lowered for fragment in forbidden_fragments):
+                              raise SystemExit(
+                                  f"success-shaped field leaked into failure envelope: {key}"
+                              )
+                          reject_success_shape(item)
+                  elif isinstance(value, list):
+                      for item in value:
+                          reject_success_shape(item)
+
+              reject_success_shape(payload)
+              if payload.get("runtime_state_verified") is not False:
+                  raise SystemExit("failure runtime state must remain unverified")
+          else:
+              raise SystemExit(f"unexpected SEARCH execution outcome: {outcome!r}")
+          PY
+
+      - name: Assemble sanitized SEARCH evidence
+        if: ${{ inputs.execute_search && always() && steps.terminal_boundary.outcome == 'success' }}
+        id: evidence_assembly
+        shell: bash
+        env:
+          AUTHORITY_ID: ${{ inputs.authority_id }}
+          CALLER_MAIN_SHA: ${{ inputs.caller_main_sha }}
+          AUTHORITY_COMMENT_ID: ${{ inputs.authority_comment_id }}
+          DISPATCH_COMMENT_ID: ${{ inputs.dispatch_comment_id }}
+          SEARCH_EXECUTION_OUTCOME: ${{ steps.search_execution.outcome }}
+        run: |
+          set -euo pipefail
+          evidence="reports/ms5a-governed-search"
+          rm -rf "$evidence"
+          mkdir -p "$evidence"
+          cp "$RUNNER_TEMP/ms5a-governed-search-summary.json" "$evidence/search-summary.json"
+          cp "$RUNNER_TEMP/ms5a-reusable-host-maintenance.json" "$evidence/host-maintenance.json"
+          if [[ "$SEARCH_EXECUTION_OUTCOME" == "success" ]]; then
+            cp "$RUNTIME_ROOT/search-authority.json" "$evidence/search-authority.json"
+            cp "$RUNTIME_ROOT/frozen-request-meta.json" "$evidence/frozen-request-meta.json"
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = Path("reports/ms5a-governed-search")
+          execution_outcome = os.environ["SEARCH_EXECUTION_OUTCOME"]
+          payload = {
+              "schema_version": 1,
+              "evidence_kind": (
+                  "search_success" if execution_outcome == "success" else "search_failure"
+              ),
+              "search_execution_outcome": execution_outcome,
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "workflow_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "owner_authority_issue": 1223,
+              "owner_authority_comment_id": int(os.environ["AUTHORITY_COMMENT_ID"]),
+              "dispatch_comment_id": int(os.environ["DISPATCH_COMMENT_ID"]),
+              "caller_main_sha": os.environ["CALLER_MAIN_SHA"],
+              "source_commit_sha": os.environ["EXPECTED_HEAD"],
+              "request_fingerprint": os.environ["REQUEST_FINGERPRINT"],
+              "dataset_fingerprint": os.environ["DATASET_FINGERPRINT"],
+              "runtime_surface_fingerprint": os.environ["RUNTIME_SURFACE_FINGERPRINT"],
+              "authority_id": os.environ["AUTHORITY_ID"],
+              "downstream_authority": "none",
+          }
+          if execution_outcome == "success":
+              payload["runtime_locator"] = (
+                  f"runner-private:{os.environ['AUTHORITY_ID']}"
+              )
+          (evidence / "execution-metadata.json").write_text(
+              json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          python scripts/sanitize_ci_evidence.py "$evidence"
+          (
+            cd "$evidence"
+            rm -f SHA256SUMS.txt
+            for file in *.json; do shasum -a 256 "$file"; done | sort > SHA256SUMS.txt
+          )
+
+      - name: Prepare sanitized integrity-checked evidence outputs
+        if: ${{ inputs.execute_search && always() && steps.terminal_boundary.outcome == 'success' && steps.evidence_assembly.outcome == 'success' }}
+        id: evidence_handoff
+        uses: ./.github/actions/prepare-release-evidence-handoff
+        with:
+          source_path: reports/ms5a-governed-search
+
+      - name: Restore SEARCH execution verdict
+        if: ${{ inputs.execute_search && always() }}
+        shell: bash
+        env:
+          SEARCH_EXECUTION_OUTCOME: ${{ steps.search_execution.outcome }}
+          TERMINAL_BOUNDARY_OUTCOME: ${{ steps.terminal_boundary.outcome }}
+          EVIDENCE_ASSEMBLY_OUTCOME: ${{ steps.evidence_assembly.outcome }}
+          EVIDENCE_HANDOFF_OUTCOME: ${{ steps.evidence_handoff.outcome }}
+        run: |
+          set -euo pipefail
+          test "$TERMINAL_BOUNDARY_OUTCOME" = "success"
+          test "$EVIDENCE_ASSEMBLY_OUTCOME" = "success"
+          test "$EVIDENCE_HANDOFF_OUTCOME" = "success"
+          test "$SEARCH_EXECUTION_OUTCOME" = "success"

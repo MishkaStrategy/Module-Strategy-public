@@ -1,0 +1,132 @@
+name: MS5A synthetic compatibility
+
+on:
+  pull_request:
+    paths:
+      - "research/strategy_factory/**"
+      - "src/strategy_modules/fvg_rt/**"
+      - "modules/market_data_ingestion/**"
+      - "modules/risk_request_composer/**"
+      - "modules/trade_plan_router/**"
+      - "tests/ci_policy/test_ms5a_synthetic_compatibility_workflow.py"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/ms5a-owner-search-preflight.yml"
+  push:
+    branches:
+      - integration/modular-strategy-full-rc
+    paths:
+      - "research/strategy_factory/**"
+      - "src/strategy_modules/fvg_rt/**"
+      - "modules/market_data_ingestion/**"
+      - "modules/risk_request_composer/**"
+      - "modules/trade_plan_router/**"
+      - "tests/ci_policy/test_ms5a_synthetic_compatibility_workflow.py"
+      - ".github/actions/python-runner-preflight/**"
+      - ".github/workflows/ms5a-owner-search-preflight.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ms5a-synthetic-compatibility-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-compatibility:
+    name: MS5A synthetic compatibility / Python 3.13
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.base.ref == 'integration/modular-strategy-full-rc') ||
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/integration/modular-strategy-full-rc')
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - name: Verify exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-suffix: ms5a-synthetic-compatibility
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/entry_model/pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/market_regime/pyproject.toml
+            modules/position_exit_management/pyproject.toml
+            modules/protection_target/pyproject.toml
+            modules/risk_request_composer/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            modules/setup_adapter/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/wave_analysis/pyproject.toml
+            plugins/fvg/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_factory/pyproject.toml
+
+      - name: Install synthetic compatibility test surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install \
+            -e '.[dev]' \
+            -e './modules/entry_model' \
+            -e './modules/market_data_ingestion[parquet]' \
+            -e './modules/market_regime' \
+            -e './modules/position_exit_management' \
+            -e './modules/protection_target' \
+            -e './modules/risk_sizing' \
+            -e './modules/setup_adapter' \
+            -e './modules/trade_plan_router' \
+            -e './modules/wave_analysis' \
+            -e './plugins/fvg' \
+            -e './research/experiment_runner' \
+            -e './modules/results_aggregator' \
+            -e './research/strategy_audit_validation' \
+            -e './research/strategy_factory[dev]'
+          uv pip install -e './modules/risk_request_composer' --no-deps
+          uv pip install pytest
+          uv pip check
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git diff --exit-code
+          git diff --cached --exit-code
+
+      - name: Run focused synthetic compatibility tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/ci_policy/test_ms5a_synthetic_compatibility_workflow.py
+          python -m pytest -q modules/risk_request_composer/tests/test_runtime_context.py
+          (
+            cd modules/trade_plan_router
+            python -m pytest -q tests/test_core_order_bridge.py
+          )
+          python -m pytest -q \
+            research/strategy_factory/tests/test_multi_strategy_runtime_closure.py \
+            research/strategy_factory/tests/test_multi_strategy_owner.py \
+            research/strategy_factory/tests/test_multi_strategy_search.py \
+            research/strategy_factory/tests/test_multi_strategy_search_surface.py \
+            research/strategy_factory/tests/test_family_neutral_planning.py

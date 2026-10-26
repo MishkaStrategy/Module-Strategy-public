@@ -1,0 +1,59 @@
+{
+  "environment_contract": {
+    "adapter": "FakeExchangeAdapter",
+    "concurrent_readers": 8,
+    "dataset_scales": [1, 100, 1000, 10000],
+    "job_scales": [1, 100, 1000],
+    "network": "disabled",
+    "samples": 10,
+    "storage": "temporary local filesystem, SQLite WAL, synchronous FULL",
+    "transport": "FastAPI TestClient / localhost only"
+  },
+  "profiling_gate": {
+    "production_optimization_performed": false,
+    "reason": "No confirmed SLO violation in the measured workload; only lifecycle and path-leak defects were remediated.",
+    "required_breakdown": [
+      "API validation",
+      "Registry lookup",
+      "serialization",
+      "job persistence",
+      "SSE replay",
+      "connection lifetime",
+      "transaction duration",
+      "lock contention"
+    ],
+    "trigger": "The same latency or resource SLO fails in three isolated repetitions on the same environment"
+  },
+  "schema_version": 1,
+  "slos": [
+    {"limit": 50, "metric": "api_dataset_list_p95_ms", "observed": 35.17894, "verdict": "pass", "workload": "200-item page at 10,000 committed datasets"},
+    {"limit": 75, "metric": "api_dataset_list_p99_ms", "observed": 35.17894, "verdict": "pass", "workload": "200-item page at 10,000 committed datasets"},
+    {"limit": 5, "metric": "api_dataset_detail_p95_ms", "observed": 1.692643, "verdict": "pass", "workload": "latest dataset detail at 10,000 datasets"},
+    {"limit": 10, "metric": "api_dataset_detail_p99_ms", "observed": 1.692643, "verdict": "pass", "workload": "latest dataset detail at 10,000 datasets"},
+    {"limit": 250, "metric": "api_concurrent_read_p95_ms", "observed": 165.79248, "verdict": "pass", "workload": "8 readers, mixed list/detail"},
+    {"limit": 300, "metric": "api_concurrent_read_p99_ms", "observed": 169.612361, "verdict": "pass", "workload": "8 readers, mixed list/detail"},
+    {"limit_min": 1.0, "metric": "concurrent_reader_availability", "observed": 1.0, "verdict": "pass", "workload": "8 readers, mixed list/detail"},
+    {"limit": 10, "metric": "job_submission_p95_ms", "observed": 5.697489, "verdict": "pass", "workload": "1,000 durable jobs"},
+    {"limit": 15, "metric": "job_submission_p99_ms", "observed": 7.535012, "verdict": "pass", "workload": "1,000 durable jobs"},
+    {"limit": 10, "metric": "job_state_update_p95_ms", "observed": 5.660184, "verdict": "pass", "workload": "20 monotonic progress updates"},
+    {"limit": 15, "metric": "job_state_update_p99_ms", "observed": 6.194026, "verdict": "pass", "workload": "20 monotonic progress updates"},
+    {"limit": 10, "metric": "sse_replay_p95_ms", "observed": 4.57341, "verdict": "pass", "workload": "cursor replay of 12 events"},
+    {"limit": 15, "metric": "sse_replay_p99_ms", "observed": 4.57341, "verdict": "pass", "workload": "cursor replay of 12 events"},
+    {"limit": 50, "metric": "cli_dataset_list_p95_ms", "observed": 32.897853, "verdict": "pass", "workload": "in-process Typer, 50-item page over 10,000 datasets"},
+    {"limit": 1000, "metric": "restart_recovery_to_terminal_ms", "observed": 180.594662, "verdict": "pass", "workload": "one durable CREATED job, process restart, fake adapter execution"},
+    {"limit": 64, "metric": "peak_rss_growth_mib", "observed": 41.703125, "verdict": "pass", "workload": "entire benchmark process"},
+    {"limit": 0, "metric": "fd_growth", "observed": 0, "verdict": "pass", "workload": "after TestClient/CLI/recovery shutdown and gc"},
+    {"limit": 0, "metric": "resource_warning_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "sqlite_connection_leak_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "orphan_task_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "orphan_job_count", "observed": 0, "verdict": "pass"},
+    {"evidence": "Versioned registry committed-state consumption and exact API totals", "limit": 0, "metric": "partial_dataset_visibility_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "raw_path_leakage_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "credential_leakage_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "sse_ordering_violation_count", "observed": 0, "verdict": "pass"},
+    {"limit": 0, "metric": "sse_cursor_violation_count", "observed": 0, "verdict": "pass"}
+  ],
+  "status": "proposed",
+  "stream": "Optimization Wave 2E — Market Data Control Plane SLO",
+  "upstream_head": "2d1268040295a894168ac8564f3d38d83746961e"
+}

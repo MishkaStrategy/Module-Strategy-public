@@ -1,0 +1,43 @@
+{
+  "all_fd_stable": true,
+  "all_recovery_terminal": true,
+  "all_warning_gates_pass": true,
+  "deterministic_semantics": true,
+  "runs": [
+    {
+      "dataset_list_100_p95_ms": 7.921471,
+      "fd_growth": 0,
+      "job_submission_100_p95_ms": 6.795289,
+      "resource_warning_count": 0,
+      "restart_terminal_state": "COMPLETED",
+      "run": 1,
+      "semantic_verdict": {"concurrent_reader_availability": 1.0, "credential_leakage_count": 0, "cursor_violation_count": 0, "fd_stable": true, "orphan_job_count": 0, "path_leakage_count": 0, "resource_warning_zero": true, "sse_ordering_violation_count": 0, "thread_stable": true},
+      "sha256": "88cc60a4e8f65ce67fe857e1777784a574d84806bc5efd0e813f900377918909",
+      "sse_p95_ms": 3.692673
+    },
+    {
+      "dataset_list_100_p95_ms": 7.950735,
+      "fd_growth": 0,
+      "job_submission_100_p95_ms": 7.123447,
+      "resource_warning_count": 0,
+      "restart_terminal_state": "COMPLETED",
+      "run": 2,
+      "semantic_verdict": {"concurrent_reader_availability": 1.0, "credential_leakage_count": 0, "cursor_violation_count": 0, "fd_stable": true, "orphan_job_count": 0, "path_leakage_count": 0, "resource_warning_zero": true, "sse_ordering_violation_count": 0, "thread_stable": true},
+      "sha256": "57095f3e52b41d5e7fbaf0ae4433165293a4373976fa8c6b241f7a4d4968dcf5",
+      "sse_p95_ms": 3.281632
+    },
+    {
+      "dataset_list_100_p95_ms": 65.66343,
+      "fd_growth": 0,
+      "job_submission_100_p95_ms": 8.582302,
+      "resource_warning_count": 0,
+      "restart_terminal_state": "COMPLETED",
+      "run": 3,
+      "semantic_verdict": {"concurrent_reader_availability": 1.0, "credential_leakage_count": 0, "cursor_violation_count": 0, "fd_stable": true, "orphan_job_count": 0, "path_leakage_count": 0, "resource_warning_zero": true, "sse_ordering_violation_count": 0, "thread_stable": true},
+      "sha256": "9db306c007e21ba7d5a2546e0ead386ae9f647ebb469e91ecfafb984d4911bbe",
+      "sse_p95_ms": 4.733488
+    }
+  ],
+  "schema_version": 1,
+  "workload": {"dataset_counts": [1, 100], "job_counts": [1, 100], "repetitions": 3, "samples": 5}
+}

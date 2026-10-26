@@ -1,0 +1,29 @@
+modules:
+  - plugin: position_exit_management
+    enabled: true
+    parameters:
+      max_holding_minutes: 720
+      partial_exits:
+        - trigger_r: 1.0
+          fraction: 0.25
+        - trigger_r: 2.0
+          fraction: 0.25
+      breakeven_trigger_r: 1.0
+      breakeven_offset_r: 0.0
+      trailing_mode: r_multiple
+      trailing_activation_r: 2.0
+      trailing_distance_r: 1.0
+      trailing_distance_pct: 0.01
+      trigger_source: close
+      minimum_stop_move_bps: 1
+      market_buffer_bps: 2
+      cancel_reduce_only_orders_on_flat: true
+      cancel_managed_tag_orders_on_flat: true
+      managed_order_tag_prefix: "position-exit:"
+      cancel_retry_bars: 1
+      max_tracked_cancels: 1024
+      max_cancel_requests_per_bar: 64
+      reset_on_scale_in: true
+      suspend_price_actions_on_gap: true
+      emit_idle_skips: false
+      emit_status_feature: true

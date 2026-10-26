@@ -1,0 +1,14 @@
+{
+  "bars": 10000,
+  "split_at": 5000,
+  "state_equal": true,
+  "completed_feature_ids_equal": true,
+  "completed_waves": 61,
+  "full_seconds": 8.712384874999998,
+  "second_segment_seconds": 4.57188988200005,
+  "first_checkpoint_id": "checkpoint-49133ee31b51514418cf",
+  "final_checkpoint_id": "checkpoint-176d1287a14e175fe789",
+  "errors": 0,
+  "orders": 0,
+  "trades": 0
+}

@@ -1,0 +1,26 @@
+modules:
+  - plugin: session_range
+    enabled: true
+    parameters:
+      strict_data_validation: false
+      sessions:
+        - name: ny_first_4h
+          timezone: America/New_York
+          start: "00:00"
+          end: "04:00"
+          weekdays: [0, 1, 2, 3, 4, 5, 6]
+          minimum_bars: 48
+          minimum_range: "0"
+          maximum_range: null
+          emit_active: true
+          dst_fold: 0
+        - name: london_open
+          timezone: Europe/London
+          start: "08:00"
+          end: "10:00"
+          weekdays: [0, 1, 2, 3, 4]
+          minimum_bars: 24
+          minimum_range: "0"
+          maximum_range: null
+          emit_active: false
+          dst_fold: 0

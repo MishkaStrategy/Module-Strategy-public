@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-control-plane"
+version = "0.1.0"
+description = "Local paper-only control plane contracts and orchestration for Modular Strategy"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.7,<3"]
+
+[project.optional-dependencies]
+interface = [
+    "fastapi>=0.115,<1",
+    "httpx>=0.27,<1",
+    "psutil>=7.2.2,<8",
+    "uvicorn>=0.30,<1",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+    "mypy>=1.10",
+    "types-psutil>=7.2.2.20260518,<7.3",
+    "build>=1.2",
+]
+
+[project.scripts]
+modular-control = "modular_control_plane.cli_entrypoint:main"
+modular-control-api = "modular_control_plane.server_launcher:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true

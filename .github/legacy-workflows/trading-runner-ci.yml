@@ -1,0 +1,266 @@
+name: trading-runner-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    paths:
+      - "applications/trading_runner/**"
+      - "docs/trading_runner/**"
+      - "scripts/sanitize_ci_evidence.py"
+      - ".github/actions/publish-release-evidence/**"
+      - ".github/workflows/trading-runner-ci.yml"
+  push:
+    branches:
+      - "runtime/trading-runner-reconstruction-v0.6"
+      - "integration/**"
+    paths:
+      - "applications/trading_runner/**"
+      - "docs/trading_runner/**"
+      - "scripts/sanitize_ci_evidence.py"
+      - ".github/actions/publish-release-evidence/**"
+      - ".github/workflows/trading-runner-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trading-runner-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  component:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'trading-runner-component-gate'
+    name: Trading Runner / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      SOURCE_DATE_EPOCH: "946684800"
+      REPORT_DIR: reports/trading-runner-ci/py${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact Trading Runner candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            applications/trading_runner/pyproject.toml
+          cache-suffix: trading-runner
+
+      - name: Install dependencies
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/trading_runner[dev]"
+          uv pip check
+      - name: Initialize report directory
+        run: mkdir -p "$REPORT_DIR"
+      - name: Compile
+        run: |
+          set +e
+          python -m compileall -q applications/trading_runner/src applications/trading_runner/tests >"$REPORT_DIR/compile.txt" 2>&1
+          echo "$?" >"$REPORT_DIR/compile.exit"
+          exit 0
+      - name: Collect Ruff format diagnostics
+        run: |
+          set +e
+          ruff format --check applications/trading_runner/src applications/trading_runner/tests >"$REPORT_DIR/ruff-format.txt" 2>&1
+          code=$?
+          echo "$code" >"$REPORT_DIR/ruff-format.exit"
+          if [ "$code" -ne 0 ]; then
+            ruff format applications/trading_runner/src applications/trading_runner/tests >>"$REPORT_DIR/ruff-format.txt" 2>&1
+            git diff -- applications/trading_runner/src applications/trading_runner/tests >"$REPORT_DIR/ruff-format.patch"
+            git checkout -- applications/trading_runner/src applications/trading_runner/tests
+          fi
+          exit 0
+      - name: Collect Ruff lint diagnostics
+        run: |
+          set +e
+          ruff check applications/trading_runner/src applications/trading_runner/tests >"$REPORT_DIR/ruff-lint.txt" 2>&1
+          echo "$?" >"$REPORT_DIR/ruff-lint.exit"
+          exit 0
+      - name: Collect strict MyPy diagnostics
+        run: |
+          set +e
+          mypy --strict applications/trading_runner/src >"$REPORT_DIR/mypy.txt" 2>&1
+          echo "$?" >"$REPORT_DIR/mypy.exit"
+          exit 0
+      - name: Collect component test diagnostics
+        run: |
+          set +e
+          pytest -q applications/trading_runner/tests >"$REPORT_DIR/pytest.txt" 2>&1
+          echo "$?" >"$REPORT_DIR/pytest.exit"
+          exit 0
+      - name: Collect package build diagnostics
+        run: |
+          set +e
+          (cd applications/trading_runner && python -m build) >"$REPORT_DIR/build.txt" 2>&1
+          echo "$?" >"$REPORT_DIR/build.exit"
+          exit 0
+      - name: Collect clean wheel import diagnostics
+        run: |
+          set +e
+          rm -rf .trading-runner-smoke
+          python -m venv .trading-runner-smoke
+          .trading-runner-smoke/bin/python -m pip install . >"$REPORT_DIR/wheel-smoke.txt" 2>&1
+          code=$?
+          if [ "$code" -eq 0 ]; then
+            .trading-runner-smoke/bin/python -m pip install applications/trading_runner/dist/*.whl >>"$REPORT_DIR/wheel-smoke.txt" 2>&1
+            code=$?
+          fi
+          if [ "$code" -eq 0 ]; then
+            .trading-runner-smoke/bin/python -c "import modular_core, modular_trading_runner; print(modular_core.__version__, modular_trading_runner.TradingRunnerConfig.__name__)" >>"$REPORT_DIR/wheel-smoke.txt" 2>&1
+            code=$?
+          fi
+          echo "$code" >"$REPORT_DIR/wheel-smoke.exit"
+          exit 0
+      - name: Collect paper-only source diagnostics
+        run: |
+          set +e
+          python - <<'PY' >"$REPORT_DIR/paper-only.txt" 2>&1
+          from pathlib import Path
+
+          root = Path("applications/trading_runner/src")
+          forbidden = ("LiveExecutionAdapter", "private_api_key", "production_trading")
+          findings = []
+          for path in root.rglob("*.py"):
+              text = path.read_text(encoding="utf-8")
+              for token in forbidden:
+                  if token in text:
+                      findings.append(f"{path}: {token}")
+          if findings:
+              raise SystemExit("forbidden live-execution surface:\n" + "\n".join(findings))
+          print("PASS")
+          PY
+          echo "$?" >"$REPORT_DIR/paper-only.exit"
+          exit 0
+
+      - name: Sanitize and verify evidence privacy
+        id: evidence_privacy
+        if: always()
+        run: python3 scripts/sanitize_ci_evidence.py "$REPORT_DIR"
+
+      - name: Enforce component gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_dir = Path("${{ env.REPORT_DIR }}")
+          failures = []
+          for path in sorted(report_dir.glob("*.exit")):
+              code = path.read_text(encoding="utf-8").strip()
+              if code != "0":
+                  failures.append(f"{path.stem}: exit {code}")
+          privacy_status = report_dir / "privacy-status.json"
+          if not privacy_status.is_file():
+              failures.append("evidence privacy: status missing")
+          else:
+              status = json.loads(privacy_status.read_text(encoding="utf-8"))
+              if status.get("status") != "PASS" or status.get("credential_findings") != 0:
+                  failures.append("evidence privacy: verification failed")
+          if failures:
+              raise SystemExit("Trading Runner component gate failed:\n" + "\n".join(failures))
+          print("Trading Runner component gate passed")
+          PY
+
+      - name: Record Trading Runner evidence identity
+        if: success()
+        env:
+          MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          report_dir = Path(os.environ["REPORT_DIR"])
+          manifest = report_dir / "evidence-identity.json"
+          files = sorted(
+              (path for path in report_dir.rglob("*") if path.is_file() and path != manifest),
+              key=lambda path: path.as_posix(),
+          )
+          if not files:
+              raise SystemExit("Trading Runner evidence set is empty")
+          payload = {
+              "exact_head": os.environ["EXPECTED_HEAD"],
+              "files": [
+                  {
+                      "bytes": len(path.read_bytes()),
+                      "path": path.relative_to(report_dir).as_posix(),
+                      "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                  }
+                  for path in files
+              ],
+              "python_version": os.environ["MATRIX_PYTHON_VERSION"],
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "schema_version": 1,
+          }
+          canonical = (
+              json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              )
+              + "\n"
+          )
+          manifest.write_text(canonical, encoding="utf-8")
+          print(canonical, end="")
+          print(
+              "TRADING_RUNNER_EVIDENCE_SHA256="
+              + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+          )
+          PY
+
+      - name: Publish exact Trading Runner evidence
+        if: success()
+        id: evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: ${{ env.REPORT_DIR }}
+          asset_name: trading-runner-${{ matrix.python-version }}.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Trading Runner publication gate
+        if: success()
+        run: test "${{ steps.evidence_publish.outcome }}" = success
+
+      - name: Upload Trading Runner failure diagnostics
+        if: ${{ (failure() || cancelled()) && steps.evidence_privacy.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: trading-runner-diagnostics-py${{ matrix.python-version }}-${{ env.EXPECTED_HEAD }}
+          path: reports/trading-runner-ci/py${{ matrix.python-version }}
+          if-no-files-found: error

@@ -1,0 +1,91 @@
+{
+  "approvable": false,
+  "asset_type": "canonical-composition-gap",
+  "candidate_id": "strategy-candidate-954bb639db1fc250d14584e1",
+  "canonical": false,
+  "composition": {
+    "composition_name": "FVG-RT Final 15m + Frozen 1H Short + Frozen 4H Short",
+    "composition_version": "0.1.0-gap",
+    "created_by": "strategy-governance-wave2f",
+    "dependency_order": [
+      "fvg_rt_final_15m",
+      "frozen_1h_short",
+      "frozen_4h_short"
+    ],
+    "execution_order": [
+      "fvg_rt_final_15m",
+      "frozen_1h_short",
+      "frozen_4h_short"
+    ],
+    "lookahead_allowed": false,
+    "modules": [
+      {
+        "contract_complete": false,
+        "dependencies": [],
+        "module_id": "fvg_rt_final_15m",
+        "module_version": "missing-contract",
+        "parameters": {},
+        "role": "canonical-strategy-slot",
+        "source_provenance": {
+          "commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+          "path": "research/strategy_factory/src/strategy_factory/catalog_v06.py"
+        },
+        "timeframes": [
+          "15m"
+        ]
+      },
+      {
+        "contract_complete": false,
+        "dependencies": [],
+        "module_id": "frozen_1h_short",
+        "module_version": "missing-contract",
+        "parameters": {},
+        "role": "canonical-strategy-slot",
+        "source_provenance": {
+          "commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+          "path": "reports/strategy-governance-wave2f/contract-gaps.json"
+        },
+        "timeframes": [
+          "1h"
+        ]
+      },
+      {
+        "contract_complete": false,
+        "dependencies": [],
+        "module_id": "frozen_4h_short",
+        "module_version": "missing-contract",
+        "parameters": {},
+        "role": "canonical-strategy-slot",
+        "source_provenance": {
+          "commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+          "path": "reports/strategy-governance-wave2f/contract-gaps.json"
+        },
+        "timeframes": [
+          "4h"
+        ]
+      }
+    ],
+    "schema_version": "strategy-composition-v1",
+    "source_provenance": {
+      "commit_sha": "041ee4466232feab448daa377fb33d7898d50fd9",
+      "paths": [
+        "research/strategy_factory/src/strategy_factory/catalog_v06.py",
+        "research/strategy_audit_validation/compositions/module-contracts-v1.json",
+        "reports/strategy-governance-wave2f/contract-gaps.json"
+      ],
+      "repository": "MishkaStrategy/Module-Strategy"
+    },
+    "state": "INCOMPLETE",
+    "timezone": "UTC",
+    "unfinished_htf_allowed": false
+  },
+  "composition_hash": "954bb639db1fc250d14584e1abfb802ccb482c12840f29812b3f22256c427b04",
+  "executable": false,
+  "missing_contracts": [
+    "frozen_1h_short",
+    "frozen_4h_short",
+    "fvg_rt_final_15m"
+  ],
+  "ordering_status": "placeholder-only-until-runtime-contracts-exist",
+  "schema_version": 1
+}

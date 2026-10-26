@@ -1,0 +1,26 @@
+.dashboard-skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1000;
+  transform: translateY(calc(-100% - 1.5rem));
+  border: 1px solid #7fbfff;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background: #081018;
+  color: #eef6ff;
+  font-weight: 750;
+  text-decoration: none;
+  transition: transform 120ms ease;
+}
+
+.dashboard-skip-link:focus,
+.dashboard-skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-skip-link {
+    transition: none;
+  }
+}

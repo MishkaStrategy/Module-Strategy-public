@@ -1,0 +1,565 @@
+name: physical-mac-acceptance
+
+on:
+  pull_request:
+    branches:
+      - integration/modular-strategy-full-rc
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact accepted Control UI candidate SHA
+        required: true
+        type: string
+      expected_base_sha:
+        description: Exact canonical full-RC merge-base SHA
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: physical-mac-acceptance-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+  cancel-in-progress: false
+
+jobs:
+  physical-historical:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'control-ui/unified-control-plane-foundation')
+    runs-on: [self-hosted, backtester]
+    timeout-minutes: 360
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      EXPECTED_BASE: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+      PHYSICAL_EVIDENCE_DIR: ${{ github.workspace }}/.physical-acceptance/historical
+    steps:
+      - name: Checkout exact accepted candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: backtester
+          python-version: "3.13"
+
+      - name: Audit historical acceptance shell syntax
+        run: bash -n scripts/run_physical_mac_historical_acceptance.sh
+
+      - name: Run physical historical acceptance
+        shell: bash
+        run: bash scripts/run_physical_mac_historical_acceptance.sh
+
+      - name: Publish immutable historical acceptance evidence
+        if: success()
+        id: historical_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: .physical-acceptance/historical
+          asset_name: physical-mac-historical.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce historical evidence publication gate
+        if: success()
+        run: test "${{ steps.historical_evidence_publish.outcome }}" = success
+
+      - name: Upload historical failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: physical-mac-historical-failure-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          path: .physical-acceptance/historical
+          if-no-files-found: warn
+          include-hidden-files: false
+          compression-level: 9
+          retention-days: 1
+
+  control-plane-recovery:
+    needs: physical-historical
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 45
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      EXPECTED_BASE: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+    steps:
+      - name: Checkout exact accepted candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Verify exact candidate geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_BASE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$EXPECTED_BASE" "$EXPECTED_HEAD")" = "$EXPECTED_BASE"
+          test -z "$(git status --porcelain)"
+
+      - name: Install Control Plane acceptance surface
+        run: |
+          uv pip install -e ".[backtest]"
+          uv pip install -e "./modules/market_data_ingestion"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation"
+          uv pip install -e "./research/strategy_factory" --no-deps
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Control Plane compile, lint, type and tests
+        run: |
+          python -m compileall -q applications/control_plane/src applications/control_plane/tests
+          python -m ruff format --check applications/control_plane/src applications/control_plane/tests
+          python -m ruff check applications/control_plane/src applications/control_plane/tests
+          python -m mypy --strict applications/control_plane/src
+          python -m pytest -q applications/control_plane/tests
+          modular-control --help >/dev/null
+          mkdir -p .physical-acceptance/control-plane
+          modular-control-api --check > .physical-acceptance/control-plane/control-plane-check.json
+
+      - name: Enforce PAPER-only Control Plane boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path(".physical-acceptance/control-plane/control-plane-check.json").read_text(encoding="utf-8"))
+          assert value["status"] == "ok"
+          assert value["mode"] == "PAPER"
+          assert value["remote_bind_allowed"] is False
+          assert value["paper_runtime_embedded_only"] is True
+          assert value["system_resources_enabled"] is True
+          root = Path("applications/control_plane/src")
+          forbidden = (
+              "subprocess.", "os.system(", "os.popen(", "pty.spawn(", "shell=True",
+              "shell = True", "private_api_key", "private_exchange_key", "real_order_placement",
+          )
+          findings = []
+          for path in sorted(root.rglob("*.py")):
+              text = path.read_text(encoding="utf-8")
+              findings.extend(f"{path}: {token}" for token in forbidden if token in text)
+          if findings:
+              raise SystemExit("unsafe Control Plane source surface:\n" + "\n".join(findings))
+          PY
+
+      - name: Install and test System Recovery owner layer
+        run: |
+          uv pip install \
+            -e . \
+            -e "./applications/system_recovery[dev]" \
+            -e ./applications/system_acceptance \
+            -e ./applications/trading_runner \
+            -e ./research/experiment_runner \
+            -e ./research/strategy_audit_validation \
+            -e ./research/strategy_factory \
+            -e ./modules/results_aggregator \
+            -e ./modules/market_data_ingestion \
+            -e ./modules/paper_execution
+          uv pip check
+          cd applications/system_recovery
+          python -m compileall -q src tests
+          python -m ruff format --check src tests
+          python -m ruff check src tests
+          python -m mypy --strict src/system_recovery
+          python -m pytest -q tests
+          python -c 'from system_recovery import BackupPackage, RecoveryManifest, SnapshotRequest, SnapshotSpec, create_backup_package, load_backup_manifest, restore_manifest_entries, restore_snapshot_entry, snapshot_entry, verify_snapshot_file; assert BackupPackage and RecoveryManifest and SnapshotRequest and SnapshotSpec and create_backup_package and load_backup_manifest and restore_manifest_entries and restore_snapshot_entry and snapshot_entry and verify_snapshot_file'
+
+      - name: Write sanitized backend acceptance evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .physical-acceptance/control-plane/recovery-boundary.txt <<'TXT'
+          PASS: canonical System Recovery owner-layer tests/import contract.
+          NOT CLAIMED: browser-supplied Backup/Restore filesystem mutations.
+          Owner-backed named recovery profile remains tracked separately in #778.
+          TXT
+          EXPECTED_HEAD="$EXPECTED_HEAD" EXPECTED_BASE="$EXPECTED_BASE" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(".physical-acceptance/control-plane")
+          payload = {
+              "schema_version": 1,
+              "status": "PASS",
+              "candidate_sha": os.environ["EXPECTED_HEAD"],
+              "full_rc_sha": os.environ["EXPECTED_BASE"],
+              "control_plane": True,
+              "system_recovery_owner_layer": True,
+              "browser_backup_restore_claimed": False,
+              "paper_only": True,
+              "live_trading_authorized": False,
+          }
+          (root / "summary.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          text = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for path in root.iterdir() if path.is_file())
+          for marker in (str(Path.home()), "/Users/", os.environ.get("RUNNER_TEMP", ""), os.environ.get("GITHUB_WORKSPACE", "")):
+              if marker and marker in text:
+                  raise SystemExit("private runner path leaked into backend evidence")
+          PY
+
+      - name: Publish immutable backend acceptance evidence
+        if: success()
+        id: backend_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: .physical-acceptance/control-plane
+          asset_name: physical-mac-backend.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce backend evidence publication gate
+        if: success()
+        run: test "${{ steps.backend_evidence_publish.outcome }}" = success
+
+      - name: Upload backend failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: physical-mac-backend-failure-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          path: .physical-acceptance/control-plane
+          if-no-files-found: warn
+          include-hidden-files: false
+          compression-level: 9
+          retention-days: 1
+
+  dashboard-paper:
+    needs: control-plane-recovery
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 35
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      EXPECTED_BASE: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+      MODULAR_CONTROL_PAPER_E2E: "1"
+    steps:
+      - name: Checkout exact accepted candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Verify exact candidate geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$EXPECTED_BASE" "$EXPECTED_HEAD")" = "$EXPECTED_BASE"
+          test -z "$(git status --porcelain)"
+
+      - name: Install Control Plane and PAPER lifecycle owner
+        run: |
+          uv pip install -e ".[backtest]"
+          uv pip install -e "modules/market_data_ingestion[interface]"
+          uv pip install -e "modules/risk_sizing"
+          uv pip install -e "applications/trading_runner"
+          uv pip install -e "applications/control_plane[dev,interface]"
+          uv pip check
+
+      - name: Install pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.12.0"
+
+      - name: Install exact Dashboard dependencies
+        working-directory: web/market-data-console
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Dashboard TypeScript, unit and production build
+        working-directory: web/market-data-console
+        run: |
+          npm run e2e:typecheck
+          npm run typecheck
+          npm test
+          npm run build
+          test -d dist
+
+      - name: PAPER browser fixture quality
+        working-directory: web/market-data-console
+        run: |
+          python -m compileall -q e2e/serve_paper.py
+          ruff check --output-format=concise e2e/serve_paper.py
+          ruff format --check e2e/serve_paper.py
+
+      - name: Generate masked one-time PAPER tokens and loopback ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          reader_token=$(python -c 'import secrets; print("control-reader-" + secrets.token_hex(24))')
+          operator_token=$(python -c 'import secrets; print("control-operator-" + secrets.token_hex(24))')
+          ports=$(python - <<'PY'
+          import socket
+          values = []
+          for _ in range(2):
+              with socket.socket() as current:
+                  current.bind(("127.0.0.1", 0))
+                  values.append(current.getsockname()[1])
+          print(*values)
+          PY
+          )
+          read -r control_port web_port <<< "$ports"
+          test "$control_port" != "$web_port"
+          echo "::add-mask::$reader_token"
+          echo "::add-mask::$operator_token"
+          {
+            echo "MODULAR_CONTROL_E2E_READER_TOKEN=$reader_token"
+            echo "MODULAR_CONTROL_E2E_OPERATOR_TOKEN=$operator_token"
+            echo "MODULAR_CONTROL_PORT=$control_port"
+            echo "MODULAR_CONTROL_E2E_PORT=$control_port"
+            echo "MDI_E2E_WEB_PORT=$web_port"
+            echo "MDI_E2E_BASE_URL=http://127.0.0.1:$web_port"
+          } >> "$GITHUB_ENV"
+
+      - name: Install isolated Chromium
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/physical-paper-playwright
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install chromium
+
+      - name: Run real-loopback PAPER browser flow
+        working-directory: web/market-data-console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/physical-paper-playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/physical-paper-e2e"
+          test ! -e "$root"
+          mkdir -p "$root/logs"
+          python e2e/serve_paper.py \
+            --port "$MODULAR_CONTROL_E2E_PORT" \
+            --reader-token "$MODULAR_CONTROL_E2E_READER_TOKEN" \
+            --operator-token "$MODULAR_CONTROL_E2E_OPERATOR_TOKEN" \
+            > "$root/logs/control.log" 2>&1 &
+          control_pid=$!
+          npm run preview -- --port "$MDI_E2E_WEB_PORT" > "$root/logs/web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" "$control_pid" 2>/dev/null || true
+            wait "$web_pid" "$control_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$control_pid" 2>/dev/null; then
+              exit 1
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              exit 1
+            fi
+            if curl --fail --silent --show-error \
+              --header "Authorization: Bearer $MODULAR_CONTROL_E2E_READER_TOKEN" \
+              "http://127.0.0.1:$MODULAR_CONTROL_E2E_PORT/api/control/v1/components/paper_runtime/health" \
+              >/dev/null \
+              && curl --fail --silent --show-error "$MDI_E2E_BASE_URL/" >/dev/null; then
+              break
+            fi
+            test "$attempt" != 60
+            sleep 1
+          done
+          npx playwright test e2e/paper.spec.ts
+
+      - name: Sanitize PAPER logs and write evidence summary
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          log_root = Path(os.environ["RUNNER_TEMP"]) / "physical-paper-e2e" / "logs"
+          forbidden = (
+              os.environ.get("MODULAR_CONTROL_E2E_READER_TOKEN", ""),
+              os.environ.get("MODULAR_CONTROL_E2E_OPERATOR_TOKEN", ""),
+              "BROWSER-PRIVATE-KILL-SWITCH-REASON",
+              "/Users/private/paper-runtime.json",
+              "BROWSER-PRIVATE-RECOVERY-PAYLOAD",
+              "BROWSER-PRIVATE-ORDER-METADATA",
+              str(Path.home()),
+          )
+          leaked = []
+          if log_root.exists():
+              for path in sorted(log_root.glob("*.log")):
+                  text = path.read_text(encoding="utf-8", errors="replace")
+                  hits = [value for value in forbidden if value and value in text]
+                  if hits:
+                      leaked.append(path.name)
+                      for value in hits:
+                          text = text.replace(value, "***REDACTED***")
+                      path.write_text(text, encoding="utf-8")
+          root = Path(".physical-acceptance/dashboard-paper")
+          root.mkdir(parents=True, exist_ok=True)
+          payload = {
+              "schema_version": 1,
+              "candidate_sha": os.environ["EXPECTED_HEAD"],
+              "full_rc_sha": os.environ["EXPECTED_BASE"],
+              "dashboard_build_attempted": True,
+              "paper_real_loopback_attempted": True,
+              "paper_only": True,
+              "live_trading_authorized": False,
+              "private_canary_or_token_leak": bool(leaked),
+          }
+          (root / "summary.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          if leaked:
+              raise SystemExit("generated credential/private canary leaked into PAPER E2E logs")
+          PY
+
+      - name: Publish immutable Dashboard/PAPER evidence
+        if: success()
+        id: dashboard_paper_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: |
+            .physical-acceptance/dashboard-paper
+            web/market-data-console/test-results
+            ${{ runner.temp }}/physical-paper-e2e/logs
+          asset_name: physical-mac-dashboard-paper.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce Dashboard/PAPER evidence publication gate
+        if: success()
+        run: test "${{ steps.dashboard_paper_evidence_publish.outcome }}" = success
+
+      - name: Upload Dashboard/PAPER failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: physical-mac-dashboard-paper-failure-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          path: |
+            .physical-acceptance/dashboard-paper
+            web/market-data-console/test-results
+            ${{ runner.temp }}/physical-paper-e2e/logs
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 1
+
+  final-summary:
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'control-ui/unified-control-plane-foundation')
+    needs: [physical-historical, control-plane-recovery, dashboard-paper]
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 10
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+      EXPECTED_BASE: ${{ github.event.pull_request.base.sha || inputs.expected_base_sha }}
+      HISTORICAL_RESULT: ${{ needs.physical-historical.result }}
+      BACKEND_RESULT: ${{ needs.control-plane-recovery.result }}
+      DASHBOARD_PAPER_RESULT: ${{ needs.dashboard-paper.result }}
+    steps:
+      - name: Checkout exact accepted candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          show-progress: false
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+
+      - name: Write machine-readable final summary and residual checklist
+        run: |
+          mkdir -p .physical-acceptance/final
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          statuses = {
+              "historical": os.environ["HISTORICAL_RESULT"],
+              "control_plane_recovery": os.environ["BACKEND_RESULT"],
+              "dashboard_paper": os.environ["DASHBOARD_PAPER_RESULT"],
+          }
+          passed = all(value == "success" for value in statuses.values())
+          payload = {
+              "schema_version": 1,
+              "status": "AUTOMATED_ACCEPTANCE_COMPLETE_MANUAL_PENDING" if passed else "AUTOMATED_ACCEPTANCE_FAILED",
+              "candidate_sha": os.environ["EXPECTED_HEAD"],
+              "full_rc_sha": os.environ["EXPECTED_BASE"],
+              "jobs": statuses,
+              "paper_only": True,
+              "live_trading_authorized": False,
+              "final_24h_soak_complete": False,
+              "manual_physical_checklist_required": True,
+          }
+          root = Path(".physical-acceptance/final")
+          (root / "summary.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          (root / "MANUAL_PHYSICAL_CHECKLIST.md").write_text(
+              "# Residual manual physical acceptance\n\n"
+              f"Candidate: `{os.environ['EXPECTED_HEAD']}`\n\n"
+              "Automation covers exact-SHA historical prepare/smoke/restart-replay/full, Control Plane, "
+              "System Recovery owner layer, Dashboard build and real-loopback PAPER browser E2E.\n\n"
+              "- [ ] Visually inspect Dashboard layout/status/error presentation.\n"
+              "- [ ] Compare one representative read-only value between Web and `modular-control`.\n"
+              "- [ ] Exercise authorized PAPER start/stop/restart and invalid/repeated actions.\n"
+              "- [ ] Confirm Positions remain intentionally unprojected without an owner contract.\n"
+              "- [ ] Confirm browser Backup/Restore is not fabricated while #778 remains open.\n"
+              "- [ ] Record an engineering resource session separately from the final 24h soak.\n\n"
+              "This workflow does not authorize live trading, production deployment, or final 24h readiness.\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Enforce automated acceptance result
+        shell: bash
+        run: |
+          test "$HISTORICAL_RESULT" = success
+          test "$BACKEND_RESULT" = success
+          test "$DASHBOARD_PAPER_RESULT" = success
+
+      - name: Publish immutable final acceptance summary
+        if: success()
+        id: final_evidence_publish
+        uses: ./.github/actions/publish-release-evidence
+        with:
+          source_path: .physical-acceptance/final
+          asset_name: physical-mac-final.tar.gz
+          commit_sha: ${{ env.EXPECTED_HEAD }}
+          draft: "true"
+
+      - name: Enforce final evidence publication gate
+        if: success()
+        run: test "${{ steps.final_evidence_publish.outcome }}" = success
+
+      - name: Upload final-summary failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: physical-mac-final-failure-${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          path: .physical-acceptance/final
+          if-no-files-found: warn
+          include-hidden-files: false
+          compression-level: 9
+          retention-days: 1

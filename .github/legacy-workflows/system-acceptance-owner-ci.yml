@@ -1,0 +1,289 @@
+name: system-acceptance-owner-ci
+
+on:
+  pull_request:
+    paths:
+      - "applications/system_acceptance/**"
+      - "applications/trading_runner/**"
+      - "docs/system_acceptance/**"
+      - "modules/risk_request_composer/**"
+      - "modules/risk_sizing/**"
+      - "modules/trade_plan_router/**"
+      - "research/experiment_runner/**"
+      - "research/strategy_audit_validation/**"
+      - "research/strategy_factory/**"
+      - "modules/results_aggregator/**"
+      - "src/modular_core/**"
+      - "pyproject.toml"
+      - ".github/workflows/system-acceptance-owner-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: system-acceptance-owner-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  owner:
+    name: System Acceptance Owner / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact System Acceptance candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: |
+            applications/system_acceptance/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/risk_request_composer/pyproject.toml
+            modules/risk_sizing/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+            modules/results_aggregator/pyproject.toml
+            research/experiment_runner/pyproject.toml
+            research/strategy_audit_validation/pyproject.toml
+            research/strategy_factory/pyproject.toml
+            pyproject.toml
+          cache-suffix: system-acceptance-owner
+
+      - name: Install owner package
+        run: |
+          uv pip install --upgrade pip
+          uv pip install -e ".[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./modules/risk_sizing"
+          uv pip install -e "./research/experiment_runner"
+          uv pip install -e "./modules/results_aggregator"
+          uv pip install -e "./research/strategy_audit_validation"
+          uv pip install -e "./modules/risk_request_composer" --no-deps
+          uv pip install -e "./research/strategy_factory"
+          uv pip install -e "./applications/system_acceptance[dev,package-runtime-owner]"
+          uv pip check
+
+      - name: Compile
+        run: >-
+          python -m compileall -q applications/system_acceptance/src
+          applications/system_acceptance/tests
+          applications/system_acceptance/owner_runtime_tests
+
+      - name: Ruff lint
+        run: >-
+          ruff check applications/system_acceptance/src
+          applications/system_acceptance/tests
+          applications/system_acceptance/owner_runtime_tests
+
+      - name: Ruff format
+        run: >-
+          ruff format --check applications/system_acceptance/src
+          applications/system_acceptance/tests
+          applications/system_acceptance/owner_runtime_tests
+
+      - name: Strict MyPy
+        run: mypy --strict applications/system_acceptance/src
+
+      - name: Owner tests
+        run: |
+          pytest -q --tb=no applications/system_acceptance/tests
+          pytest -q --tb=no applications/system_acceptance/owner_runtime_tests
+
+      - name: Measure owner storage growth and recovery headroom
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/system-acceptance-storage-growth.json"
+          python -m modular_system_acceptance.storage_growth_benchmark \
+            --scales 1,100,1000 \
+            --repeats 3 \
+            > "$output"
+          python - "$output" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload["watermark_status"] != "UNKNOWN_MEASUREMENT_ONLY":
+              raise SystemExit("measurement unexpectedly claimed an accepted watermark")
+          if payload["deletion_authority"] != "NONE":
+              raise SystemExit("measurement unexpectedly granted deletion authority")
+          if payload["scales"] != [1, 100, 1000] or payload["repeats"] != 3:
+              raise SystemExit("measurement did not execute the reviewed deterministic workload")
+          recovery = payload["recovery_smoke"]
+          if recovery["integrity_check"] != "ok" or recovery["terminal_status"] != "CANCELLED":
+              raise SystemExit("recovery measurement did not finish with valid durable state")
+          encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+          if "hostname" in encoded or "path" in encoded:
+              raise SystemExit("sanitized storage measurement contains forbidden topology fields")
+          print(encoded)
+          print(
+              "SYSTEM_ACCEPTANCE_STORAGE_MEASUREMENT "
+              f"final_live_min={payload['final_live_total_bytes']['min']} "
+              f"final_live_max={payload['final_live_total_bytes']['max']} "
+              f"recovery_increment={recovery['measured_recovery_increment_bytes']} "
+              "watermark_status=UNKNOWN_MEASUREMENT_ONLY"
+          )
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### System Acceptance owner storage measurement\n\n")
+              handle.write("- scales: `1, 100, 1000`\n")
+              handle.write("- repeats: `3`\n")
+              handle.write(
+                  f"- final live total bytes: `{payload['final_live_total_bytes']['min']}` .. "
+                  f"`{payload['final_live_total_bytes']['max']}`\n"
+              )
+              handle.write(
+                  "- measured recovery increment bytes: "
+                  f"`{recovery['measured_recovery_increment_bytes']}`\n"
+              )
+              handle.write(
+                  "- measured recovery+terminalization peak increment bytes: "
+                  f"`{recovery['measured_recovery_and_terminalization_peak_increment_bytes']}`\n"
+              )
+              handle.write("- integrity/reopen: `PASS`\n")
+              handle.write("- physical watermark: `UNKNOWN_MEASUREMENT_ONLY`\n")
+              handle.write("- deletion authority: `NONE`\n")
+          PY
+
+      - name: Prove near-boundary transaction rollback and recovery
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/system-acceptance-storage-boundary.json"
+          python -m modular_system_acceptance.storage_boundary_benchmark \
+            --max-attempts 64 \
+            > "$output"
+          python - "$output" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload["watermark_status"] != "UNKNOWN_NEAR_BOUNDARY_PROOF_ONLY":
+              raise SystemExit("boundary proof unexpectedly claimed an accepted watermark")
+          if payload["deletion_authority"] != "NONE":
+              raise SystemExit("boundary proof unexpectedly granted deletion authority")
+          failure = payload["failure"]
+          if failure["code"] != "STORAGE_FAILURE":
+              raise SystemExit("boundary proof did not fail with sanitized STORAGE_FAILURE")
+          if failure["in_progress_mutations_after_failure"] != 0:
+              raise SystemExit("boundary failure left an in-progress mutation")
+          if failure["integrity_check_after_failure"] != "ok":
+              raise SystemExit("boundary failure did not preserve SQLite integrity")
+
+          persisted = failure["failed_request_persisted"]
+          restored = payload["after_capacity_restore"]
+          if persisted:
+              if failure["durable_state"] != "FAILED" or failure["durable_error_code"] != "STORAGE_FAILURE":
+                  raise SystemExit("durable boundary failure did not preserve FAILED/STORAGE_FAILURE")
+              if restored["recovery_mode"] != "NEW_REQUEST_AFTER_DURABLE_FAILURE":
+                  raise SystemExit("durable failure used the wrong recovery identity contract")
+              if restored["same_request_retry_succeeded"] or not restored["durable_failure_replayed"]:
+                  raise SystemExit("durable failed request did not replay idempotently")
+              if restored["failed_request_final_state"] != "FAILED":
+                  raise SystemExit("durable failed request identity was overwritten")
+          else:
+              if failure["durable_state"] is not None or failure["durable_error_code"] is not None:
+                  raise SystemExit("rolled-back boundary request left partial failure metadata")
+              if restored["recovery_mode"] != "SAME_REQUEST_RETRY":
+                  raise SystemExit("rolled-back failure did not reuse its safe request identity")
+              if not restored["same_request_retry_succeeded"] or restored["durable_failure_replayed"]:
+                  raise SystemExit("rolled-back failed request did not recover as expected")
+              if restored["failed_request_final_state"] != "SUCCEEDED":
+                  raise SystemExit("rolled-back failed request did not commit after recovery")
+
+          if not restored["recovery_request_committed_once"]:
+              raise SystemExit("recovery request did not commit exactly once")
+          if restored["terminal_status"] != "CANCELLED" or restored["reopen_status"] != "CANCELLED":
+              raise SystemExit("boundary recovery did not preserve terminal state")
+          if restored["integrity_check"] != "ok" or restored["in_progress_mutations"] != 0:
+              raise SystemExit("boundary recovery did not preserve durable integrity")
+          if restored["recovery_request_final_state"] != "SUCCEEDED":
+              raise SystemExit("boundary recovery request did not finish durably")
+
+          successful = payload["successful_terminal_runs_before_full"]
+          expected_counts = {
+              "runs": successful + 1,
+              "mutations": (successful + 1) * 2 + (1 if persisted else 0),
+              "audit": (successful + 1) * 2 + (2 if persisted else 0),
+          }
+          if restored["row_counts"] != expected_counts:
+              raise SystemExit("boundary proof row accounting changed unexpectedly")
+
+          encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).lower()
+          if "hostname" in encoded or "path" in encoded or "database or disk is full" in encoded:
+              raise SystemExit("boundary proof leaked topology or raw SQLite failure text")
+          print(encoded)
+          print(
+              "SYSTEM_ACCEPTANCE_STORAGE_BOUNDARY_PROOF "
+              f"successful_before_full={successful} "
+              f"failure_mutation={failure['mutation']} "
+              f"failure_persisted={persisted} "
+              f"recovery_mode={restored['recovery_mode']} "
+              "integrity=PASS watermark_status=UNKNOWN_NEAR_BOUNDARY_PROOF_ONLY"
+          )
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("\n### System Acceptance near-boundary storage proof\n\n")
+              handle.write(f"- successful terminal runs before SQLITE_FULL: `{successful}`\n")
+              handle.write(f"- failing mutation: `{failure['mutation']}`\n")
+              handle.write(f"- failed request persisted: `{persisted}`\n")
+              handle.write(f"- recovery mode: `{restored['recovery_mode']}`\n")
+              handle.write("- failure code: `STORAGE_FAILURE`\n")
+              handle.write("- atomic row accounting: `PASS`\n")
+              handle.write("- integrity/reopen: `PASS`\n")
+              handle.write("- physical watermark: `UNKNOWN_NEAR_BOUNDARY_PROOF_ONLY`\n")
+              handle.write("- deletion authority: `NONE`\n")
+          PY
+
+      - name: Build wheel
+        working-directory: applications/system_acceptance
+        run: python -m build
+
+      - name: Base wheel smoke without Factory runtime
+        run: |
+          rm -rf .system-acceptance-base-smoke
+          python -m venv .system-acceptance-base-smoke
+          wheel="$(find applications/system_acceptance/dist -maxdepth 1 -type f -name '*.whl' -print | sort | head -n 1)"
+          test -n "$wheel"
+          .system-acceptance-base-smoke/bin/python -m pip install "$wheel"
+          .system-acceptance-base-smoke/bin/python -c "from pathlib import Path; import importlib.util, sys, modular_system_acceptance; assert Path(modular_system_acceptance.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()); assert importlib.util.find_spec('strategy_factory') is None"
+
+      - name: Optional package runtime owner wheel smoke
+        run: |
+          rm -rf .system-acceptance-smoke
+          python -m venv .system-acceptance-smoke
+          .system-acceptance-smoke/bin/python -m pip install -e ".[dev]"
+          .system-acceptance-smoke/bin/python -m pip install -e "./modules/trade_plan_router"
+          .system-acceptance-smoke/bin/python -m pip install -e "./applications/trading_runner"
+          .system-acceptance-smoke/bin/python -m pip install -e "./modules/risk_sizing"
+          .system-acceptance-smoke/bin/python -m pip install -e "./research/experiment_runner"
+          .system-acceptance-smoke/bin/python -m pip install -e "./modules/results_aggregator"
+          .system-acceptance-smoke/bin/python -m pip install -e "./research/strategy_audit_validation"
+          .system-acceptance-smoke/bin/python -m pip install -e "./modules/risk_request_composer" --no-deps
+          .system-acceptance-smoke/bin/python -m pip install -e "./research/strategy_factory"
+          wheel="$(find applications/system_acceptance/dist -maxdepth 1 -type f -name '*.whl' -print | sort | head -n 1)"
+          test -n "$wheel"
+          .system-acceptance-smoke/bin/python -m pip install "${wheel}[package-runtime-owner]"
+          .system-acceptance-smoke/bin/python -m pip check
+          .system-acceptance-smoke/bin/python -c "from pathlib import Path; import sys, modular_system_acceptance as msa; assert Path(msa.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()); from modular_system_acceptance import SystemAcceptanceDaemon, SystemAcceptanceHttpServer, SystemAcceptanceOwner"
+          .system-acceptance-smoke/bin/python -c "from modular_system_acceptance.package_runtime_owner import PackageRuntimeOwnerAdapter, owner_instrument_version_key"

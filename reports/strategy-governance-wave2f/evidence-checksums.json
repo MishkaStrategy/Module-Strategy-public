@@ -1,0 +1,16 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "reports/strategy-governance-wave2f/baseline-evidence.json": "dd0289c9af854c8c04b50abe514a638a68a241d3ed6e71c9b1731d966b047bdd",
+    "reports/strategy-governance-wave2f/baseline-summary.json": "57414a394c294c8d1e0fce17d626771cb0f59fb8688efc52b476c58237914f79",
+    "reports/strategy-governance-wave2f/contract-gaps.json": "529eb15e8ff09680e347dfa528ee9b0f5df69dec7971240c276936b78be59b33",
+    "reports/strategy-governance-wave2f/handoff-to-stream-a.json": "21ed1a3f80aaee02c58892d9fdf4f17a1721368ec3721b0872b42ae327994e42",
+    "reports/strategy-governance-wave2f/slo-proposal.json": "ad16a7948415e1d93980922fe5e3df1ea6bfa6d178fe0d9d826a7b98edccf8e6",
+    "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.gap.json": "03fb87b8d94f74c318ce559c5d873e8b261c626d536ed59896271845525ca3b5",
+    "research/strategy_audit_validation/compositions/canonical-fvg-rt-final-15m-frozen-1h-4h.v2.json": "7c0538685c16554be119af6951e7623df76917d6a3e3b1779d309bfe744809bb",
+    "research/strategy_audit_validation/compositions/canonical-strategy-v2-candidate-evidence.json": "93586b320e92c3ade8d16a6905ca039b3752ee56f20733e93306eaaf7ae44902",
+    "research/strategy_audit_validation/compositions/module-contracts-v1.json": "93a27f627c6054aa3c44f22a9bbb415a473aaf73f2a8b58b1b60ce438b4e6b3a",
+    "research/strategy_audit_validation/compositions/module-contracts-v2.json": "0a5a934be14effd60a85f552f33e77a359229037b187f08eb97f8a81c15af255"
+  },
+  "schema_version": 2
+}

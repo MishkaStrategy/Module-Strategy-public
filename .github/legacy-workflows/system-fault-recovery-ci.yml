@@ -1,0 +1,205 @@
+name: system-fault-recovery-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "applications/system_acceptance/**"
+      - "applications/risk_supervisor/**"
+      - "applications/observability/**"
+      - "applications/trading_runner/**"
+      - "modules/market_data_ingestion/**"
+      - "modules/paper_execution/**"
+      - "modules/trade_plan_router/**"
+      - "src/signal_bot/**"
+      - "docs/system_acceptance/**"
+      - ".github/workflows/system-fault-recovery-ci.yml"
+  push:
+    branches:
+      - "runtime-safety/**"
+      - "integration/**"
+    paths:
+      - "applications/system_acceptance/**"
+      - "applications/risk_supervisor/**"
+      - "applications/observability/**"
+      - "applications/trading_runner/**"
+      - "modules/market_data_ingestion/**"
+      - "modules/paper_execution/**"
+      - "modules/trade_plan_router/**"
+      - "src/signal_bot/**"
+      - "docs/system_acceptance/**"
+      - ".github/workflows/system-fault-recovery-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: system-fault-recovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deterministic-acceptance:
+    name: System fault/recovery deterministic acceptance
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact fault/recovery candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: "3.13"
+          cache-dependency-glob: |
+            pyproject.toml
+            applications/system_acceptance/pyproject.toml
+            applications/risk_supervisor/pyproject.toml
+            applications/observability/pyproject.toml
+            applications/trading_runner/pyproject.toml
+            modules/market_data_ingestion/pyproject.toml
+            modules/paper_execution/pyproject.toml
+            modules/trade_plan_router/pyproject.toml
+          cache-suffix: system-fault-recovery
+
+      - name: Install accepted owner surfaces
+        run: |
+          set -euo pipefail
+          uv pip install -e ".[dev]"
+          uv pip install -e "./applications/system_acceptance[dev]"
+          uv pip install -e "./modules/trade_plan_router"
+          uv pip install -e "./modules/market_data_ingestion[parquet]"
+          uv pip install -e "./modules/paper_execution"
+          uv pip install -e "./applications/trading_runner"
+          uv pip install -e "./applications/risk_supervisor[dev]"
+          uv pip install -e "./applications/observability[dev]"
+          uv pip check
+
+      - name: Compile validation and injectors
+        run: >-
+          python -m compileall -q
+          applications/system_acceptance/src/modular_system_acceptance/fault_recovery.py
+          applications/system_acceptance/tests/fault_injection_harness.py
+          applications/system_acceptance/tests/test_fault_recovery_matrix.py
+          applications/system_acceptance/tests/test_fault_injection_harness.py
+          applications/system_acceptance/tests/test_owner_backed_fault_recovery.py
+          applications/system_acceptance/tests/test_market_data_fault_recovery.py
+          applications/system_acceptance/tests/test_process_kill_fault_recovery.py
+          applications/system_acceptance/tests/test_signal_bot_fault_recovery.py
+
+      - name: Ruff format
+        run: |
+          ruff format --check \
+            applications/system_acceptance/src/modular_system_acceptance/fault_recovery.py \
+            applications/system_acceptance/tests/fault_injection_harness.py \
+            applications/system_acceptance/tests/test_fault_recovery_matrix.py \
+            applications/system_acceptance/tests/test_fault_injection_harness.py \
+            applications/system_acceptance/tests/test_owner_backed_fault_recovery.py \
+            applications/system_acceptance/tests/test_market_data_fault_recovery.py \
+            applications/system_acceptance/tests/test_process_kill_fault_recovery.py \
+            applications/system_acceptance/tests/test_signal_bot_fault_recovery.py
+
+      - name: Ruff lint
+        run: |
+          ruff check \
+            applications/system_acceptance/src/modular_system_acceptance/fault_recovery.py \
+            applications/system_acceptance/tests/fault_injection_harness.py \
+            applications/system_acceptance/tests/test_fault_recovery_matrix.py \
+            applications/system_acceptance/tests/test_fault_injection_harness.py \
+            applications/system_acceptance/tests/test_owner_backed_fault_recovery.py \
+            applications/system_acceptance/tests/test_market_data_fault_recovery.py \
+            applications/system_acceptance/tests/test_process_kill_fault_recovery.py \
+            applications/system_acceptance/tests/test_signal_bot_fault_recovery.py
+
+      - name: Strict MyPy validation contract
+        run: mypy --strict applications/system_acceptance/src/modular_system_acceptance/fault_recovery.py
+
+      - name: Matrix and primitive injector acceptance
+        run: |
+          pytest -q \
+            applications/system_acceptance/tests/test_fault_recovery_matrix.py \
+            applications/system_acceptance/tests/test_fault_injection_harness.py
+
+      - name: Authoritative owner and observability contract acceptance
+        run: >-
+          pytest -q
+          applications/system_acceptance/tests/test_owner_backed_fault_recovery.py
+
+      - name: Market Data owner resume and PAPER factual equality
+        run: >-
+          pytest -q
+          applications/system_acceptance/tests/test_market_data_fault_recovery.py
+
+      - name: Trading Runner real SIGKILL recovery factual equality
+        run: >-
+          pytest -q
+          applications/system_acceptance/tests/test_process_kill_fault_recovery.py
+
+      - name: Signal Bot real transport failure and owner outbox factual equality
+        run: >-
+          pytest -q
+          applications/system_acceptance/tests/test_signal_bot_fault_recovery.py
+
+      - name: Existing System Acceptance storage recovery proof
+        run: pytest -q applications/system_acceptance/tests/test_storage_pressure.py
+
+      - name: Existing Risk Supervisor PAPER recovery proof
+        run: pytest -q applications/risk_supervisor/tests/test_paper_system_e2e.py
+
+      - name: Report exact-head deterministic coverage and residual risk
+        run: |
+          python - <<'PY'
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          from modular_system_acceptance.fault_recovery import (
+              load_fault_recovery_matrix,
+              load_residual_risk_register,
+          )
+
+          matrix = load_fault_recovery_matrix(
+              Path("applications/system_acceptance/fault_recovery_matrix.v1.json")
+          )
+          register = load_residual_risk_register(
+              Path("applications/system_acceptance/fault_recovery_residual_risks.v1.json")
+          )
+          matrix_ids = {item.scenario_id for item in matrix.scenarios}
+          register_ids = {item.scenario_id for item in register.entries}
+          if matrix_ids != register_ids:
+              raise SystemExit("matrix/residual register coverage mismatch")
+          counts = Counter(item.verification_status.value for item in register.entries)
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as handle:
+              handle.write("### Deterministic fault/recovery acceptance\n\n")
+              handle.write(f"- exact head: `{os.environ['EXPECTED_HEAD']}`\n")
+              handle.write(f"- matrix schema: `{matrix.schema_version}`\n")
+              handle.write(f"- scenarios: `{len(matrix.scenarios)}`\n")
+              handle.write(
+                  f"- owner-backed fast: `{counts['owner_backed_fast']}`\n"
+              )
+              handle.write(
+                  f"- composed-contract fast: `{counts['composed_contract_fast']}`\n"
+              )
+              handle.write(
+                  "- residual / not fully reproduced: "
+                  f"`{counts['residual_not_fully_reproduced']}`\n"
+              )
+              handle.write("- synthetic recovery evidence: `NOT EMITTED`\n")
+              handle.write("- final physical 2h/24h soak: `NOT RUN / OUT OF SCOPE`\n")
+          PY

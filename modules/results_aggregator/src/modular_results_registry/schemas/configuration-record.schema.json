@@ -1,0 +1,48 @@
+{
+  "$id": "urn:modular-results-registry:configuration-record:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonical_configuration": {"type": "object"},
+    "configuration_hash": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "configuration_id": {"minLength": 3, "type": "string"},
+    "cost_settings": {"type": "object"},
+    "creation_source": {"minLength": 1, "type": "string"},
+    "execution_assumptions": {"type": "object"},
+    "funding_settings": {"type": "object"},
+    "parent_configuration_id": {
+      "oneOf": [
+        {"minLength": 3, "type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "producer_configuration_hash": {
+      "oneOf": [
+        {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "risk_settings": {"type": "object"},
+    "schema_version": {"minLength": 1, "type": "string"},
+    "stage": {"minLength": 1, "type": "string"},
+    "status": {"minLength": 1, "type": "string"},
+    "strategy_id": {"minLength": 3, "type": "string"}
+  },
+  "required": [
+    "configuration_id",
+    "strategy_id",
+    "schema_version",
+    "canonical_configuration",
+    "configuration_hash",
+    "stage",
+    "execution_assumptions",
+    "risk_settings",
+    "cost_settings",
+    "funding_settings",
+    "creation_source",
+    "parent_configuration_id",
+    "status",
+    "producer_configuration_hash"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,23 @@
+{
+  "causality_reason": "market_regime.incomplete_bar",
+  "continuous": {
+    "checkpoint_bytes": 3436,
+    "feature_count": 14808,
+    "output_digest": "fc08876a5c57158ccbb3efbcff6d3a681abdab06aa8be34ea503993a83be9012",
+    "publications": 4936,
+    "state_digest": "7d4fd3045e89c5bffd558be023ea0297bf7a393b2149741f294203c60f764cae"
+  },
+  "core_registry": "pass",
+  "distribution_version": "1.2.0",
+  "entry_point": "pass",
+  "events": 5000,
+  "module_version": "1.2.0",
+  "restart_at": 2500,
+  "restarted": {
+    "checkpoint_bytes": 3436,
+    "feature_count": 14808,
+    "output_digest": "fc08876a5c57158ccbb3efbcff6d3a681abdab06aa8be34ea503993a83be9012",
+    "publications": 4936,
+    "state_digest": "7d4fd3045e89c5bffd558be023ea0297bf7a393b2149741f294203c60f764cae"
+  }
+}

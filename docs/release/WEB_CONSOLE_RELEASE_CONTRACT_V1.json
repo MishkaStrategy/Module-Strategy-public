@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "contract_sha256": "1ea9dedac6c6ca0aeefc083d2374fd7002cd34c17781db9184d0fe73387c457f",
+  "disposition": "pending",
+  "manifest": {
+    "schema_version": 2,
+    "manifest_sha256": {
+      "status": "pending",
+      "value": null
+    },
+    "candidate_id": {
+      "status": "pending",
+      "value": null
+    },
+    "profile_id": {
+      "status": "pending",
+      "value": null
+    },
+    "source_commit": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "toolchain": {
+    "node_version": {
+      "status": "pending",
+      "value": null
+    },
+    "npm_version": {
+      "status": "pending",
+      "value": null
+    },
+    "provisioning_material": {
+      "status": "pending",
+      "value": null
+    },
+    "registry_policy": {
+      "status": "pending",
+      "value": null
+    },
+    "install_script_policy": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "npm_lock": {
+    "relation": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "linux_build": {
+    "target_os": "linux",
+    "architecture": {
+      "status": "pending",
+      "value": null
+    },
+    "image": {
+      "status": "pending",
+      "value": null
+    },
+    "recipe": {
+      "status": "pending",
+      "value": null
+    },
+    "source_inputs": {
+      "status": "pending",
+      "value": null
+    },
+    "reconstruction_receipt": {
+      "status": "pending",
+      "value": null
+    },
+    "artifact": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "linux_serving": {
+    "mode": {
+      "status": "pending",
+      "value": null
+    },
+    "runtime": {
+      "status": "pending",
+      "value": null
+    },
+    "configuration": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "linux_deployment": {
+    "context": {
+      "status": "pending",
+      "value": null
+    },
+    "evidence": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "darwin_acceptance": {
+    "target_os": "darwin",
+    "context": {
+      "status": "pending",
+      "value": null
+    },
+    "browser_contexts": {
+      "status": "pending",
+      "value": null
+    },
+    "artifact_use": {
+      "status": "pending",
+      "value": null
+    },
+    "evidence": {
+      "status": "pending",
+      "value": null
+    }
+  },
+  "blockers": [
+    "darwin_acceptance.artifact_use",
+    "darwin_acceptance.browser_contexts",
+    "darwin_acceptance.context",
+    "darwin_acceptance.evidence",
+    "linux_build.architecture",
+    "linux_build.artifact",
+    "linux_build.image",
+    "linux_build.recipe",
+    "linux_build.reconstruction_receipt",
+    "linux_build.source_inputs",
+    "linux_deployment.context",
+    "linux_deployment.evidence",
+    "linux_serving.configuration",
+    "linux_serving.mode",
+    "linux_serving.runtime",
+    "manifest.candidate_id",
+    "manifest.manifest_sha256",
+    "manifest.profile_id",
+    "manifest.source_commit",
+    "npm_lock.relation",
+    "toolchain.install_script_policy",
+    "toolchain.node_version",
+    "toolchain.npm_version",
+    "toolchain.provisioning_material",
+    "toolchain.registry_policy"
+  ]
+}

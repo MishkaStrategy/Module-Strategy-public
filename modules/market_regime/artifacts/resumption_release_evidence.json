@@ -1,0 +1,62 @@
+{
+  "benchmark": {
+    "events": 50000,
+    "maximum_checkpoint_bytes": 3511,
+    "median_throughput": 10235.638480001035,
+    "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+    "runs": 3,
+    "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668"
+  },
+  "completeness_rounds": 3,
+  "component": "market_regime",
+  "component_version": "1.2.0",
+  "core_version": "0.4.0",
+  "coverage_gate_percent": 90,
+  "coverage_percent": 93,
+  "error_discovery_defects_fixed": 7,
+  "evidence_sha256": {
+    "resumption_round23_standard.json": "852571e32c50120ff828976f0a5b9f941e2e545ea9878c231459cf2ac9eee832",
+    "resumption_round24_extended_continuous.json": "693f94c10d68e8e5465dad15d8c622a645550690b3389e5bc83f6b82bb2db593",
+    "resumption_round24_extended_restart.json": "c7a75e96093bc0dd763f6eba0664a24792a04ceaee228108afb21196cf77dc7e",
+    "resumption_round27_detect_secrets.json": "ff33b9b8db3ddd32a9c6b8313a4e6f1ed2e25f533ceb194f8225ad2403bd37c2",
+    "resumption_round27_sbom.json": "1f7c2cfdec1ee15201c1a0ee7a9d4bd04b1a42d9bc1971bb874c3eeb90fd4b69",
+    "resumption_round29_installed_lifecycle.json": "415c6e54b86005cc005cc68273fd4d2fdc59e7dd28b613619ef29091aa0505b6",
+    "resumption_round30_benchmark.json": "8c703efe562a27063145a3b9994f5b3583d117c05184789d780ed8be45c3b770",
+    "resumption_round30_memory.json": "d651de304fe7faaa609dab3b1e023902ba97c46df040678a283e446c2d8fd673",
+    "resumption_round30_restart.json": "7bffcbaadd905917d467c414106a74706cafd397deff586fa6e01c0a330ac01e"
+  },
+  "expected_test_count_after_round_30": 151,
+  "hardening_rounds": 30,
+  "intermediate_audits": 15,
+  "memory": {
+    "events": 50000,
+    "maximum_checkpoint_bytes": 3511,
+    "peak_traced_bytes": 59495
+  },
+  "module_api_major": 1,
+  "open_external_gates": [
+    "python_3_12_self_hosted_ci",
+    "full_remote_repository_suite",
+    "fresh_github_actions_evidence",
+    "actual_custom_self_hosted_runner_labels_not_exposed_by_connector"
+  ],
+  "pre_round_30_head": "2161731",
+  "python_local": "3.13.5",
+  "quality_gates": {
+    "bandit": "pass",
+    "compileall": "pass",
+    "detect_secrets": "one_reviewed_unverified_fixture_fingerprint",
+    "pip_audit": "not_run_dns_unavailable",
+    "ruff_format": "pass",
+    "ruff_lint": "pass",
+    "strict_mypy": "pass"
+  },
+  "restart": {
+    "events": 50000,
+    "output_digest": "fc9731fb0a0e1c634a1c9e3128bf193f24bd43a1c2ce2040a3d330278589748b",
+    "restart_at": 25000,
+    "restore_seconds": 0.0003708170002028055,
+    "state_digest": "5dc1eb8b622662df88f5c8708181ef3adbca7401db9f2a7e263aa49f6f00d668"
+  },
+  "schema_version": 1
+}

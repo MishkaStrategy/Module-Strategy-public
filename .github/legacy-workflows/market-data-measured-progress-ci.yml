@@ -1,0 +1,152 @@
+name: market-data-measured-progress-ci
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/market-data-measured-progress-ci.yml"
+      - "docs/integration/MARKET_DATA_MEASURED_PROGRESS.md"
+      - "modules/market_data_ingestion/src/market_data_ingestion/progress.py"
+      - "modules/market_data_ingestion/src/market_data_application/backfill_application.py"
+      - "modules/market_data_ingestion/tests/test_measured_progress.py"
+  push:
+    branches:
+      - "interface/market-data-measured-progress"
+    paths:
+      - ".github/workflows/market-data-measured-progress-ci.yml"
+      - "docs/integration/MARKET_DATA_MEASURED_PROGRESS.md"
+      - "modules/market_data_ingestion/src/market_data_ingestion/progress.py"
+      - "modules/market_data_ingestion/src/market_data_application/backfill_application.py"
+      - "modules/market_data_ingestion/tests/test_measured_progress.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-data-measured-progress-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  measured-progress:
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: modules/market_data_ingestion
+    steps:
+      - name: Checkout exact measured-progress candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          show-progress: false
+          clean: true
+      - name: Verify exact measured-progress candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+      - name: Install focused gates
+        run: uv pip install -e ".[dev,interface]"
+      - name: Compile measured progress slice
+        run: |
+          python -m compileall -q \
+            src/market_data_ingestion/progress.py \
+            src/market_data_application/backfill_application.py \
+            tests/test_measured_progress.py
+      - name: Ruff focused lint
+        run: |
+          ruff check --output-format=concise \
+            src/market_data_ingestion/progress.py \
+            src/market_data_application/backfill_application.py \
+            tests/test_measured_progress.py
+      - name: Ruff focused format
+        run: |
+          ruff format --check \
+            src/market_data_ingestion/progress.py \
+            src/market_data_application/backfill_application.py \
+            tests/test_measured_progress.py
+      - name: Strict MyPy packages
+        run: mypy src/market_data_ingestion src/market_data_application
+      - name: Enforce exact feature boundary
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.ref == 'interface/market-data-measured-progress'
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import subprocess
+
+          allowed = {
+              ".github/workflows/market-data-measured-progress-ci.yml",
+              "docs/integration/MARKET_DATA_MEASURED_PROGRESS.md",
+              "modules/market_data_ingestion/src/market_data_ingestion/progress.py",
+              "modules/market_data_ingestion/src/market_data_application/backfill_application.py",
+              "modules/market_data_ingestion/tests/test_measured_progress.py",
+          }
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{os.environ['BASE_SHA']}...HEAD"],
+                  text=True,
+              ).splitlines()
+          )
+          if changed != allowed:
+              raise SystemExit(
+                  f"measured progress boundary mismatch: expected {sorted(allowed)}, got {sorted(changed)}"
+              )
+          PY
+      - name: Reject public progress source-location leakage
+        run: |
+          python - <<'PY'
+          from dataclasses import fields
+
+          from market_data_ingestion.progress import IngestionProgressSnapshot
+
+          forbidden = {
+              "api_key",
+              "expected_uri",
+              "private_key",
+              "raw_payload",
+              "secret",
+              "source_uri",
+              "token",
+          }
+          public_fields = {item.name for item in fields(IngestionProgressSnapshot)}
+          leaked = sorted(public_fields & forbidden)
+          if leaked:
+              raise SystemExit(f"forbidden public progress fields: {leaked}")
+          PY
+      - name: Run measured progress and application regression
+        env:
+          PYTHONWARNINGS: error::ResourceWarning
+          PYTHONUNBUFFERED: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          pytest -o addopts="" -vv -x -ra \
+            --timeout=90 --timeout-method=thread \
+            tests/test_measured_progress.py \
+            tests/test_application_*.py 2>&1 \
+            | tee reports/measured-progress-${{ matrix.python-version }}.log
+      - name: Upload measured-progress failure diagnostics
+        if: ${{ failure() || cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: market-data-measured-progress-${{ matrix.python-version }}-${{ github.sha }}
+          path: modules/market_data_ingestion/reports/measured-progress-*.log
+          if-no-files-found: warn

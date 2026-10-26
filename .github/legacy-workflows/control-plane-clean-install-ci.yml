@@ -1,0 +1,220 @@
+name: control-plane-clean-install-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "applications/control_plane/**"
+      - ".github/workflows/control-plane-clean-install-ci.yml"
+  push:
+    branches:
+      - "control-ui/**"
+      - "integration/**"
+    paths:
+      - "applications/control_plane/**"
+      - ".github/workflows/control-plane-clean-install-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-clean-install-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-install:
+    name: Clean Control Plane wheel / Python ${{ matrix.python-version }}
+    runs-on: [self-hosted, fast]
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONHASHSEED: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Verify exact clean-install candidate
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - uses: ./.github/actions/python-runner-preflight
+        with:
+          role: fast
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-glob: applications/control_plane/pyproject.toml
+          cache-suffix: control-plane-clean-install
+
+      - name: Build wheel without owner packages
+        run: |
+          uv pip install --upgrade pip setuptools wheel build
+          rm -rf applications/control_plane/dist applications/control_plane/build
+          python -m build --wheel applications/control_plane
+
+      - name: Create isolated wheel environment
+        shell: bash
+        run: |
+          clean_venv="$RUNNER_TEMP/control-plane-clean-${{ matrix.python-version }}-${{ github.run_id }}"
+          rm -rf "$clean_venv"
+          python -m venv "$clean_venv"
+          echo "CLEAN_VENV=$clean_venv" >> "$GITHUB_ENV"
+
+      - name: Install wheel server extra in clean environment
+        shell: bash
+        run: |
+          wheel="$(find "$GITHUB_WORKSPACE/applications/control_plane/dist" -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          wheel_uri="$("$CLEAN_VENV/bin/python" -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).resolve().as_uri())' "$wheel")"
+          "$CLEAN_VENV/bin/python" -m pip install --upgrade pip
+          "$CLEAN_VENV/bin/python" -m pip install "modular-control-plane[interface] @ ${wheel_uri}"
+          "$CLEAN_VENV/bin/python" -m pip check
+
+      - name: Prove lightweight base import in clean environment
+        shell: bash
+        run: |
+          "$CLEAN_VENV/bin/python" - <<'PY'
+          import sys
+          import modular_control_plane
+
+          forbidden = (
+              "fastapi",
+              "market_data_application",
+              "market_data_ingestion",
+              "modular_backtest",
+              "modular_research_runner",
+              "modular_results_registry",
+              "modular_trading_runner",
+              "paper_execution",
+              "psutil",
+              "signal_bot",
+              "strategy_audit_validation",
+              "strategy_factory",
+              "uvicorn",
+          )
+          loaded = sorted(
+              name
+              for name in sys.modules
+              if any(name == prefix or name.startswith(prefix + ".") for prefix in forbidden)
+          )
+          if loaded:
+              raise SystemExit("heavy imports leaked into clean base boundary: " + ", ".join(loaded))
+          print(modular_control_plane.ControlPlaneService.__name__)
+          print(modular_control_plane.SystemResourcesControlService.__name__)
+          PY
+
+      - name: Prove default server composition and System Resources in clean environment
+        shell: bash
+        run: |
+          "$CLEAN_VENV/bin/python" - <<'PY'
+          import sys
+
+          from fastapi.testclient import TestClient
+          from modular_control_plane.server import ServerSettings, create_server
+
+          app = create_server(ServerSettings())
+          if not app.routes:
+              raise SystemExit("default Control Plane server has no routes")
+
+          forbidden_owner_prefixes = (
+              "market_data_application",
+              "market_data_ingestion",
+              "modular_backtest",
+              "modular_research_runner",
+              "modular_results_registry",
+              "modular_trading_runner",
+              "paper_execution",
+              "signal_bot",
+              "strategy_audit_validation",
+              "strategy_factory",
+          )
+          leaked = sorted(
+              name
+              for name in sys.modules
+              if any(
+                  name == prefix or name.startswith(prefix + ".")
+                  for prefix in forbidden_owner_prefixes
+              )
+          )
+          if leaked:
+              raise SystemExit("optional owner imports leaked into default server: " + ", ".join(leaked))
+
+          response = TestClient(app).get("/api/control/v1/system/resources")
+          if response.status_code != 200:
+              raise SystemExit(f"System Resources smoke returned HTTP {response.status_code}")
+          if response.headers.get("cache-control") != "no-store":
+              raise SystemExit("successful Control API response is cacheable")
+          payload = response.json()
+          expected_keys = {
+              "schema_version",
+              "collected_at",
+              "cpu_percent",
+              "logical_cpu_count",
+              "memory",
+              "disk",
+              "uptime_seconds",
+              "process_count",
+              "control_process_rss_bytes",
+              "control_process_threads",
+          }
+          if set(payload) != expected_keys:
+              raise SystemExit(f"unexpected System Resources keys: {sorted(payload)}")
+          forbidden_keys = {
+              "hostname",
+              "username",
+              "environment",
+              "cwd",
+              "cmdline",
+              "processes",
+              "network",
+              "interfaces",
+              "path",
+          }
+          if forbidden_keys & set(payload):
+              raise SystemExit("privacy-expanded System Resources payload")
+          print(len(app.routes), payload["schema_version"])
+          PY
+
+      - name: Prove absent Backtest owner fails lazily and actionably
+        shell: bash
+        run: |
+          "$CLEAN_VENV/bin/python" - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+
+          from modular_control_plane.adapters.backtest import ManagedBacktestRunner
+          from modular_control_plane.backtest import BacktestRunnerError
+
+          with TemporaryDirectory() as directory:
+              root = Path(directory)
+              config_root = root / "configs"
+              output_root = root / "results"
+              config_root.mkdir()
+              output_root.mkdir()
+              (config_root / "case.yaml").write_text("{}\n", encoding="utf-8")
+              runner = ManagedBacktestRunner(config_root, output_root)
+              try:
+                  runner.run("case")
+              except BacktestRunnerError as exc:
+                  if exc.code != "BACKTEST_DEPENDENCY_UNAVAILABLE":
+                      raise SystemExit(f"unexpected Backtest dependency error code: {exc.code}") from exc
+                  if exc.action != "Install the Backtest owner package before enabling or retrying Backtest Control.":
+                      raise SystemExit("Backtest dependency failure is not actionable") from exc
+                  if exc.details != {"error_type": "DependencyUnavailable"}:
+                      raise SystemExit("Backtest dependency failure leaked unstable technical details") from exc
+              else:
+                  raise SystemExit("Backtest unexpectedly executed without its owner package")
+          PY
+
+      - name: Prove clean installed entrypoints
+        shell: bash
+        run: |
+          "$CLEAN_VENV/bin/modular-control" --help >/dev/null
+          "$CLEAN_VENV/bin/modular-control-api" --check | "$CLEAN_VENV/bin/python" -c 'import json, sys; value=json.load(sys.stdin); assert value["status"] == "ok"; assert value["mode"] == "PAPER"; assert value["remote_bind_allowed"] is False; assert value["system_resources_enabled"] is True'
