@@ -13,12 +13,18 @@ server-side recovery backup-target binding.
 
 Local software verification during preparation covered 91 Recovery API tests,
 343 effective-configuration tests and 129 Web Console tests. The Web Console
-build passed. All 26 Python distributions were constructed offline; Risk Sizing
-requires the existing staging recipe recorded in the inactive
-`.github/legacy-workflows/risk-sizing-ci.yml`. Its direct standalone descriptor
-still references monorepo source and is not independently buildable from its
-unmodified sdist. These checks do not establish clean installation, Python 3.13
-compatibility, six target locks, Linux/Darwin acceptance or release readiness.
+build passed. All 26 Python distributions were constructed offline. Risk Sizing
+owns its runtime files and retains its original Core dependency range; Core
+excludes that subtree from its wheel. The source tree uses an internal relative
+link to the single canonical implementation, while the risk sdist contains
+regular source files and builds independently outside the monorepo.
+
+The selected 26-wheel Python 3.12 profile was installed offline in an isolated
+environment. All 20 module entrypoints loaded, dependency checks passed, and
+there were no overlapping installed paths or console scripts. Removing and
+reinstalling Risk Sizing and reinstalling Core preserved the intended ownership.
+These checks do not establish six resolved release locks, Python 3.13
+compatibility, Linux/Darwin acceptance or release readiness.
 
 Historical source revisions in registries describe source provenance. They are
 not proof that the bytes in this new Git root were executed. Old acceptance

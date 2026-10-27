@@ -13,13 +13,14 @@
 
 - Freeze the selected local tree and record its exact identity.
 - Check package metadata, wheel/sdist contents, runtime data, lock profiles, and the Web Console build inputs.
+- The checked 26-wheel Python 3.12 profile now installs offline with no file or console-script ownership overlap. Risk Sizing retains its own implementation and original Core dependency range. This is software evidence; six release locks and platform qualification remain open.
 - Run local synthetic software checks within snapshot preparation; repeat affected checks when source changes. No CI or workflow is currently authorized.
 
 ## 3. Resolve product ownership before operational behavior
 
-- **#933:** build the selected single portfolio/accounting owner on Core-owned SQLite, including identity, capital/risk, order/position/terminal/reconciliation and migration adapters. Local implementation may proceed; actual execution remains disabled until authoritative inputs and operator settings are supplied.
-- **#395:** bind per-instance Lifecycle to Core SQLite generations and an atomic fence across every Paper mutation. Resolve owner-authenticated identity, durable migration, and recovery/reconciliation sources before implementing admission or resume.
-- **#396:** implement the selected deterministic allocator only after #933/#395 authorities exist: priority then stable `instanceID`; independent positions; all-or-reject; worst-case reservation before dispatch; retain reservation until authoritative terminal result or reconciled recovery.
+- **#933:** build the selected single portfolio/accounting owner on Core-owned SQLite, with keyed instances, one aggregate transaction/version, complete snapshots and explicit capital/risk/order/position/terminal/reconciliation inputs. Unconfigured startup must later accept a value-bound, idempotent opening-capital command and cold reopen from persisted state. Current singleton development is a foundation; multi-instance ownership remains required.
+- **#395:** bind per-instance Lifecycle to Core SQLite generations and an atomic fence across every Paper mutation. Resolve owner-authenticated identity, durable migration, and recovery/reconciliation sources before activating admission or resume. Local implementations and synthetic providers may be tested while actual sources remain unavailable.
+- **#396:** implement deterministic allocation using explicit supplied policy: priority then stable `instanceID`; independent positions; all-or-reject; worst-case reservation before dispatch; retain reservation until authoritative terminal result or reconciled recovery. Missing real #933/#395 authorities blocks activation, not local implementation and synthetic proof.
 
 ## 4. Preserve research STOP and finish release prerequisites
 

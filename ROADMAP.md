@@ -17,9 +17,16 @@ The strategy product compares three neutral families—`breakout_return`, `fvg_r
 
 ## Ordered roadmap
 
+The local source checkpoint now has a compatibility-preserving packaging fix:
+all 26 wheels install offline on the checked Python 3.12 environment, and their
+runtime files and console scripts have no ownership collisions. This closes
+the construction/ownership defect; target locks and platform acceptance remain
+open. The #933 development branches are still under review and have not been
+accepted as a complete multi-instance owner.
+
 1. **Finish the local snapshot.** Select and review source content, keep the original private repository unchanged, and retain Actions disabled. A new-root copy is a new source identity.
 2. **Re-establish software evidence.** Validate all 26 distributions, Web Console build inputs, package data, schemas, examples, and lock profiles. Run local synthetic software checks against the selected source during preparation and repeat affected checks after source changes. CI and owner-data execution require their separate gates. Existing CI, grants, and receipts do not qualify a new root history.
-3. **Resolve product owner inputs.** Build the selected #933 canonical accounting owner on the approved Core-owned SQLite design, with explicit adapters for identity, capital/risk, order/position/terminal/reconciliation and migration. Keep operational adapters disabled until real authority and configuration are supplied. Integrate #395 generation and mutation fences and #396 shared-pool allocation with that single owner.
+3. **Build the canonical multi-instance PAPER owner.** Build #933 on the approved Core-owned SQLite design, with explicit adapters for identity, capital/risk, order/position/terminal/reconciliation and migration. Support unconfigured startup and a later value-bound, idempotent opening-capital command; reopen from the persisted owner state. Keep operational adapters disabled until real authority and configuration are supplied. Integrate #395 generation and mutation fences and #396 shared-pool allocation with that single owner. Local implementation and synthetic tests may proceed while operational inputs are unavailable.
 4. **Keep research admission closed.** #1190 CP-10 STOP remains in force. #250 is planning-only; any successor must be approved before a separate bounded run and fresh one-shot authorization.
 5. **Complete system and release acceptance.** Close recovery, observability, independent risk supervision, drift, security, and exact-candidate qualification; deploy on Linux and complete mandatory Darwin acceptance. No release claim before all required evidence is bound to the final snapshot.
 
