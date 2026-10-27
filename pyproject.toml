@@ -49,6 +49,10 @@ frozen_1h_short = "strategy_modules.fvg_rt:Frozen1hShortModule"
 frozen_4h_short = "strategy_modules.fvg_rt:Frozen4hShortModule"
 liquidity_sweep = "strategy_modules.liquidity_sweep:LiquiditySweepModule"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["strategy_modules.risk_sizing", "strategy_modules.risk_sizing.*"]
+
 [tool.setuptools.package-data]
 modular_core = ["py.typed"]
 modular_backtest = ["py.typed"]

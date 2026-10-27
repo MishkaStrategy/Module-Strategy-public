@@ -1,11 +1,19 @@
 # Modular Strategy Risk Sizing 1.2.0
 
-Independent Module API v1 plugin implementing fixed-fractional risk budgets, Decimal position sizing, instrument rounding, notional/leverage limits, portfolio risk gates and typed projected-position enforcement for changes to an already-open position.
+Independent Module API v1 plugin and sole runtime owner of `strategy_modules.risk_sizing`, implementing fixed-fractional risk budgets, Decimal position sizing, instrument rounding, notional/leverage limits, portfolio risk gates and typed projected-position enforcement for changes to an already-open position.
 
 ## Install
 
+Install the reviewed Core wheel first; this distribution owns the risk runtime package and the `risk_sizing` plugin entrypoint. Core package discovery deliberately excludes `strategy_modules.risk_sizing`, so uninstalling Core does not own or remove these files.
+
+For a release wheelhouse, install the exact reviewed Core artifact by its recorded hash, then install this distribution wheel.
+
+The supported source-install path is: install the reviewed Core wheel, then install the local source package without dependency replacement and verify the environment.
+
 ```bash
-python -m pip install ./modules/risk_sizing
+python -m pip install ./modular_strategy_core-0.4.2-py3-none-any.whl
+python -m pip install --no-deps ./modules/risk_sizing
+python -m pip check
 ```
 
 ## Plugin

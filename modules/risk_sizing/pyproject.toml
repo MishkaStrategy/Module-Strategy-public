@@ -22,10 +22,10 @@ dev = [
 risk_sizing = "strategy_modules.risk_sizing:RiskSizingModule"
 
 [tool.setuptools]
-package-dir = {"" = "../../src"}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["../../src"]
+where = ["src"]
 include = ["strategy_modules.risk_sizing*"]
 
 [tool.setuptools.package-data]

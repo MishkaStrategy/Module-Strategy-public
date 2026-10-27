@@ -219,10 +219,16 @@ The module uses only public Core contracts and does not add strategy-specific lo
 
 PS-CCR-001 is implemented inside Risk Sizing rather than Core. Closure still requires the Position Scaling producer to publish the typed top-level block while retaining metadata compatibility, plus cross-module tests for full, partial and rejected approvals, derivative `contract_size`, `max_positions`, restart identity and factual post-fill reconciliation.
 
-## Installation
+## Installation and package ownership
+
+`modular-strategy-risk-sizing` is the sole distribution owner of the `strategy_modules.risk_sizing` runtime package and the `risk_sizing` entrypoint. Core discovery excludes only this package subtree; the public risk imports and module version remain supplied by this distribution.
+
+For release wheelhouses, use the reviewed Core artifact and this risk distribution. For the supported source-install path, first install the exact reviewed Core wheel, then install risk from the source tree without dependency replacement and check the environment:
 
 ```bash
-python -m pip install ./modules/risk_sizing
+python -m pip install ./modular_strategy_core-0.4.2-py3-none-any.whl
+python -m pip install --no-deps ./modules/risk_sizing
+python -m pip check
 ```
 
 ```yaml
